@@ -1,0 +1,170 @@
+services:
+  db:
+    image: postgres:18
+    restart: always
+    environment:
+      POSTGRES_USER: $POSTGRES_USER
+      POSTGRES_PASSWORD: $POSTGRES_PASSWORD
+      POSTGRES_DB: $POSTGRES_DB
+      TZ: Asia/Baku
+    networks:
+      - tabler_net
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.5.2
+    restart: always
+    command: start-dev --import-realm
+    volumes:
+      - ./tabler-realm.json:/opt/keycloak/data/import/tabler-realm.json
+      - ./bootstrap-kc.sh:/tmp/scripts/bootstrap-kc.sh
+    networks:
+      - tabler_net
+    ports:
+      - "8080:8080"
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: $KC_BOOTSTRAP_ADMIN_USERNAME
+      KC_BOOTSTRAP_ADMIN_PASSWORD: $KC_BOOTSTRAP_ADMIN_PASSWORD
+      KC_DB: $KC_DB
+      KC_DB_SCHEMA: $KC_DB_SCHEMA
+      KC_DB_URL: $KC_DB_URL
+      KC_DB_USERNAME: $KC_DB_USERNAME
+      KC_DB_PASSWORD: $KC_DB_PASSWORD
+      KC_HEALTH_ENABLED: $KC_HEALTH_ENABLED
+      TZ: Asia/Baku
+    depends_on:
+      - db
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  pgadmin:
+    image: dpage/pgadmin4:9.11
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: $PGADMIN_DEFAULT_EMAIL
+      PGADMIN_DEFAULT_PASSWORD: $PGADMIN_DEFAULT_PASSWORD
+      TZ: Asia/Baku
+    networks:
+      - tabler_net
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      - db
+
+  valkey:
+    image: valkey/valkey:9
+    restart: always
+    networks:
+      - tabler_net
+    ports:
+      - "6379:6379"
+    volumes:
+      - valkey_data:/data
+
+  seaweedfs:
+    image: chrislusf/seaweedfs:4.12
+    restart: always
+    command: mini -dir=/data -ip.bind=0.0.0.0 -s3 -admin.user=$SEAWEED_ADMIN_USERNAME -admin.password=$SEAWEED_ADMIN_PASSWORD
+    environment:
+      AWS_ACCESS_KEY_ID: $SW_AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY: $SW_AWS_SECRET_ACCESS_KEY
+      SEAWEED_ADMIN_USERNAME: $SEAWEED_ADMIN_USERNAME
+      SEAWEED_ADMIN_PASSWORD: $SEAWEED_ADMIN_PASSWORD
+      SEAWEED_BUCKET_NAME: $SEAWEED_BUCKET_NAME
+      TZ: Asia/Baku
+    networks:
+      - tabler_net
+    ports:
+      - "9333:9333"
+      - "8888:8888"
+      - "8333:8333"
+      - "8181:8181"
+      - "7333:7333"
+      - "23646:23646"
+      - "9340:9340"
+    volumes:
+      - seaweedfs_data:/data
+
+  auth-ms:
+    build:
+      context: ../
+      dockerfile: auth-gateway/Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      KEYCLOAK_URL: $AUTH_KEYCLOAK_URL
+      KEYCLOAK_REALM: $AUTH_KEYCLOAK_REALM
+      KEYCLOAK_CLIENT_ID: $AUTH_KEYCLOAK_CLIENT_ID
+      KEYCLOAK_CLIENT_SECRET: $AUTH_KEYCLOAK_CLIENT_SECRET
+      KEYCLOAK_CONNECT_TIMEOUT: $AUTH_KEYCLOAK_CONNECT_TIMEOUT
+      KEYCLOAK_READ_TIMEOUT: $AUTH_KEYCLOAK_READ_TIMEOUT
+      SERVER_PORT: $AUTH_SERVER_PORT
+      TZ: Asia/Baku
+    networks:
+      - tabler_net
+
+  cloud-gateway:
+    build:
+      context: ../
+      dockerfile: cloud-gateway/Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      REDIS_HOST: $GW_REDIS_HOST
+      REDIS_PORT: $GW_REDIS_PORT
+      KEYCLOAK_ISSUER_URI: $GW_KEYCLOAK_ISSUER_URI
+      KEYCLOAK_AUDIENCE: $GW_KEYCLOAK_AUDIENCE
+      KEYCLOAK_CLIENT_ID: $GW_KEYCLOAK_CLIENT_ID
+      AUTH_MANAGEMENT_URL: $GW_AUTH_MANAGEMENT_URL
+      EXAMPLE_MANAGEMENT_URL: $GW_EXAMPLE_MANAGEMENT_URL
+      DOCUMENT_MANAGEMENT_URL: $GW_DOCUMENT_MANAGEMENT_URL
+      TZ: Asia/Baku
+    networks:
+      - tabler_net
+    ports:
+      - 8001:8001
+
+  document-ms:
+    build:
+      context: ../
+      dockerfile: document/Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      S3_BUCKET: $DOC_S3_BUCKET
+      S3_REGION: $DOC_S3_REGION
+      S3_ENDPOINT: $DOC_S3_ENDPOINT
+      S3_PATH_STYLE_ACCESS: $DOC_S3_PATH_STYLE_ACCESS
+      S3_PRESIGNED_URL_EXPIRATION: $DOC_S3_PRESIGNED_URL_EXPIRATION
+      AWS_ACCESS_KEY_ID: $DOC_AWS_ACCESS_KEY_ID
+      AWS_SECRET_ACCESS_KEY: $DOC_AWS_SECRET_ACCESS_KEY
+      SERVER_PORT: $DOC_SERVER_PORT
+      TZ: Asia/Baku
+    networks:
+      - tabler_net
+
+networks:
+  tabler_net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  pgadmin_data:
+  valkey_data:
+  seaweedfs_data:

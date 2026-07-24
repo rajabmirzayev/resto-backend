@@ -1,0 +1,32 @@
+description = 'common-exception-handling'
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot'
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework:spring-context'
+    implementation 'org.springframework:spring-web'
+    implementation 'org.springframework.cloud:spring-cloud-starter-openfeign:4.1.0'
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
+    implementation 'org.projectlombok:lombok'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'jakarta.validation:jakarta.validation-api'
+
+    compileOnly 'jakarta.servlet:jakarta.servlet-api'
+
+    annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
+    annotationProcessor 'org.projectlombok:lombok'
+
+}
+
+dependencyManagement {
+    imports {
+        mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
+    }
+}
+
+jar {
+    archiveBaseName.set('common-exception-handling')
+    archiveVersion.set(project.version)
+    enabled = true
+}

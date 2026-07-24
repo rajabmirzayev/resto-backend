@@ -1,0 +1,54 @@
+spring:
+  application:
+    name: cloud-gateway
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+  codec:
+    max-in-memory-size: 50MB
+  cloud:
+    gateway:
+      server:
+        webflux:
+          httpclient:
+            connect-timeout: 5000
+            response-timeout: 30s
+          routes:
+            - id: auth-management
+              uri: ${GW_AUTH_MANAGEMENT_URL:http://localhost:8002}
+              predicates:
+                - Path=/api/auth-ms/**
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    redis-rate-limiter.replenishRate: 10
+                    redis-rate-limiter.burstCapacity: 20
+                    redis-rate-limiter.requestedTokens: 1
+                    key-resolver: "#{@userKeyResolver}"
+          default-filters:
+            - PreserveHostHeader
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 10
+                redis-rate-limiter.burstCapacity: 20
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@userKeyResolver}"
+            - name: RequestSize
+              args:
+                maxSize: 10485760
+
+security:
+  oauth2:
+    issuer-uri: ${KC_ISSUER_URI:http://localhost:8080/realms/tabler}
+    audience: ${KC_AUDIENCE:}
+    client-id: ${KC_CLIENT_ID:tabler-gateway}
+
+server:
+  port: 8001
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,gateway

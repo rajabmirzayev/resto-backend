@@ -1,0 +1,24 @@
+plugins {
+    id 'org.springframework.boot'
+}
+
+description = 'auth-gateway'
+
+dependencies {
+    implementation project(':common-exception-handling')
+    implementation project(':common-security')
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
+    implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:${springdocVersion}"
+
+    annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.security:spring-security-test'
+}
+
+bootJar {
+    archiveFileName = "app.jar"
+}

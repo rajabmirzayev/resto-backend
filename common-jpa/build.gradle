@@ -1,0 +1,16 @@
+description = 'common-jpa'
+
+dependencies {
+    implementation project(':common-security')
+
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+
+    compileOnly 'org.projectlombok:lombok:1.18.42'
+    annotationProcessor 'org.projectlombok:lombok:1.18.42'
+}
+
+jar {
+    archiveBaseName.set('common-jpa')
+    archiveVersion.set(project.version)
+    enabled = true
+}

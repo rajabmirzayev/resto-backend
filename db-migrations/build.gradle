@@ -1,0 +1,21 @@
+plugins {
+    id 'org.springframework.boot'
+}
+
+description = 'db-migrations'
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-liquibase'
+
+    runtimeOnly 'org.postgresql:postgresql'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.testcontainers:postgresql'
+    testImplementation 'org.testcontainers:junit-jupiter'
+}
+
+bootJar {
+    archiveBaseName.set('db-migrations')
+    archiveVersion.set(project.version)
+}
+

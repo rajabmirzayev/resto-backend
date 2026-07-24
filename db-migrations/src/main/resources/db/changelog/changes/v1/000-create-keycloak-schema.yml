@@ -1,0 +1,9 @@
+databaseChangeLog:
+  - changeSet:
+      id: 000-create-keycloak-schema
+      author: rajabmirzayev
+      changes:
+        - sql:
+            sql: CREATE SCHEMA IF NOT EXISTS keycloak
+        - sql:
+            sql: GRANT ALL PRIVILEGES ON SCHEMA keycloak TO postgres

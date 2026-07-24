@@ -1,0 +1,36 @@
+common:
+  error:
+    service-key: AUTH
+
+spring:
+  application:
+    name: auth-gateway
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${keycloak.server-url}/realms/${keycloak.realm}
+          jwk-set-uri: ${keycloak.server-url}/realms/${keycloak.realm}/protocol/openid-connect/certs
+
+keycloak:
+  server-url: ${KC_URL:http://localhost:8080}
+  realm: ${KC_REALM:book}
+  client-id: ${KC_CLIENT_ID:book-auth}
+  client-secret: ${KC_CLIENT_SECRET:test}
+  token-uri: ${keycloak.server-url}/realms/${keycloak.realm}/protocol/openid-connect/token
+  logout-uri: ${keycloak.server-url}/realms/${keycloak.realm}/protocol/openid-connect/logout
+  connect-timeout-ms: ${KC_CONNECT_TIMEOUT:5000}
+  read-timeout-ms: ${KC_READ_TIMEOUT:10000}
+
+auth:
+  super-admin-role: SUPER_ADMIN
+
+server:
+  port: ${AUTH_SERVER_PORT:8002}
+  servlet:
+    context-path: /api/auth-ms
+
+logging:
+  level:
+    az.birim.auth: DEBUG

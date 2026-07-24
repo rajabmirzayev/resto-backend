@@ -1,0 +1,18 @@
+description = 'common-security'
+
+dependencies {
+    implementation project(':common-exception-handling')
+
+    implementation 'org.springframework.boot:spring-boot'
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
+
+    annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
+}
+
+jar {
+    archiveBaseName.set('common-security')
+    archiveVersion.set(project.version)
+    enabled = true
+}

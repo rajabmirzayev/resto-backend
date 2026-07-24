@@ -1,0 +1,20 @@
+plugins {
+    id 'org.springframework.boot'
+}
+
+description = 'cloud-gateway'
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-webflux'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+    implementation 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
+    implementation 'org.springframework.cloud:spring-cloud-starter-gateway-server-webflux'
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis-reactive'
+
+    annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
+}
+
+bootJar {
+    archiveFileName = "app.jar"
+}

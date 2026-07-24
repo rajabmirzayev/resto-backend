@@ -1,0 +1,21 @@
+pluginManagement {
+    plugins {
+        id 'org.springframework.boot' version "${springBootVersion}"
+    }
+    repositories {
+        gradlePluginPortal()
+        mavenCentral()
+        maven { url 'https://repo.spring.io/milestone' }
+        maven { url 'https://repo.spring.io/release' }
+        maven { url 'https://repo.spring.io/snapshot' }
+    }
+}
+
+rootProject.name = 'tabler'
+
+include 'common-exception-handling'
+include 'cloud-gateway'
+include 'common-security'
+include 'common-jpa'
+include 'db-migrations'
+include 'auth-gateway'
