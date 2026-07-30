@@ -88,6 +88,7 @@ public class RoleService {
             throw RoleErrorCode.ROLE_IS_SYSTEM.forbidden();
         }
 
+        // TODO: user-service hazir olanda bu rola aid userlerin roleId-ni null set et (cascade set-null)
         role.softDelete(null);
         roleRepository.save(role);
         log.info("Role soft-deleted: {}", id);
