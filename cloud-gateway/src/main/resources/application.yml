@@ -42,6 +42,10 @@ spring:
               uri: ${GW_MENU_URL:http://localhost:8105}
               predicates:
                 - Path=/api/menu-ms/**
+            - id: table-management
+              uri: ${GW_TABLE_URL:http://localhost:8106}
+              predicates:
+                - Path=/api/table-ms/**
           default-filters:
             - PreserveHostHeader
             - name: RequestRateLimiter

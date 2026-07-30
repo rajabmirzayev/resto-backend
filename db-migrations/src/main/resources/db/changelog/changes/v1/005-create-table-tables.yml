@@ -1,0 +1,155 @@
+databaseChangeLog:
+  - changeSet:
+      id: 005-create-table-tables
+      author: rajabmirzayev
+      changes:
+        # ==================== sections ====================
+        - createTable:
+            tableName: sections
+            remarks: Table sections
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  constraints:
+                    nullable: false
+                    primaryKey: true
+                    primaryKeyName: pk_sections
+              - column:
+                  name: created_by
+                  type: UUID
+              - column:
+                  name: created_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_by
+                  type: UUID
+              - column:
+                  name: updated_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: false
+              - column:
+                  name: is_deleted
+                  type: BOOLEAN
+                  defaultValueBoolean: false
+                  constraints:
+                    nullable: false
+              - column:
+                  name: deleted_at
+                  type: TIMESTAMP WITH TIME ZONE
+              - column:
+                  name: deleted_by
+                  type: UUID
+              - column:
+                  name: name
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: org_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+        - createIndex:
+            tableName: sections
+            indexName: idx_section_org
+            where: is_deleted = false
+            columns:
+              - column:
+                  name: org_id
+
+        # ==================== restaurant_tables ====================
+        - createTable:
+            tableName: restaurant_tables
+            remarks: Restaurant tables
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  constraints:
+                    nullable: false
+                    primaryKey: true
+                    primaryKeyName: pk_restaurant_tables
+              - column:
+                  name: created_by
+                  type: UUID
+              - column:
+                  name: created_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_by
+                  type: UUID
+              - column:
+                  name: updated_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: false
+              - column:
+                  name: is_deleted
+                  type: BOOLEAN
+                  defaultValueBoolean: false
+                  constraints:
+                    nullable: false
+              - column:
+                  name: deleted_at
+                  type: TIMESTAMP WITH TIME ZONE
+              - column:
+                  name: deleted_by
+                  type: UUID
+              - column:
+                  name: table_number
+                  type: INTEGER
+                  constraints:
+                    nullable: false
+              - column:
+                  name: capacity
+                  type: INTEGER
+                  constraints:
+                    nullable: false
+              - column:
+                  name: status
+                  type: VARCHAR(20)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: section_id
+                  type: UUID
+              - column:
+                  name: current_order_id
+                  type: UUID
+              - column:
+                  name: reservation
+                  type: JSONB
+              - column:
+                  name: org_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+        - createIndex:
+            tableName: restaurant_tables
+            indexName: idx_table_org
+            where: is_deleted = false
+            columns:
+              - column:
+                  name: org_id
+        - createIndex:
+            tableName: restaurant_tables
+            indexName: idx_table_section
+            where: is_deleted = false
+            columns:
+              - column:
+                  name: section_id
+        - createIndex:
+            tableName: restaurant_tables
+            indexName: idx_table_status
+            where: is_deleted = false
+            columns:
+              - column:
+                  name: org_id
+              - column:
+                  name: status

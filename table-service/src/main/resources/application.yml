@@ -1,0 +1,34 @@
+common:
+  error:
+    service-key: TABLE_MS
+
+spring:
+  application:
+    name: table-service
+
+  datasource:
+    url: ${TABLE_DB_URL:jdbc:postgresql://localhost:5432/tabler_table}
+    username: ${TABLE_DB_USERNAME:postgres}
+    password: ${TABLE_DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: ${JPA_DDL_AUTO:validate}
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  messages:
+    basename: messages
+
+server:
+  port: ${TABLE_SERVER_PORT:8106}
+  servlet:
+    context-path: /api/table-ms
+
+logging:
+  level:
+    az.codlab.table: DEBUG

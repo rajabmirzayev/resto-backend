@@ -9,3 +9,5 @@ databaseChangeLog:
       file: db/changelog/changes/v1/003-create-users-table.yml
   - include:
       file: db/changelog/changes/v1/004-create-menu-tables.yml
+  - include:
+      file: db/changelog/changes/v1/005-create-table-tables.yml
