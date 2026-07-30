@@ -7,3 +7,5 @@ databaseChangeLog:
       file: db/changelog/changes/v1/002-create-roles-table.yml
   - include:
       file: db/changelog/changes/v1/003-create-users-table.yml
+  - include:
+      file: db/changelog/changes/v1/004-create-menu-tables.yml

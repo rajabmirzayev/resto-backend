@@ -1,0 +1,34 @@
+common:
+  error:
+    service-key: MENU_MS
+
+spring:
+  application:
+    name: menu-service
+
+  datasource:
+    url: ${MENU_DB_URL:jdbc:postgresql://localhost:5432/tabler_menu}
+    username: ${MENU_DB_USERNAME:postgres}
+    password: ${MENU_DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: ${JPA_DDL_AUTO:validate}
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  messages:
+    basename: messages
+
+server:
+  port: ${MENU_SERVER_PORT:8105}
+  servlet:
+    context-path: /api/menu-ms
+
+logging:
+  level:
+    az.codlab.menu: DEBUG
