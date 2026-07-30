@@ -1,0 +1,69 @@
+databaseChangeLog:
+  - changeSet:
+      id: 006-create-setting-tables
+      author: rajabmirzayev
+      changes:
+        # ==================== org_settings ====================
+        - createTable:
+            tableName: org_settings
+            remarks: Organization settings
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  constraints:
+                    nullable: false
+                    primaryKey: true
+                    primaryKeyName: pk_org_settings
+              - column:
+                  name: created_by
+                  type: UUID
+              - column:
+                  name: created_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_by
+                  type: UUID
+              - column:
+                  name: updated_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: false
+              - column:
+                  name: org_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+              - column:
+                  name: order_mode
+                  type: VARCHAR(30)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: customer_photo_required
+                  type: BOOLEAN
+                  defaultValueBoolean: false
+                  constraints:
+                    nullable: false
+              - column:
+                  name: payment_timing
+                  type: VARCHAR(10)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: customer_theme
+                  type: VARCHAR(20)
+                  constraints:
+                    nullable: false
+        - addUniqueConstraint:
+            tableName: org_settings
+            columnNames: org_id
+            constraintName: uq_org_settings_org_id
+        - createIndex:
+            tableName: org_settings
+            indexName: idx_org_settings_org
+            columns:
+              - column:
+                  name: org_id

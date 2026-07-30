@@ -30,6 +30,10 @@ spring:
                     redis-rate-limiter.burstCapacity: 20
                     redis-rate-limiter.requestedTokens: 1
                     key-resolver: "#{@userKeyResolver}"
+            - id: setting-management
+              uri: ${GW_SETTING_URL:http://localhost:8111}
+              predicates:
+                - Path=/api/setting-ms/**
             - id: role-management
               uri: ${GW_ROLE_URL:http://localhost:8104}
               predicates:

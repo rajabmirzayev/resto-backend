@@ -1,0 +1,34 @@
+common:
+  error:
+    service-key: SETTING_MS
+
+spring:
+  application:
+    name: setting-service
+
+  datasource:
+    url: ${SETTING_DB_URL:jdbc:postgresql://localhost:5432/tabler_setting}
+    username: ${SETTING_DB_USERNAME:postgres}
+    password: ${SETTING_DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: ${JPA_DDL_AUTO:validate}
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  messages:
+    basename: messages
+
+server:
+  port: ${SETTING_SERVER_PORT:8111}
+  servlet:
+    context-path: /api/setting-ms
+
+logging:
+  level:
+    az.codlab.setting: DEBUG
