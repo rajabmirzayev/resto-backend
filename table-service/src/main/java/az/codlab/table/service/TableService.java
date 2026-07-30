@@ -159,6 +159,7 @@ public class TableService {
             table.setSectionId(request.getSectionId());
         }
         if (request.getStatus() != null) {
+            // TODO: invalid status-dan qaynaqlanan IllegalArgumentException-i handle et (400 qaytar)
             table.setStatus(TableStatus.valueOf(request.getStatus().toUpperCase()));
         }
 
@@ -186,6 +187,8 @@ public class TableService {
         var table = restaurantTableRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(TableErrorCode.TABLE_NOT_FOUND::notFound);
         table.setStatus(TableStatus.valueOf(request.getStatus().toUpperCase()));
+        // TODO: order-service hazir olanda status OCCUPIED olarsa currentOrderId set et,
+        //       AVAILABLE/CLEANING olarsa currentOrderId-ni null et
         table = restaurantTableRepository.save(table);
         log.info("Table {} status changed to {}", id, request.getStatus());
         return tableMapper.toDto(table);
