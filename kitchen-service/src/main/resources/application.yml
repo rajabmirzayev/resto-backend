@@ -1,0 +1,19 @@
+common:
+  error:
+    service-key: KITCHEN_MS
+
+spring:
+  application:
+    name: kitchen-service
+
+  messages:
+    basename: messages
+
+server:
+  port: ${KITCHEN_SERVER_PORT:8108}
+  servlet:
+    context-path: /api/kitchen-ms
+
+logging:
+  level:
+    az.codlab.kitchen: DEBUG
