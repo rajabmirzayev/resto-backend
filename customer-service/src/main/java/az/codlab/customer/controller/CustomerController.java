@@ -1,0 +1,68 @@
+package az.codlab.customer.controller;
+
+import az.codlab.common.exception.handling.dto.ApiResponse;
+import az.codlab.customer.dto.BillRequest;
+import az.codlab.customer.dto.CustomerMenuResponse;
+import az.codlab.customer.dto.CustomerOrderRequest;
+import az.codlab.customer.dto.CustomerOrderResponse;
+import az.codlab.customer.dto.CustomerTableResponse;
+import az.codlab.customer.service.CustomerService;
+
+import java.util.List;
+import java.util.UUID;
+
+import jakarta.validation.Valid;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping("/v1")
+public class CustomerController {
+
+    private final CustomerService customerService;
+
+    public CustomerController(CustomerService customerService) {
+        this.customerService = customerService;
+    }
+
+    @GetMapping("/{orgId}/menu")
+    public ResponseEntity<ApiResponse<CustomerMenuResponse>> getMenu(@PathVariable UUID orgId) {
+        return ResponseEntity.ok(ApiResponse.success(customerService.getMenu(orgId)));
+    }
+
+    @GetMapping("/{orgId}/tables")
+    public ResponseEntity<ApiResponse<List<CustomerTableResponse>>> getTables(
+            @PathVariable UUID orgId) {
+        return ResponseEntity.ok(ApiResponse.success(customerService.getAvailableTables(orgId)));
+    }
+
+    @PostMapping("/orders")
+    public ResponseEntity<ApiResponse<CustomerOrderResponse>> createOrder(
+            @Valid @RequestBody CustomerOrderRequest request) {
+        var order = customerService.createOrder(request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success(order, "Order placed"));
+    }
+
+    @GetMapping("/orders/{orderId}")
+    public ResponseEntity<ApiResponse<CustomerOrderResponse>> getOrder(
+            @PathVariable UUID orderId) {
+        return ResponseEntity.ok(ApiResponse.success(customerService.getOrder(orderId)));
+    }
+
+    @PostMapping("/orders/{orderId}/request-bill")
+    public ResponseEntity<ApiResponse<Void>> requestBill(
+            @PathVariable UUID orderId,
+            @Valid @RequestBody BillRequest request) {
+        customerService.requestBill(orderId, request.getMethod());
+        return ResponseEntity.ok(ApiResponse.success(null, "Bill requested"));
+    }
+
+}

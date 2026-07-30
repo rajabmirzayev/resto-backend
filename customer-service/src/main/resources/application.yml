@@ -1,0 +1,19 @@
+common:
+  error:
+    service-key: CUSTOMER_MS
+
+spring:
+  application:
+    name: customer-service
+
+  messages:
+    basename: messages
+
+server:
+  port: ${CUSTOMER_SERVER_PORT:8110}
+  servlet:
+    context-path: /api/customer-ms
+
+logging:
+  level:
+    az.codlab.customer: DEBUG
