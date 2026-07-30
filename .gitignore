@@ -39,3 +39,6 @@ out/
 script/.env
 script/tabler-realm.json
 script/bootstrap-kc.sh
+
+api-specification.md
+tabler-entities.md
