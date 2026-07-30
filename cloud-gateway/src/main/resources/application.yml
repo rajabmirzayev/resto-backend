@@ -30,6 +30,10 @@ spring:
                     redis-rate-limiter.burstCapacity: 20
                     redis-rate-limiter.requestedTokens: 1
                     key-resolver: "#{@userKeyResolver}"
+            - id: role-management
+              uri: ${GW_ROLE_URL:http://localhost:8104}
+              predicates:
+                - Path=/api/role-ms/**
           default-filters:
             - PreserveHostHeader
             - name: RequestRateLimiter

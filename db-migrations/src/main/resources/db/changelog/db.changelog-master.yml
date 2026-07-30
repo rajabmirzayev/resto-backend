@@ -3,3 +3,5 @@ databaseChangeLog:
       file: db/changelog/changes/v1/000-create-keycloak-schema.yml
   - include:
       file: db/changelog/changes/v1/001-create-organization-tables.yml
+  - include:
+      file: db/changelog/changes/v1/002-create-roles-table.yml

@@ -1,0 +1,34 @@
+common:
+  error:
+    service-key: ROLE_MS
+
+spring:
+  application:
+    name: role-service
+
+  datasource:
+    url: ${ROLE_DB_URL:jdbc:postgresql://localhost:5432/tabler_role}
+    username: ${ROLE_DB_USERNAME:postgres}
+    password: ${ROLE_DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: ${JPA_DDL_AUTO:validate}
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  messages:
+    basename: messages
+
+server:
+  port: ${ROLE_SERVER_PORT:8104}
+  servlet:
+    context-path: /api/role-ms
+
+logging:
+  level:
+    az.codlab.role: DEBUG
