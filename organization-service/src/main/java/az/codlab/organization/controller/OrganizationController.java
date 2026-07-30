@@ -1,0 +1,63 @@
+package az.codlab.organization.controller;
+
+import az.codlab.common.exception.handling.dto.ApiResponse;
+import az.codlab.organization.dto.CreateOrganizationRequest;
+import az.codlab.organization.dto.CreateOrganizationResponse;
+import az.codlab.organization.dto.OrganizationDto;
+import az.codlab.organization.dto.QrCodeResponse;
+import az.codlab.organization.service.OrganizationCreationOrchestrator;
+import az.codlab.organization.service.OrganizationService;
+import jakarta.validation.Valid;
+
+import java.util.List;
+import java.util.UUID;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping("/v1/organizations")
+public class OrganizationController {
+
+    private final OrganizationService organizationService;
+    private final OrganizationCreationOrchestrator creationOrchestrator;
+
+    public OrganizationController(OrganizationService organizationService,
+                                  OrganizationCreationOrchestrator creationOrchestrator) {
+        this.organizationService = organizationService;
+        this.creationOrchestrator = creationOrchestrator;
+    }
+
+    @GetMapping
+    public ResponseEntity<ApiResponse<List<OrganizationDto>>> getAllOrganizations() {
+        var organizations = organizationService.getAllOrganizations();
+        return ResponseEntity.ok(ApiResponse.success(organizations));
+    }
+
+    @PostMapping
+    public ResponseEntity<ApiResponse<CreateOrganizationResponse>> createOrganization(
+            @Valid @RequestBody CreateOrganizationRequest request) {
+        var response = creationOrchestrator.createOrganization(request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success(response, "Organization created"));
+    }
+
+    @GetMapping("/{orgId}")
+    public ResponseEntity<ApiResponse<OrganizationDto>> getOrganization(@PathVariable UUID orgId) {
+        var organization = organizationService.getOrganizationById(orgId);
+        return ResponseEntity.ok(ApiResponse.success(organization));
+    }
+
+    @GetMapping("/{orgId}/qr-code")
+    public ResponseEntity<ApiResponse<QrCodeResponse>> getQrCode(@PathVariable UUID orgId) {
+        var qrCode = organizationService.getQrCode(orgId);
+        return ResponseEntity.ok(ApiResponse.success(qrCode));
+    }
+
+}

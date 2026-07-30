@@ -1,0 +1,34 @@
+common:
+  error:
+    service-key: ORG
+
+spring:
+  application:
+    name: organization-service
+
+  datasource:
+    url: ${ORG_DB_URL:jdbc:postgresql://localhost:5432/tabler_organization}
+    username: ${ORG_DB_USERNAME:postgres}
+    password: ${ORG_DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: ${JPA_DDL_AUTO:validate}
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  messages:
+    basename: messages
+
+server:
+  port: ${ORG_SERVER_PORT:8102}
+  servlet:
+    context-path: /api/organization-ms
+
+logging:
+  level:
+    az.codlab.organization: DEBUG

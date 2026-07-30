@@ -19,6 +19,10 @@ spring:
               uri: ${GW_AUTH_MANAGEMENT_URL:http://localhost:8002}
               predicates:
                 - Path=/api/auth-ms/**
+            - id: organization-management
+              uri: ${GW_ORGANIZATION_URL:http://localhost:8102}
+              predicates:
+                - Path=/api/organization-ms/**
               filters:
                 - name: RequestRateLimiter
                   args:
