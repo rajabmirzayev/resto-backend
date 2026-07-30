@@ -1,0 +1,15 @@
+common:
+  error:
+    service-key: DASHBOARD_MS
+spring:
+  application:
+    name: dashboard-service
+  messages:
+    basename: messages
+server:
+  port: ${DASHBOARD_SERVER_PORT:8112}
+  servlet:
+    context-path: /api/dashboard-ms
+logging:
+  level:
+    az.codlab.dashboard: DEBUG

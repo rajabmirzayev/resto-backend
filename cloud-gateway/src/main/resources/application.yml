@@ -30,6 +30,14 @@ spring:
                     redis-rate-limiter.burstCapacity: 20
                     redis-rate-limiter.requestedTokens: 1
                     key-resolver: "#{@userKeyResolver}"
+            - id: dashboard-management
+              uri: ${GW_DASHBOARD_URL:http://localhost:8112}
+              predicates:
+                - Path=/api/dashboard-ms/**
+            - id: report-management
+              uri: ${GW_REPORT_URL:http://localhost:8113}
+              predicates:
+                - Path=/api/report-ms/**
             - id: customer-management
               uri: ${GW_CUSTOMER_URL:http://localhost:8110}
               predicates:

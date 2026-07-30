@@ -1,0 +1,15 @@
+common:
+  error:
+    service-key: REPORT_MS
+spring:
+  application:
+    name: report-service
+  messages:
+    basename: messages
+server:
+  port: ${REPORT_SERVER_PORT:8113}
+  servlet:
+    context-path: /api/report-ms
+logging:
+  level:
+    az.codlab.report: DEBUG
