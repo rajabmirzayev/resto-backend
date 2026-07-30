@@ -1,0 +1,26 @@
+package az.codlab.user.repository;
+
+import az.codlab.user.entity.User;
+import az.codlab.user.entity.UserRole;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+@Repository
+public interface UserRepository extends JpaRepository<User, UUID> {
+
+    List<User> findAllByDeletedFalseOrderByCreatedAtDesc();
+
+    Optional<User> findByIdAndDeletedFalse(UUID id);
+
+    List<User> findAllByOrgIdAndDeletedFalse(UUID orgId);
+
+    List<User> findAllByOrgIdAndRoleAndDeletedFalse(UUID orgId, UserRole role);
+
+    boolean existsByUsernameAndDeletedFalse(String username);
+
+}

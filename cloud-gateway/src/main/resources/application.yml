@@ -34,6 +34,10 @@ spring:
               uri: ${GW_ROLE_URL:http://localhost:8104}
               predicates:
                 - Path=/api/role-ms/**
+            - id: user-management
+              uri: ${GW_USER_URL:http://localhost:8103}
+              predicates:
+                - Path=/api/user-ms/**
           default-filters:
             - PreserveHostHeader
             - name: RequestRateLimiter

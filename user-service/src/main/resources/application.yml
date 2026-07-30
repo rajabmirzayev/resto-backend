@@ -1,0 +1,34 @@
+common:
+  error:
+    service-key: USER_MS
+
+spring:
+  application:
+    name: user-service
+
+  datasource:
+    url: ${USER_DB_URL:jdbc:postgresql://localhost:5432/tabler_user}
+    username: ${USER_DB_USERNAME:postgres}
+    password: ${USER_DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: ${JPA_DDL_AUTO:validate}
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  messages:
+    basename: messages
+
+server:
+  port: ${USER_SERVER_PORT:8103}
+  servlet:
+    context-path: /api/user-ms
+
+logging:
+  level:
+    az.codlab.user: DEBUG
