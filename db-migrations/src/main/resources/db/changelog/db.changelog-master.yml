@@ -13,3 +13,5 @@ databaseChangeLog:
       file: db/changelog/changes/v1/005-create-table-tables.yml
   - include:
       file: db/changelog/changes/v1/006-create-setting-tables.yml
+  - include:
+      file: db/changelog/changes/v1/007-create-order-tables.yml
