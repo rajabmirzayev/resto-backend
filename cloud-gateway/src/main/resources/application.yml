@@ -30,6 +30,10 @@ spring:
                     redis-rate-limiter.burstCapacity: 20
                     redis-rate-limiter.requestedTokens: 1
                     key-resolver: "#{@userKeyResolver}"
+            - id: waiter-management
+              uri: ${GW_WAITER_URL:http://localhost:8109}
+              predicates:
+                - Path=/api/waiter-ms/**
             - id: kitchen-management
               uri: ${GW_KITCHEN_URL:http://localhost:8108}
               predicates:
