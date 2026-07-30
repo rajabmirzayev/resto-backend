@@ -20,21 +20,25 @@ public class DashboardService {
 
     public DashboardStatsResponse getStats(UUID orgId) {
         log.debug("Fetching dashboard stats for org: {}", orgId);
+        // TODO: order-service-den (completedOrders, activeOrders) + table-service-den (occupiedTables) + totalRevenue (completed order-lardan)
         return new DashboardStatsResponse(null, 0, 0, 0);
     }
 
     public List<TopItemResponse> getTopItems(UUID orgId) {
         log.debug("Fetching top items for org: {}", orgId);
+        // TODO: order-service + menu-service birlesdirerek en cox satilan 5 mehsulu qaytar
         return List.of();
     }
 
     public List<RecentOrderResponse> getRecentOrders(UUID orgId) {
         log.debug("Fetching recent orders for org: {}", orgId);
+        // TODO: order-service-den son 6 sifarisi createdAt DESC gotur
         return List.of();
     }
 
     public List<StaffListResponse> getStaffList(UUID orgId) {
         log.debug("Fetching staff list for org: {}", orgId);
+        // TODO: user-service-den (staff) + order-service-den (activeOrders count)
         return List.of();
     }
 

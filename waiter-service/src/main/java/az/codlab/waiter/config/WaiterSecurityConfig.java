@@ -39,6 +39,7 @@ public class WaiterSecurityConfig {
                                 "/swagger-resources/**",
                                 "/webjars/**"
                         ).permitAll()
+                        // TODO: endpoint-leri role gore qoru; hazirliq ucun .permitAll()
                         .anyRequest().permitAll()
                 )
                 .addFilterBefore(headerAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

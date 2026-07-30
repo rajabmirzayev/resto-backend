@@ -23,7 +23,9 @@ public class DashboardSecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http, HeaderAuthenticationFilter f) throws Exception {
         http.csrf(AbstractHttpConfigurer::disable).httpBasic(AbstractHttpConfigurer::disable).formLogin(AbstractHttpConfigurer::disable)
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(a -> a.requestMatchers("/swagger-ui/**","/swagger-ui.html","/v3/api-docs/**","/swagger-resources/**","/webjars/**").permitAll().anyRequest().permitAll())
+                .authorizeHttpRequests(a -> a.requestMatchers("/swagger-ui/**","/swagger-ui.html","/v3/api-docs/**","/swagger-resources/**","/webjars/**").permitAll()
+                        // TODO: endpoint-leri role gore qoru; hazirliq ucun .permitAll()
+                        .anyRequest().permitAll())
                 .addFilterBefore(f, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }

@@ -22,31 +22,37 @@ public class ReportService {
 
     public SummaryResponse getSummary(UUID orgId) {
         log.debug("Fetching report summary for org: {}", orgId);
+        // TODO: order-service-den totalRevenue, completed, cancelled, avgOrderValue
         return new SummaryResponse(null, 0, 0, null);
     }
 
     public List<DailyRevenueResponse> getDailyRevenue(UUID orgId) {
         log.debug("Fetching daily revenue for org: {}", orgId);
+        // TODO: order-service-den son 7 gunluk revenue + orderCount gruplandir
         return List.of();
     }
 
     public HourlyResponse getHourly(UUID orgId) {
         log.debug("Fetching hourly data for org: {}", orgId);
+        // TODO: order-service-den saatliq sifaris paylanmasi (24 slot)
         return new HourlyResponse(new int[24]);
     }
 
     public List<SalesByCategoryResponse> getSalesByCategory(UUID orgId) {
         log.debug("Fetching sales by category for org: {}", orgId);
+        // TODO: order-service (order_items) + menu-service (categories) birlesdir
         return List.of();
     }
 
     public List<TopItemResponse> getTopItems(UUID orgId) {
         log.debug("Fetching top items for org: {}", orgId);
+        // TODO: order-service + menu-service birlesdirerek en cox satilan 8 mehsul (revenue ile)
         return List.of();
     }
 
     public List<StaffPerformanceResponse> getStaffPerformance(UUID orgId) {
         log.debug("Fetching staff performance for org: {}", orgId);
+        // TODO: user-service + order-service birlesdirerek personal performansi
         return List.of();
     }
 

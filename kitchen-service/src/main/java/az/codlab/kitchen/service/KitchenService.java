@@ -19,6 +19,7 @@ public class KitchenService {
         log.debug("Fetching kitchen orders for org: {}", orgId);
         // TODO: order-service-den orders cek, status-a gore qruplasdir
         // status filter: new = PENDING, CONFIRMED; preparing = PREPARING; ready = READY
+        // TODO: exception handler elave et (AbstractGlobalExceptionHandler)
         return new KitchenOrderGroup(List.of(), List.of(), List.of());
     }
 
