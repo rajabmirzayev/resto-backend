@@ -2,15 +2,15 @@ package az.codlab.common.exception.handling.decoder;
 
 import az.codlab.common.exception.handling.error.CommonErrorCode;
 import az.codlab.common.exception.handling.exception.BaseException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import feign.Response;
 import feign.codec.ErrorDecoder;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ProblemDetail;
 import org.springframework.util.StreamUtils;
 
 public class CommonFeignErrorDecoder implements ErrorDecoder {
@@ -58,13 +58,23 @@ public class CommonFeignErrorDecoder implements ErrorDecoder {
     }
 
     protected BaseException mapProblemDetail(String body, HttpStatus status) throws Exception {
-        ProblemDetail pd = objectMapper.readValue(body, ProblemDetail.class);
+        JsonNode node = objectMapper.readTree(body);
 
-        return CommonErrorCode.CLIENT_ERROR
-                .exceptionWithMessage(
-                        status,
-                        pd.getDetail() != null ? pd.getDetail() : pd.getTitle()
-                );
+        JsonNode titleNode = node.get("title");
+        JsonNode detailNode = node.get("detail");
+        JsonNode keyNode = node.get("key");
+
+        String title = titleNode != null && titleNode.isTextual() ? titleNode.asText() : null;
+        String detail = detailNode != null && detailNode.isTextual() ? detailNode.asText() : title;
+        String key = keyNode != null && keyNode.isTextual() ? keyNode.asText() : null;
+
+        return new FeignClientException(
+                CommonErrorCode.CLIENT_ERROR,
+                status,
+                detail,
+                key,
+                title
+        );
     }
 
 }

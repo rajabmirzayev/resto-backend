@@ -1,6 +1,7 @@
 package az.codlab.common.exception.handling.handler;
 
 import az.codlab.common.exception.handling.config.ErrorProperties;
+import az.codlab.common.exception.handling.decoder.FeignClientException;
 import az.codlab.common.exception.handling.error.CommonErrorCode;
 import az.codlab.common.exception.handling.exception.BaseException;
 import az.codlab.common.exception.handling.model.FieldErrorResponse;
@@ -73,6 +74,12 @@ public abstract class AbstractGlobalExceptionHandler {
         String title = messageSource.getMessage(
                 ex.getErrorCode().titleKey(), null, ex.getErrorCode().titleKey(), locale
         );
+        String key = buildErrorKey(ex.getErrorCode().code());
+
+        if (ex instanceof FeignClientException fce) {
+            title = fce.getSourceTitle() != null ? fce.getSourceTitle() : title;
+            key = fce.getSourceKey() != null ? fce.getSourceKey() : key;
+        }
 
         String detail;
 
@@ -89,7 +96,7 @@ public abstract class AbstractGlobalExceptionHandler {
         pd.setTitle(title);
         pd.setDetail(detail);
         pd.setInstance(resolveInstance(request));
-        pd.setProperty("key", buildErrorKey(ex.getErrorCode().code()));
+        pd.setProperty("key", key);
         pd.setProperty("path", request.getRequestURI());
         pd.setProperty("timestamp", Instant.now());
 
