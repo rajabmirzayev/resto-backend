@@ -204,7 +204,6 @@ public class MenuService {
         log.info("Menu item soft-deleted: {}", id);
     }
 
-    // TODO: real file storage (S3/CDN) ile evez et
     @Transactional
     public void updateItemImage(UUID id, String imageUrl) {
         var item = menuItemRepository.findByIdAndDeletedFalse(id)

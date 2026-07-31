@@ -2,6 +2,11 @@ common:
   error:
     service-key: MENU_MS
 
+app:
+  storage:
+    base-dir: ${MENU_STORAGE_DIR:./data/menu-images}
+    public-base-url: ${MENU_PUBLIC_BASE_URL:http://localhost:8105}
+
 spring:
   application:
     name: menu-service
@@ -23,6 +28,11 @@ spring:
 
   messages:
     basename: messages
+
+  servlet:
+    multipart:
+      max-file-size: 2MB
+      max-request-size: 2MB
 
 server:
   port: ${MENU_SERVER_PORT:8105}

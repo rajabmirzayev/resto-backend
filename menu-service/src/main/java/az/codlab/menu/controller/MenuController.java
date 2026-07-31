@@ -9,6 +9,7 @@ import az.codlab.menu.dto.ImageUploadResponse;
 import az.codlab.menu.dto.MenuItemRequest;
 import az.codlab.menu.dto.MenuItemResponse;
 import az.codlab.menu.dto.MenuItemUpdateRequest;
+import az.codlab.menu.service.ImageStorageService;
 import az.codlab.menu.service.MenuService;
 
 import java.util.List;
@@ -35,15 +36,13 @@ import org.springframework.web.multipart.MultipartFile;
 @RequestMapping("/v1")
 public class MenuController {
 
-    private static final long MAX_FILE_SIZE = 2 * 1024 * 1024;
-
-    private static final List<String> ALLOWED_MIME_TYPES = List.of(
-            "image/jpeg", "image/png", "image/webp");
-
     private final MenuService menuService;
 
-    public MenuController(MenuService menuService) {
+    private final ImageStorageService imageStorageService;
+
+    public MenuController(MenuService menuService, ImageStorageService imageStorageService) {
         this.menuService = menuService;
+        this.imageStorageService = imageStorageService;
     }
 
     // ======================== Categories ========================
@@ -128,14 +127,7 @@ public class MenuController {
     public ResponseEntity<ApiResponse<ImageUploadResponse>> uploadImage(
             @PathVariable UUID id,
             @RequestPart("file") MultipartFile file) {
-        if (file.getSize() > MAX_FILE_SIZE) {
-            throw new IllegalArgumentException("File size exceeds 2MB limit");
-        }
-        if (!ALLOWED_MIME_TYPES.contains(file.getContentType())) {
-            throw new IllegalArgumentException("Only JPEG, PNG and WebP images are allowed");
-        }
-        // TODO: real file storage (S3/CDN) ile evez et
-        var imageUrl = "https://cdn.tabler.az/images/" + id + ".jpg";
+        var imageUrl = imageStorageService.storeImage(id, file);
         menuService.updateItemImage(id, imageUrl);
         return ResponseEntity.ok(ApiResponse.success(
                 new ImageUploadResponse(imageUrl), "Image uploaded"));
@@ -143,6 +135,10 @@ public class MenuController {
 
     @DeleteMapping("/items/{id}/image")
     public ResponseEntity<ApiResponse<Void>> deleteImage(@PathVariable UUID id) {
+        var item = menuService.getItemById(id);
+        if (item.getImageUrl() != null) {
+            imageStorageService.deleteImage(item.getImageUrl());
+        }
         menuService.deleteItemImage(id);
         return ResponseEntity.ok(ApiResponse.success(null, "Image deleted"));
     }
