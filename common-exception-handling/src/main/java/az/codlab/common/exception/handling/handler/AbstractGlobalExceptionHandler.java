@@ -107,8 +107,10 @@ public abstract class AbstractGlobalExceptionHandler {
 
         ProblemDetail pd = ProblemDetail.forStatus(400);
         pd.setType(URI.create("about:blank"));
-        pd.setTitle(messageSource.getMessage(CommonErrorCode.VALIDATION_ERROR.titleKey(), null, locale));
-        pd.setDetail(messageSource.getMessage(CommonErrorCode.VALIDATION_ERROR.messageKey(), null, locale));
+        pd.setTitle(messageSource.getMessage(CommonErrorCode.VALIDATION_ERROR.titleKey(), null,
+                CommonErrorCode.VALIDATION_ERROR.titleKey(), locale));
+        pd.setDetail(messageSource.getMessage(CommonErrorCode.VALIDATION_ERROR.messageKey(), null,
+                CommonErrorCode.VALIDATION_ERROR.messageKey(), locale));
         pd.setInstance(resolveInstance(request));
         pd.setProperty("key", buildErrorKey(CommonErrorCode.VALIDATION_ERROR.code()));
         pd.setProperty("path", request.getRequestURI());
@@ -124,8 +126,10 @@ public abstract class AbstractGlobalExceptionHandler {
 
         ProblemDetail pd = ProblemDetail.forStatus(400);
         pd.setType(URI.create("about:blank"));
-        pd.setTitle(messageSource.getMessage(CommonErrorCode.CONSTRAINT_VIOLATION.titleKey(), null, locale));
-        pd.setDetail(messageSource.getMessage(CommonErrorCode.CONSTRAINT_VIOLATION.messageKey(), null, locale));
+        pd.setTitle(messageSource.getMessage(CommonErrorCode.CONSTRAINT_VIOLATION.titleKey(), null,
+                CommonErrorCode.CONSTRAINT_VIOLATION.titleKey(), locale));
+        pd.setDetail(messageSource.getMessage(CommonErrorCode.CONSTRAINT_VIOLATION.messageKey(), null,
+                CommonErrorCode.CONSTRAINT_VIOLATION.messageKey(), locale));
         pd.setInstance(resolveInstance(request));
         pd.setProperty("key", buildErrorKey(CommonErrorCode.CONSTRAINT_VIOLATION.code()));
         pd.setProperty("path", request.getRequestURI());
@@ -137,7 +141,8 @@ public abstract class AbstractGlobalExceptionHandler {
     public ProblemDetail handleJsonParse(HttpMessageNotReadableException ex, HttpServletRequest request) {
         Locale locale = resolveLocale(request);
 
-        String detail = messageSource.getMessage(CommonErrorCode.JSON_PARSE_ERROR.messageKey(), null, locale);
+        String detail = messageSource.getMessage(CommonErrorCode.JSON_PARSE_ERROR.messageKey(), null,
+                CommonErrorCode.JSON_PARSE_ERROR.messageKey(), locale);
         Throwable cause = ex.getMostSpecificCause();
         if (cause.getMessage() != null) {
             detail = cause.getMessage();
@@ -145,7 +150,8 @@ public abstract class AbstractGlobalExceptionHandler {
 
         ProblemDetail pd = ProblemDetail.forStatus(400);
         pd.setType(URI.create("about:blank"));
-        pd.setTitle(messageSource.getMessage(CommonErrorCode.JSON_PARSE_ERROR.titleKey(), null, locale));
+        pd.setTitle(messageSource.getMessage(CommonErrorCode.JSON_PARSE_ERROR.titleKey(), null,
+                CommonErrorCode.JSON_PARSE_ERROR.titleKey(), locale));
         pd.setDetail(detail);
         pd.setInstance(resolveInstance(request));
         pd.setProperty("key", buildErrorKey(CommonErrorCode.JSON_PARSE_ERROR.code()));
@@ -167,9 +173,11 @@ public abstract class AbstractGlobalExceptionHandler {
 
         ProblemDetail pd = ProblemDetail.forStatus(400);
         pd.setType(URI.create("about:blank"));
-        pd.setTitle(messageSource.getMessage(CommonErrorCode.METHOD_ARGUMENT_TYPE_MISMATCH.titleKey(), null, locale));
+        pd.setTitle(messageSource.getMessage(CommonErrorCode.METHOD_ARGUMENT_TYPE_MISMATCH.titleKey(), null,
+                CommonErrorCode.METHOD_ARGUMENT_TYPE_MISMATCH.titleKey(), locale));
         pd.setDetail(
-                messageSource.getMessage(CommonErrorCode.METHOD_ARGUMENT_TYPE_MISMATCH.messageKey(), args, locale));
+                messageSource.getMessage(CommonErrorCode.METHOD_ARGUMENT_TYPE_MISMATCH.messageKey(), args,
+                        CommonErrorCode.METHOD_ARGUMENT_TYPE_MISMATCH.messageKey(), locale));
         pd.setInstance(resolveInstance(request));
         pd.setProperty("key", buildErrorKey(CommonErrorCode.METHOD_ARGUMENT_TYPE_MISMATCH.code()));
         pd.setProperty("path", request.getRequestURI());
@@ -184,8 +192,10 @@ public abstract class AbstractGlobalExceptionHandler {
 
         ProblemDetail pd = ProblemDetail.forStatus(405);
         pd.setType(URI.create("about:blank"));
-        pd.setTitle(messageSource.getMessage(CommonErrorCode.METHOD_NOT_ALLOWED.titleKey(), null, locale));
-        pd.setDetail(messageSource.getMessage(CommonErrorCode.METHOD_NOT_ALLOWED.messageKey(), null, locale));
+        pd.setTitle(messageSource.getMessage(CommonErrorCode.METHOD_NOT_ALLOWED.titleKey(), null,
+                CommonErrorCode.METHOD_NOT_ALLOWED.titleKey(), locale));
+        pd.setDetail(messageSource.getMessage(CommonErrorCode.METHOD_NOT_ALLOWED.messageKey(), null,
+                CommonErrorCode.METHOD_NOT_ALLOWED.messageKey(), locale));
         pd.setInstance(resolveInstance(request));
         pd.setProperty("key", buildErrorKey(CommonErrorCode.METHOD_NOT_ALLOWED.code()));
         pd.setProperty("path", request.getRequestURI());
@@ -199,7 +209,8 @@ public abstract class AbstractGlobalExceptionHandler {
 
         ProblemDetail pd = ProblemDetail.forStatus(400);
         pd.setType(URI.create("about:blank"));
-        pd.setTitle(messageSource.getMessage(CommonErrorCode.VALIDATION_ERROR.titleKey(), null, locale));
+        pd.setTitle(messageSource.getMessage(CommonErrorCode.VALIDATION_ERROR.titleKey(), null,
+                CommonErrorCode.VALIDATION_ERROR.titleKey(), locale));
         pd.setDetail(ex.getMessage());
         pd.setInstance(resolveInstance(request));
         pd.setProperty("key", buildErrorKey(CommonErrorCode.VALIDATION_ERROR.code()));
@@ -215,8 +226,10 @@ public abstract class AbstractGlobalExceptionHandler {
 
         ProblemDetail pd = ProblemDetail.forStatus(500);
         pd.setType(URI.create("about:blank"));
-        pd.setTitle(messageSource.getMessage(CommonErrorCode.INTERNAL_ERROR.titleKey(), null, locale));
-        pd.setDetail(messageSource.getMessage(CommonErrorCode.INTERNAL_ERROR.messageKey(), null, locale));
+        pd.setTitle(messageSource.getMessage(CommonErrorCode.INTERNAL_ERROR.titleKey(), null,
+                CommonErrorCode.INTERNAL_ERROR.titleKey(), locale));
+        pd.setDetail(messageSource.getMessage(CommonErrorCode.INTERNAL_ERROR.messageKey(), null,
+                CommonErrorCode.INTERNAL_ERROR.messageKey(), locale));
         pd.setInstance(resolveInstance(request));
         pd.setProperty("key", buildErrorKey(CommonErrorCode.INTERNAL_ERROR.code()));
         pd.setProperty("path", request.getRequestURI());
@@ -230,8 +243,10 @@ public abstract class AbstractGlobalExceptionHandler {
 
         ProblemDetail pd = ProblemDetail.forStatus(403);
         pd.setType(URI.create("about:blank"));
-        pd.setTitle(messageSource.getMessage(CommonErrorCode.ACCESS_DENIED.titleKey(), null, locale));
-        pd.setDetail(messageSource.getMessage(CommonErrorCode.ACCESS_DENIED.messageKey(), null, locale));
+        pd.setTitle(messageSource.getMessage(CommonErrorCode.ACCESS_DENIED.titleKey(), null,
+                CommonErrorCode.ACCESS_DENIED.titleKey(), locale));
+        pd.setDetail(messageSource.getMessage(CommonErrorCode.ACCESS_DENIED.messageKey(), null,
+                CommonErrorCode.ACCESS_DENIED.messageKey(), locale));
         pd.setInstance(resolveInstance(request));
         pd.setProperty("key", buildErrorKey(CommonErrorCode.ACCESS_DENIED.code()));
         pd.setProperty("path", request.getRequestURI());

@@ -27,7 +27,7 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
 
   messages:
-    basename: messages
+    basename: messages,i18n/messages
 
   servlet:
     multipart:

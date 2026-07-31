@@ -22,7 +22,7 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
 
   messages:
-    basename: messages
+    basename: messages,i18n/messages
 
 server:
   port: ${ROLE_SERVER_PORT:8104}
