@@ -1,7 +1,9 @@
 package az.codlab.common.security.config;
 
+import az.codlab.common.exception.handling.model.TraceHeaders;
 import az.codlab.common.security.converter.JwtUserPrincipalConverter;
 import az.codlab.common.security.filter.HeaderAuthenticationFilter;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
@@ -105,38 +107,59 @@ public class SecurityConfig {
 
     @Bean
     @ConditionalOnMissingBean(AuthenticationEntryPoint.class)
-    public AuthenticationEntryPoint jsonAuthenticationEntryPoint() {
+    public AuthenticationEntryPoint problemDetailAuthenticationEntryPoint() {
         return (request, response, authException) -> {
             log.debug("Authentication failed for [{}]: {}", request.getRequestURI(), authException.getMessage());
-            writeJsonError(response, HttpStatus.UNAUTHORIZED,
-                    "Unauthorized", "Authentication required", request.getRequestURI());
+            writeProblemDetail(response, HttpStatus.UNAUTHORIZED,
+                    "Unauthorized", "Authentication is required", "COMMON_4001", request);
         };
     }
 
     @Bean
     @ConditionalOnMissingBean(AccessDeniedHandler.class)
-    public AccessDeniedHandler jsonAccessDeniedHandler() {
+    public AccessDeniedHandler problemDetailAccessDeniedHandler() {
         return (request, response, accessDeniedException) -> {
             log.debug("Access denied for [{}]: {}", request.getRequestURI(), accessDeniedException.getMessage());
-            writeJsonError(response, HttpStatus.FORBIDDEN,
-                    "Forbidden", "Access denied", request.getRequestURI());
+            writeProblemDetail(response, HttpStatus.FORBIDDEN,
+                    "Access Denied", "Access is denied", "COMMON_4003", request);
         };
     }
 
-    private void writeJsonError(HttpServletResponse response,
-                                HttpStatus status, String error, String message, String path) {
+    private void writeProblemDetail(HttpServletResponse response,
+                                    HttpStatus status, String title, String detail, String key,
+                                    HttpServletRequest request) {
         try {
             response.setStatus(status.value());
-            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+            response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
             String json = """
-                    {"timestamp":"%s","status":%d,"error":"%s","message":"%s","path":"%s"}"""
-                    .formatted(Instant.now().toString(), status.value(), error, message, path);
+                    {"type":"about:blank","title":"%s","status":%d,"detail":"%s","instance":"%s","key":"%s","path":"%s","timestamp":"%s"}"""
+                    .formatted(title, status.value(), detail, resolveInstance(request), key,
+                            request.getRequestURI(), Instant.now());
             PrintWriter writer = response.getWriter();
             writer.write(json);
             writer.flush();
         } catch (IOException e) {
             log.error("Failed to write error response", e);
         }
+    }
+
+    private String resolveInstance(HttpServletRequest request) {
+        String traceId = firstNonNull(
+                request.getHeader(TraceHeaders.TRACEPARENT),
+                request.getHeader(TraceHeaders.X_B3_TRACE_ID),
+                request.getHeader(TraceHeaders.X_TRACE_ID),
+                request.getHeader(TraceHeaders.X_B3_SPAN_ID)
+        );
+        return traceId != null ? "trace:" + traceId : request.getRequestURI();
+    }
+
+    private String firstNonNull(String... values) {
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
+        }
+        return null;
     }
 
 }

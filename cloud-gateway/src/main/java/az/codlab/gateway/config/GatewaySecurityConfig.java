@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.io.buffer.DataBuffer;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.server.reactive.ServerHttpResponse;
@@ -23,6 +24,7 @@ import org.springframework.security.oauth2.jwt.ReactiveJwtDecoder;
 import org.springframework.security.web.server.SecurityWebFilterChain;
 import org.springframework.security.web.server.ServerAuthenticationEntryPoint;
 import org.springframework.security.web.server.authorization.ServerAccessDeniedHandler;
+import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
 @Configuration
@@ -57,8 +59,8 @@ public class GatewaySecurityConfig {
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .jwt(jwt -> jwt.jwtDecoder(jwtDecoder()))
-                        .authenticationEntryPoint(jsonAuthenticationEntryPoint())
-                        .accessDeniedHandler(jsonAccessDeniedHandler())
+                        .authenticationEntryPoint(problemDetailAuthenticationEntryPoint())
+                        .accessDeniedHandler(problemDetailAccessDeniedHandler())
                 );
 
         return http.build();
@@ -80,35 +82,57 @@ public class GatewaySecurityConfig {
     }
 
     @Bean
-    public ServerAuthenticationEntryPoint jsonAuthenticationEntryPoint() {
+    public ServerAuthenticationEntryPoint problemDetailAuthenticationEntryPoint() {
         return (exchange, ex) -> {
             log.warn("Authentication failed for [{}]: {}", exchange.getRequest().getPath(), ex.getMessage());
-            return writeJsonError(exchange.getResponse(), HttpStatus.UNAUTHORIZED,
-                    "Unauthorized", "Authentication required", exchange.getRequest().getPath().value());
+            return writeProblemDetail(exchange.getResponse(), HttpStatus.UNAUTHORIZED,
+                    "Unauthorized", "Authentication is required", "COMMON_4001", exchange);
         };
     }
 
     @Bean
-    public ServerAccessDeniedHandler jsonAccessDeniedHandler() {
+    public ServerAccessDeniedHandler problemDetailAccessDeniedHandler() {
         return (exchange, denied) -> {
             log.warn("Access denied for [{}]: {}", exchange.getRequest().getPath(), denied.getMessage());
-            return writeJsonError(exchange.getResponse(), HttpStatus.FORBIDDEN,
-                    "Forbidden", "Access denied", exchange.getRequest().getPath().value());
+            return writeProblemDetail(exchange.getResponse(), HttpStatus.FORBIDDEN,
+                    "Access Denied", "Access is denied", "COMMON_4003", exchange);
         };
     }
 
-    private Mono<Void> writeJsonError(ServerHttpResponse response, HttpStatus status,
-                                      String error, String message, String path) {
+    private Mono<Void> writeProblemDetail(ServerHttpResponse response, HttpStatus status,
+                                          String title, String detail, String key,
+                                          ServerWebExchange exchange) {
         response.setStatusCode(status);
-        response.getHeaders().setContentType(MediaType.APPLICATION_JSON);
+        response.getHeaders().setContentType(MediaType.APPLICATION_PROBLEM_JSON);
 
+        String path = exchange.getRequest().getPath().value();
         String json = """
-                {"timestamp":"%s","status":%d,"error":"%s","message":"%s","path":"%s"}"""
-                .formatted(Instant.now().toString(), status.value(), error, message, path);
+                {"type":"about:blank","title":"%s","status":%d,"detail":"%s","instance":"%s","key":"%s","path":"%s","timestamp":"%s"}"""
+                .formatted(title, status.value(), detail, resolveInstance(exchange), key, path, Instant.now());
 
         byte[] bytes = json.getBytes(StandardCharsets.UTF_8);
         DataBuffer buffer = response.bufferFactory().wrap(bytes);
         return response.writeWith(Mono.just(buffer));
+    }
+
+    private String resolveInstance(ServerWebExchange exchange) {
+        HttpHeaders headers = exchange.getRequest().getHeaders();
+        String traceId = firstNonNull(
+                headers.getFirst("traceparent"),
+                headers.getFirst("X-B3-TraceId"),
+                headers.getFirst("X-Trace-Id"),
+                headers.getFirst("X-B3-SpanId")
+        );
+        return traceId != null ? "trace:" + traceId : exchange.getRequest().getPath().value();
+    }
+
+    private String firstNonNull(String... values) {
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
+        }
+        return null;
     }
 
 }
