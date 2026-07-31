@@ -22,11 +22,11 @@
 ```json
 {
   "type": "about:blank",
-  "title": "Validation error",
+  "title": "Validation Failed",
   "status": 400,
-  "detail": "One or more fields are invalid",
+  "detail": "Validation failed for one or more fields",
   "instance": "trace:xxx",
-  "key": "user_ms_1000",
+  "key": "USER_MS_1000",
   "path": "/api/user-ms/v1/users",
   "timestamp": "2026-07-30T12:00:00.000Z",
   "fieldErrors": [
@@ -43,9 +43,9 @@
   "type": "about:blank",
   "title": "Unauthorized",
   "status": 401,
-  "detail": "Invalid or expired token",
+  "detail": "Authentication is required",
   "instance": "trace:xxx",
-  "key": "common_4001",
+  "key": "COMMON_4001",
   "path": "/api/organization-ms/v1/organizations",
   "timestamp": "2026-07-30T12:00:00.000Z"
 }
@@ -58,9 +58,9 @@
   "type": "about:blank",
   "title": "Access Denied",
   "status": 403,
-  "detail": "Insufficient permissions",
+  "detail": "Access is denied",
   "instance": "trace:xxx",
-  "key": "common_4003",
+  "key": "COMMON_4003",
   "path": "/api/role-ms/v1/roles/r2",
   "timestamp": "2026-07-30T12:00:00.000Z"
 }
@@ -71,11 +71,11 @@
 ```json
 {
   "type": "about:blank",
-  "title": "Resource not found",
+  "title": "Not Found",
   "status": 404,
   "detail": "Organization with id org99 not found",
   "instance": "trace:xxx",
-  "key": "org_ms_3001",
+  "key": "ORG_MS_3001",
   "path": "/api/organization-ms/v1/organizations/org99",
   "timestamp": "2026-07-30T12:00:00.000Z"
 }
@@ -90,7 +90,7 @@
   "status": 409,
   "detail": "Table has an active order and cannot be deleted",
   "instance": "trace:xxx",
-  "key": "table_ms_2001",
+  "key": "TABLE_MS_2001",
   "path": "/api/table-ms/v1/tables/t2",
   "timestamp": "2026-07-30T12:00:00.000Z"
 }
@@ -101,11 +101,11 @@
 ```json
 {
   "type": "about:blank",
-  "title": "Internal Server Error",
+  "title": "Internal Error",
   "status": 500,
-  "detail": "An unexpected error occurred",
+  "detail": "Unexpected internal error",
   "instance": "trace:xxx",
-  "key": "common_9999",
+  "key": "MENU_MS_9999",
   "path": "/api/menu-ms/v1/items",
   "timestamp": "2026-07-30T12:00:00.000Z"
 }
@@ -155,11 +155,11 @@ Error (401):
 ```json
 {
   "type": "about:blank",
-  "title": "Invalid credentials",
+  "title": "Authentication Failed",
   "status": 401,
   "detail": "Invalid username or password",
   "instance": "/api/auth-ms/v1/auth/login",
-  "key": "auth_gateway_001",
+  "key": "AUTH_001",
   "path": "/api/auth-ms/v1/auth/login",
   "timestamp": "2026-07-30T12:00:00.000Z"
 }
@@ -169,11 +169,11 @@ Error (502 — Keycloak unavailable):
 ```json
 {
   "type": "about:blank",
-  "title": "Authentication service unavailable",
+  "title": "Service Unavailable",
   "status": 502,
-  "detail": "Failed to authenticate. Please try again.",
+  "detail": "Authentication service is temporarily unavailable. Please try again later.",
   "instance": "/api/auth-ms/v1/auth/login",
-  "key": "auth_gateway_005",
+  "key": "AUTH_005",
   "path": "/api/auth-ms/v1/auth/login",
   "timestamp": "2026-07-30T12:00:00.000Z"
 }
@@ -205,11 +205,11 @@ Error (401):
 ```json
 {
   "type": "about:blank",
-  "title": "Token expired",
+  "title": "Token Expired",
   "status": 401,
-  "detail": "Refresh token has expired. Please login again.",
+  "detail": "The access token has expired. Please refresh or login again.",
   "instance": "/api/auth-ms/v1/auth/refresh",
-  "key": "auth_gateway_002",
+  "key": "AUTH_002",
   "path": "/api/auth-ms/v1/auth/refresh",
   "timestamp": "2026-07-30T12:00:00.000Z"
 }
@@ -234,11 +234,11 @@ Error (502):
 ```json
 {
   "type": "about:blank",
-  "title": "Logout failed",
+  "title": "Logout Failed",
   "status": 502,
   "detail": "Failed to revoke the session. Please try again.",
   "instance": "/api/auth-ms/v1/auth/logout",
-  "key": "auth_gateway_004",
+  "key": "AUTH_004",
   "path": "/api/auth-ms/v1/auth/logout",
   "timestamp": "2026-07-30T12:00:00.000Z"
 }
@@ -352,11 +352,11 @@ Error (400):
 ```json
 {
   "type": "about:blank",
-  "title": "Validation error",
+  "title": "Validation Failed",
   "status": 400,
-  "detail": "One or more fields are invalid",
+  "detail": "Validation failed for one or more fields",
   "instance": "trace:xxx",
-  "key": "org_ms_1000",
+  "key": "ORG_MS_1000",
   "path": "/api/organization-ms/v1/organizations",
   "timestamp": "2026-07-30T12:00:00.000Z",
   "fieldErrors": [
@@ -398,11 +398,11 @@ Error (404):
 ```json
 {
   "type": "about:blank",
-  "title": "Resource not found",
+  "title": "Not Found",
   "status": 404,
   "detail": "Organization with id org99 not found",
   "instance": "trace:xxx",
-  "key": "org_ms_3001",
+  "key": "ORG_MS_3001",
   "path": "/api/organization-ms/v1/organizations/org99",
   "timestamp": "2026-07-30T12:00:00.000Z"
 }
@@ -510,11 +510,11 @@ Error (404):
 ```json
 {
   "type": "about:blank",
-  "title": "Resource not found",
+  "title": "Not Found",
   "status": 404,
   "detail": "User with id u99 not found",
   "instance": "trace:xxx",
-  "key": "user_ms_3001",
+  "key": "USER_MS_3001",
   "path": "/api/user-ms/v1/users/u99",
   "timestamp": "2026-07-30T12:00:00.000Z"
 }
@@ -696,6 +696,53 @@ Success (200):
 
 ---
 
+### `GET /api/role-ms/v1/roles/{id}`
+
+**Tək rol.**
+
+Headers: `Authorization: Bearer {token}`
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Success",
+  "errorCode": null,
+  "data": {
+    "id": "550e8400-e29b-41d4-a716-446655440020",
+    "name": "Süper Admin",
+    "permissions": [
+      "dashboard.view", "menu.view", "menu.create", "menu.edit", "menu.delete",
+      "tables.view", "tables.manage", "tables.status",
+      "orders.view", "orders.manage", "orders.cancel",
+      "reports.view",
+      "staff.view", "staff.create", "staff.edit", "staff.delete",
+      "roles.view", "roles.create", "roles.edit", "roles.delete",
+      "kitchen.view", "kitchen.manage",
+      "settings.view", "settings.edit"
+    ],
+    "isSystem": true,
+    "orgId": null
+  }
+}
+```
+
+Error (404):
+```json
+{
+  "type": "about:blank",
+  "title": "Not Found",
+  "status": 404,
+  "detail": "Role not found",
+  "instance": "trace:xxx",
+  "key": "ROLE_MS_3001",
+  "path": "/api/role-ms/v1/roles/r99",
+  "timestamp": "2026-07-30T12:00:00.000Z"
+}
+```
+
+---
+
 ### `POST /api/role-ms/v1/roles`
 
 **Yeni rol yarat.**
@@ -773,7 +820,7 @@ Error (403):
   "status": 403,
   "detail": "System role cannot be modified",
   "instance": "trace:xxx",
-  "key": "role_ms_4003",
+  "key": "ROLE_MS_4003",
   "path": "/api/role-ms/v1/roles/r1",
   "timestamp": "2026-07-30T12:00:00.000Z"
 }
@@ -897,11 +944,11 @@ Error (404):
 ```json
 {
   "type": "about:blank",
-  "title": "Resource not found",
+  "title": "Not Found",
   "status": 404,
   "detail": "Menu item with id m99 not found",
   "instance": "trace:xxx",
-  "key": "menu_ms_3001",
+  "key": "MENU_MS_3001",
   "path": "/api/menu-ms/v1/items/m99",
   "timestamp": "2026-07-30T12:00:00.000Z"
 }
@@ -1073,6 +1120,44 @@ Success (200):
 ```
 
 > `icon` field-ı Lucide React ikon adıdır: `soup`, `beef`, `salad`, `pizza`, `hamburger`, `cup-soda`, `cake`, `cookie`.
+
+---
+
+### `GET /api/menu-ms/v1/categories/{id}`
+
+**Tək kateqoriya.**
+
+Headers: `Authorization: Bearer {token}`
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Success",
+  "errorCode": null,
+  "data": {
+    "id": "550e8400-e29b-41d4-a716-446655440050",
+    "name": { "az": "Şorbalar", "en": "Soups", "ru": "Супы" },
+    "icon": "soup",
+    "sortOrder": 1,
+    "orgId": "550e8400-e29b-41d4-a716-446655440001"
+  }
+}
+```
+
+Error (404):
+```json
+{
+  "type": "about:blank",
+  "title": "Not Found",
+  "status": 404,
+  "detail": "Category not found",
+  "instance": "trace:xxx",
+  "key": "MENU_MS_3001",
+  "path": "/api/menu-ms/v1/categories/c99",
+  "timestamp": "2026-07-30T12:00:00.000Z"
+}
+```
 
 ---
 
@@ -1314,7 +1399,7 @@ Error (409):
   "status": 409,
   "detail": "Table has an active order and cannot be deleted",
   "instance": "trace:xxx",
-  "key": "table_ms_2001",
+  "key": "TABLE_MS_2001",
   "path": "/api/table-ms/v1/tables/t2",
   "timestamp": "2026-07-30T12:00:00.000Z"
 }
@@ -1593,11 +1678,11 @@ Error (404):
 ```json
 {
   "type": "about:blank",
-  "title": "Resource not found",
+  "title": "Not Found",
   "status": 404,
   "detail": "Order with id o99 not found",
   "instance": "trace:xxx",
-  "key": "order_ms_3001",
+  "key": "ORDER_MS_3001",
   "path": "/api/order-ms/v1/orders/o99",
   "timestamp": "2026-07-30T12:00:00.000Z"
 }
@@ -2967,6 +3052,7 @@ MENU          (/api/menu-ms/v1/)
   POST          /items/{id}/image
   DELETE        /items/{id}/image
   GET           /categories
+  GET           /categories/{id}
   POST          /categories
   PUT           /categories/{id}
   DELETE        /categories/{id}
