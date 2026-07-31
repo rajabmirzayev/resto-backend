@@ -37,8 +37,8 @@ out/
 .vscode/
 
 script/.env
-script/tabler-realm.json
-script/bootstrap-kc.sh
+script/tabler-realm.json.local
+script/bootstrap-kc.local.sh
 
 api-specification.md
 tabler-entities.md
