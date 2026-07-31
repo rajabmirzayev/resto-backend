@@ -1,5 +1,9 @@
 package az.codlab.setting.dto;
 
+import az.codlab.common.enums.CustomerTheme;
+import az.codlab.common.enums.OrderMode;
+import az.codlab.common.enums.PaymentTiming;
+import az.codlab.common.exception.handling.validation.ValidEnum;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.AccessLevel;
@@ -22,14 +26,17 @@ public class SettingRequest {
     UUID orgId;
 
     @NotBlank
+    @ValidEnum(enumClass = OrderMode.class)
     String orderMode;
 
     boolean customerPhotoRequired;
 
     @NotBlank
+    @ValidEnum(enumClass = PaymentTiming.class)
     String paymentTiming;
 
     @NotBlank
+    @ValidEnum(enumClass = CustomerTheme.class)
     String customerTheme;
 
 }
