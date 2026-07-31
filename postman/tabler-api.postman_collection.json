@@ -1,0 +1,2195 @@
+{
+  "info": {
+    "name": "Tabler API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Tabler backend API (gateway: http://localhost:8001, or your GW_SERVER_PORT/host). Auth: Bearer JWT from POST /api/auth-ms/v1/auth/login -> paste accessToken into {{access_token}}. All endpoints except login/refresh/logout return ApiResponse<T>. Full schemas & response examples: api-specification.md."
+  },
+  "item": [
+    {
+      "name": "Auth (auth-gateway, port 8002)",
+      "item": [
+        {
+          "name": "Auth \u2014 Login",
+          "request": {
+            "auth": "inherit",
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/auth-ms/v1/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "auth-ms",
+                "v1",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"username\":\"admin\",\"password\":\"admin123\"}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "Auth \u2014 Refresh token",
+          "request": {
+            "auth": "inherit",
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/auth-ms/v1/auth/refresh",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "auth-ms",
+                "v1",
+                "auth",
+                "refresh"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"refreshToken\":\"<refresh-token>\"}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "Auth \u2014 Logout",
+          "request": {
+            "auth": "inherit",
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/auth-ms/v1/auth/logout",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "auth-ms",
+                "v1",
+                "auth",
+                "logout"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\"refreshToken\":\"<refresh-token>\"}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Organization (organization-service, port 8102)",
+      "item": [
+        {
+          "name": "GET /organizations",
+          "request": {
+            "auth": "inherit",
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/organization-ms/v1/organizations",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "organization-ms",
+                "v1",
+                "organizations"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /organizations",
+          "request": {
+            "auth": "inherit",
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/organization-ms/v1/organizations",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "organization-ms",
+                "v1",
+                "organizations"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "GET /organizations/{orgId}",
+          "request": {
+            "auth": "inherit",
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/organization-ms/v1/organizations/{orgId}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "organization-ms",
+                "v1",
+                "organizations",
+                "{orgId}"
+              ],
+              "variable": [
+                {
+                  "key": "orgId",
+                  "value": ""
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /organizations/{orgId}/qr-code",
+          "request": {
+            "auth": "inherit",
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/organization-ms/v1/organizations/{orgId}/qr-code",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "organization-ms",
+                "v1",
+                "organizations",
+                "{orgId}",
+                "qr-code"
+              ],
+              "variable": [
+                {
+                  "key": "orgId",
+                  "value": ""
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "User / Staff (user-service, port 8103)",
+      "item": [
+        {
+          "name": "GET /users",
+          "request": {
+            "auth": "inherit",
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/user-ms/v1/users",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "user-ms",
+                "v1",
+                "users"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /users/{id}",
+          "request": {
+            "auth": "inherit",
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/user-ms/v1/users/{id}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "user-ms",
+                "v1",
+                "users",
+                "{id}"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /users",
+          "request": {
+            "auth": "inherit",
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/user-ms/v1/users",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "user-ms",
+                "v1",
+                "users"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /users/{id}",
+          "request": {
+            "auth": "inherit",
+            "method": "PUT",
+            "url": {
+              "raw": "{{base_url}}/api/user-ms/v1/users/{id}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "user-ms",
+                "v1",
+                "users",
+                "{id}"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /users/{id}",
+          "request": {
+            "auth": "inherit",
+            "method": "DELETE",
+            "url": {
+              "raw": "{{base_url}}/api/user-ms/v1/users/{id}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "user-ms",
+                "v1",
+                "users",
+                "{id}"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /users/staff-performance?orgId=",
+          "request": {
+            "auth": "inherit",
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/user-ms/v1/users/staff-performance",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "user-ms",
+                "v1",
+                "users",
+                "staff-performance"
+              ],
+              "query": [
+                {
+                  "key": "orgId",
+                  "value": "{{orgId}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /users/clear-role?roleId=",
+          "request": {
+            "auth": "inherit",
+            "method": "PUT",
+            "url": {
+              "raw": "{{base_url}}/api/user-ms/v1/users/clear-role",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "user-ms",
+                "v1",
+                "users",
+                "clear-role"
+              ],
+              "query": [
+                {
+                  "key": "roleId",
+                  "value": "{{roleId}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Role (role-service, port 8104)",
+      "item": [
+        {
+          "name": "GET /roles",
+          "request": {
+            "auth": "inherit",
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/role-ms/v1/roles",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "role-ms",
+                "v1",
+                "roles"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /roles/{id}",
+          "request": {
+            "auth": "inherit",
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/role-ms/v1/roles/{id}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "role-ms",
+                "v1",
+                "roles",
+                "{id}"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /roles",
+          "request": {
+            "auth": "inherit",
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/role-ms/v1/roles",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "role-ms",
+                "v1",
+                "roles"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /roles/{id}",
+          "request": {
+            "auth": "inherit",
+            "method": "PUT",
+            "url": {
+              "raw": "{{base_url}}/api/role-ms/v1/roles/{id}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "role-ms",
+                "v1",
+                "roles",
+                "{id}"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /roles/{id}",
+          "request": {
+            "auth": "inherit",
+            "method": "DELETE",
+            "url": {
+              "raw": "{{base_url}}/api/role-ms/v1/roles/{id}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "role-ms",
+                "v1",
+                "roles",
+                "{id}"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /roles/permissions",
+          "request": {
+            "auth": "inherit",
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/role-ms/v1/roles/permissions",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "role-ms",
+                "v1",
+                "roles",
+                "permissions"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Menu (menu-service, port 8105)",
+      "item": [
+        {
+          "name": "GET /items",
+          "request": {
+            "auth": "inherit",
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/menu-ms/v1/items",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "menu-ms",
+                "v1",
+                "items"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /items/{id}",
+          "request": {
+            "auth": "inherit",
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/menu-ms/v1/items/{id}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "menu-ms",
+                "v1",
+                "items",
+                "{id}"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /items",
+          "request": {
+            "auth": "inherit",
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/menu-ms/v1/items",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "menu-ms",
+                "v1",
+                "items"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /items/{id}",
+          "request": {
+            "auth": "inherit",
+            "method": "PUT",
+            "url": {
+              "raw": "{{base_url}}/api/menu-ms/v1/items/{id}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "menu-ms",
+                "v1",
+                "items",
+                "{id}"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /items/{id}",
+          "request": {
+            "auth": "inherit",
+            "method": "DELETE",
+            "url": {
+              "raw": "{{base_url}}/api/menu-ms/v1/items/{id}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "menu-ms",
+                "v1",
+                "items",
+                "{id}"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /items/{id}/image (multipart)",
+          "request": {
+            "auth": "inherit",
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/menu-ms/v1/items/{id}/image",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "menu-ms",
+                "v1",
+                "items",
+                "{id}",
+                "image"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": ""
+                }
+              ]
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "multipart/form-data"
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /items/{id}/image",
+          "request": {
+            "auth": "inherit",
+            "method": "DELETE",
+            "url": {
+              "raw": "{{base_url}}/api/menu-ms/v1/items/{id}/image",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "menu-ms",
+                "v1",
+                "items",
+                "{id}",
+                "image"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /categories",
+          "request": {
+            "auth": "inherit",
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/menu-ms/v1/categories",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "menu-ms",
+                "v1",
+                "categories"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /categories",
+          "request": {
+            "auth": "inherit",
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/menu-ms/v1/categories",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "menu-ms",
+                "v1",
+                "categories"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /categories/{id}",
+          "request": {
+            "auth": "inherit",
+            "method": "PUT",
+            "url": {
+              "raw": "{{base_url}}/api/menu-ms/v1/categories/{id}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "menu-ms",
+                "v1",
+                "categories",
+                "{id}"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /categories/{id}",
+          "request": {
+            "auth": "inherit",
+            "method": "DELETE",
+            "url": {
+              "raw": "{{base_url}}/api/menu-ms/v1/categories/{id}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "menu-ms",
+                "v1",
+                "categories",
+                "{id}"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Table (table-service, port 8106)",
+      "item": [
+        {
+          "name": "GET /tables",
+          "request": {
+            "auth": "inherit",
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/table-ms/v1/tables",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "table-ms",
+                "v1",
+                "tables"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /tables/{id}",
+          "request": {
+            "auth": "inherit",
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/table-ms/v1/tables/{id}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "table-ms",
+                "v1",
+                "tables",
+                "{id}"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /tables",
+          "request": {
+            "auth": "inherit",
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/table-ms/v1/tables",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "table-ms",
+                "v1",
+                "tables"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /tables/{id}",
+          "request": {
+            "auth": "inherit",
+            "method": "PUT",
+            "url": {
+              "raw": "{{base_url}}/api/table-ms/v1/tables/{id}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "table-ms",
+                "v1",
+                "tables",
+                "{id}"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /tables/{id}",
+          "request": {
+            "auth": "inherit",
+            "method": "DELETE",
+            "url": {
+              "raw": "{{base_url}}/api/table-ms/v1/tables/{id}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "table-ms",
+                "v1",
+                "tables",
+                "{id}"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /tables/{id}/status",
+          "request": {
+            "auth": "inherit",
+            "method": "PUT",
+            "url": {
+              "raw": "{{base_url}}/api/table-ms/v1/tables/{id}/status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "table-ms",
+                "v1",
+                "tables",
+                "{id}",
+                "status"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /tables/{id}/reservation",
+          "request": {
+            "auth": "inherit",
+            "method": "PUT",
+            "url": {
+              "raw": "{{base_url}}/api/table-ms/v1/tables/{id}/reservation",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "table-ms",
+                "v1",
+                "tables",
+                "{id}",
+                "reservation"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /tables/{id}/reservation",
+          "request": {
+            "auth": "inherit",
+            "method": "DELETE",
+            "url": {
+              "raw": "{{base_url}}/api/table-ms/v1/tables/{id}/reservation",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "table-ms",
+                "v1",
+                "tables",
+                "{id}",
+                "reservation"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /sections",
+          "request": {
+            "auth": "inherit",
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/table-ms/v1/sections",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "table-ms",
+                "v1",
+                "sections"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /sections",
+          "request": {
+            "auth": "inherit",
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/table-ms/v1/sections",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "table-ms",
+                "v1",
+                "sections"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /sections/{id}",
+          "request": {
+            "auth": "inherit",
+            "method": "PUT",
+            "url": {
+              "raw": "{{base_url}}/api/table-ms/v1/sections/{id}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "table-ms",
+                "v1",
+                "sections",
+                "{id}"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /sections/{id}",
+          "request": {
+            "auth": "inherit",
+            "method": "DELETE",
+            "url": {
+              "raw": "{{base_url}}/api/table-ms/v1/sections/{id}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "table-ms",
+                "v1",
+                "sections",
+                "{id}"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Order (order-service, port 8107)",
+      "item": [
+        {
+          "name": "GET /orders",
+          "request": {
+            "auth": "inherit",
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/order-ms/v1/orders",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "order-ms",
+                "v1",
+                "orders"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /orders/{id}",
+          "request": {
+            "auth": "inherit",
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/order-ms/v1/orders/{id}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "order-ms",
+                "v1",
+                "orders",
+                "{id}"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /orders",
+          "request": {
+            "auth": "inherit",
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/order-ms/v1/orders",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "order-ms",
+                "v1",
+                "orders"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /orders/{id}/status",
+          "request": {
+            "auth": "inherit",
+            "method": "PUT",
+            "url": {
+              "raw": "{{base_url}}/api/order-ms/v1/orders/{id}/status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "order-ms",
+                "v1",
+                "orders",
+                "{id}",
+                "status"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /orders/{id}/items/{itemId}/status",
+          "request": {
+            "auth": "inherit",
+            "method": "PUT",
+            "url": {
+              "raw": "{{base_url}}/api/order-ms/v1/orders/{id}/items/{itemId}/status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "order-ms",
+                "v1",
+                "orders",
+                "{id}",
+                "items",
+                "{itemId}",
+                "status"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                },
+                {
+                  "key": "itemId",
+                  "value": ""
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "POST /orders/{id}/items",
+          "request": {
+            "auth": "inherit",
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/order-ms/v1/orders/{id}/items",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "order-ms",
+                "v1",
+                "orders",
+                "{id}",
+                "items"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /orders/{id}/waiter-confirm",
+          "request": {
+            "auth": "inherit",
+            "method": "PUT",
+            "url": {
+              "raw": "{{base_url}}/api/order-ms/v1/orders/{id}/waiter-confirm",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "order-ms",
+                "v1",
+                "orders",
+                "{id}",
+                "waiter-confirm"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "POST /orders/{id}/cancel",
+          "request": {
+            "auth": "inherit",
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/order-ms/v1/orders/{id}/cancel",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "order-ms",
+                "v1",
+                "orders",
+                "{id}",
+                "cancel"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "POST /orders/{id}/request-payment",
+          "request": {
+            "auth": "inherit",
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/order-ms/v1/orders/{id}/request-payment",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "order-ms",
+                "v1",
+                "orders",
+                "{id}",
+                "request-payment"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "POST /orders/{id}/complete-payment",
+          "request": {
+            "auth": "inherit",
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/order-ms/v1/orders/{id}/complete-payment",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "order-ms",
+                "v1",
+                "orders",
+                "{id}",
+                "complete-payment"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /orders/{id}/start-preparing",
+          "request": {
+            "auth": "inherit",
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/order-ms/v1/orders/{id}/start-preparing",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "order-ms",
+                "v1",
+                "orders",
+                "{id}",
+                "start-preparing"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /orders/{id}/mark-all-ready",
+          "request": {
+            "auth": "inherit",
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/order-ms/v1/orders/{id}/mark-all-ready",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "order-ms",
+                "v1",
+                "orders",
+                "{id}",
+                "mark-all-ready"
+              ],
+              "variable": [
+                {
+                  "key": "id",
+                  "value": ""
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Kitchen (kitchen-service, port 8108)",
+      "item": [
+        {
+          "name": "GET /orders",
+          "request": {
+            "auth": "inherit",
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/kitchen-ms/v1/orders",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "kitchen-ms",
+                "v1",
+                "orders"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Waiter (waiter-service, port 8109)",
+      "item": [
+        {
+          "name": "GET /tables",
+          "request": {
+            "auth": "inherit",
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/waiter-ms/v1/tables",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "waiter-ms",
+                "v1",
+                "tables"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /orders/pending-confirm",
+          "request": {
+            "auth": "inherit",
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/waiter-ms/v1/orders/pending-confirm",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "waiter-ms",
+                "v1",
+                "orders",
+                "pending-confirm"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /orders/payment-requests",
+          "request": {
+            "auth": "inherit",
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/waiter-ms/v1/orders/payment-requests",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "waiter-ms",
+                "v1",
+                "orders",
+                "payment-requests"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Customer (customer-service, port 8110)",
+      "item": [
+        {
+          "name": "GET /{orgId}/menu",
+          "request": {
+            "auth": "inherit",
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/customer-ms/v1/{orgId}/menu",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "customer-ms",
+                "v1",
+                "{orgId}",
+                "menu"
+              ],
+              "variable": [
+                {
+                  "key": "orgId",
+                  "value": "{{orgId}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /{orgId}/tables",
+          "request": {
+            "auth": "inherit",
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/customer-ms/v1/{orgId}/tables",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "customer-ms",
+                "v1",
+                "{orgId}",
+                "tables"
+              ],
+              "variable": [
+                {
+                  "key": "orgId",
+                  "value": "{{orgId}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /orders",
+          "request": {
+            "auth": "inherit",
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/customer-ms/v1/orders",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "customer-ms",
+                "v1",
+                "orders"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "response": []
+        },
+        {
+          "name": "GET /orders/{orderId}",
+          "request": {
+            "auth": "inherit",
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/customer-ms/v1/orders/{orderId}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "customer-ms",
+                "v1",
+                "orders",
+                "{orderId}"
+              ],
+              "variable": [
+                {
+                  "key": "orderId",
+                  "value": ""
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /orders/{orderId}/request-bill",
+          "request": {
+            "auth": "inherit",
+            "method": "POST",
+            "url": {
+              "raw": "{{base_url}}/api/customer-ms/v1/orders/{orderId}/request-bill",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "customer-ms",
+                "v1",
+                "orders",
+                "{orderId}",
+                "request-bill"
+              ],
+              "variable": [
+                {
+                  "key": "orderId",
+                  "value": ""
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Setting (setting-service, port 8111)",
+      "item": [
+        {
+          "name": "GET /settings",
+          "request": {
+            "auth": "inherit",
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/setting-ms/v1/settings",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "setting-ms",
+                "v1",
+                "settings"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PUT /settings",
+          "request": {
+            "auth": "inherit",
+            "method": "PUT",
+            "url": {
+              "raw": "{{base_url}}/api/setting-ms/v1/settings",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "setting-ms",
+                "v1",
+                "settings"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Dashboard (dashboard-service, port 8112)",
+      "item": [
+        {
+          "name": "GET /stats",
+          "request": {
+            "auth": "inherit",
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/dashboard-ms/v1/stats",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "dashboard-ms",
+                "v1",
+                "stats"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /top-items",
+          "request": {
+            "auth": "inherit",
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/dashboard-ms/v1/top-items",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "dashboard-ms",
+                "v1",
+                "top-items"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /recent-orders",
+          "request": {
+            "auth": "inherit",
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/dashboard-ms/v1/recent-orders",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "dashboard-ms",
+                "v1",
+                "recent-orders"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /staff-list",
+          "request": {
+            "auth": "inherit",
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/dashboard-ms/v1/staff-list",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "dashboard-ms",
+                "v1",
+                "staff-list"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Reports (report-service, port 8113)",
+      "item": [
+        {
+          "name": "GET /summary",
+          "request": {
+            "auth": "inherit",
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/report-ms/v1/summary",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "report-ms",
+                "v1",
+                "summary"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /daily-revenue",
+          "request": {
+            "auth": "inherit",
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/report-ms/v1/daily-revenue",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "report-ms",
+                "v1",
+                "daily-revenue"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /hourly",
+          "request": {
+            "auth": "inherit",
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/report-ms/v1/hourly",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "report-ms",
+                "v1",
+                "hourly"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /sales-by-category",
+          "request": {
+            "auth": "inherit",
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/report-ms/v1/sales-by-category",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "report-ms",
+                "v1",
+                "sales-by-category"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /top-items",
+          "request": {
+            "auth": "inherit",
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/report-ms/v1/top-items",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "report-ms",
+                "v1",
+                "top-items"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /staff-performance",
+          "request": {
+            "auth": "inherit",
+            "method": "GET",
+            "url": {
+              "raw": "{{base_url}}/api/report-ms/v1/staff-performance",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "report-ms",
+                "v1",
+                "staff-performance"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8001"
+    },
+    {
+      "key": "orgId",
+      "value": "a55faced-dead-4bed-babe-feeddeadbeef"
+    },
+    {
+      "key": "access_token",
+      "value": ""
+    }
+  ]
+}
