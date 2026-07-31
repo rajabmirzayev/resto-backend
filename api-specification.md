@@ -1,0 +1,3109 @@
+# Tabler API Specification
+
+## Ümumi Qaydalar
+
+| Qayda | Dəyər |
+|---|---|
+| Base URL (API Gateway) | `http://localhost:8001` |
+| Auth path | `/api/auth-ms/v1/auth/{action}` (birbaşa DTO, `ApiResponse` wrapper-i yoxdur) |
+| Digər servislər | `/api/{service-ms}/v1/{resource}` (`ApiResponse<T>` wrapper-i ilə) |
+| Uğur formatı (auth xaric) | `{ success: true, message: "...", data: {...} }` |
+| Error formatı (bütün servislər) | Spring `ProblemDetail` (RFC 9457) — `key`, `path`, `timestamp` property-ləri ilə |
+| Validation error | 400 + `fieldErrors` array |
+
+---
+
+## Ümumi Error Formatları
+
+> Bütün microservice-lər eyni error formatını istifadə edir. Validation xaric bütün error-lar `fieldErrors` property-sini qaytarmır.
+
+### Validation Error (400)
+
+```json
+{
+  "type": "about:blank",
+  "title": "Validation error",
+  "status": 400,
+  "detail": "One or more fields are invalid",
+  "instance": "trace:xxx",
+  "key": "user_ms_1000",
+  "path": "/api/user-ms/v1/users",
+  "timestamp": "2026-07-30T12:00:00.000Z",
+  "fieldErrors": [
+    { "field": "name", "message": "Name is required" },
+    { "field": "username", "message": "Username is required" }
+  ]
+}
+```
+
+### Unauthorized (401)
+
+```json
+{
+  "type": "about:blank",
+  "title": "Unauthorized",
+  "status": 401,
+  "detail": "Invalid or expired token",
+  "instance": "trace:xxx",
+  "key": "common_4001",
+  "path": "/api/organization-ms/v1/organizations",
+  "timestamp": "2026-07-30T12:00:00.000Z"
+}
+```
+
+### Forbidden (403)
+
+```json
+{
+  "type": "about:blank",
+  "title": "Access Denied",
+  "status": 403,
+  "detail": "Insufficient permissions",
+  "instance": "trace:xxx",
+  "key": "common_4003",
+  "path": "/api/role-ms/v1/roles/r2",
+  "timestamp": "2026-07-30T12:00:00.000Z"
+}
+```
+
+### Not Found (404)
+
+```json
+{
+  "type": "about:blank",
+  "title": "Resource not found",
+  "status": 404,
+  "detail": "Organization with id org99 not found",
+  "instance": "trace:xxx",
+  "key": "org_ms_3001",
+  "path": "/api/organization-ms/v1/organizations/org99",
+  "timestamp": "2026-07-30T12:00:00.000Z"
+}
+```
+
+### Conflict (409)
+
+```json
+{
+  "type": "about:blank",
+  "title": "Conflict",
+  "status": 409,
+  "detail": "Table has an active order and cannot be deleted",
+  "instance": "trace:xxx",
+  "key": "table_ms_2001",
+  "path": "/api/table-ms/v1/tables/t2",
+  "timestamp": "2026-07-30T12:00:00.000Z"
+}
+```
+
+### Internal Server Error (500)
+
+```json
+{
+  "type": "about:blank",
+  "title": "Internal Server Error",
+  "status": 500,
+  "detail": "An unexpected error occurred",
+  "instance": "trace:xxx",
+  "key": "common_9999",
+  "path": "/api/menu-ms/v1/items",
+  "timestamp": "2026-07-30T12:00:00.000Z"
+}
+```
+
+---
+
+## 1. Auth — `auth-gateway` (port 8002)
+
+> API prefix: `/api/auth-ms/v1/auth/...`
+> Response: **birbaşa DTO** (`ApiResponse` wrapper-i yoxdur)
+> Error: Spring `ProblemDetail` (yuxarıdakı format)
+
+### `POST /api/auth-ms/v1/auth/login`
+
+**Giriş.** Backend Keycloak üzərindən autentifikasiya edir.
+
+Request:
+```json
+{
+  "username": "admin",
+  "password": "admin123"
+}
+```
+
+Success (200):
+```json
+{
+  "accessToken": "eyJhbGciOiJSUzI1NiIs...",
+  "refreshToken": "dGhpcyBpcyBhIHJlZnJl...",
+  "expiresIn": 300,
+  "roles": ["SUPER_ADMIN"],
+  "uiScope": "ADMIN_PANEL"
+}
+```
+
+**`uiScope`:**
+
+| Dəyər | Redirect | İstifadəçi |
+|---|---|---|
+| `ADMIN_PANEL` | `/super-admin` | Super admin (`SUPER_ADMIN` rol) |
+| `USER_PANEL` | `/admin` | Org admin, ofisant, aşpaz |
+
+> **Qeyd:** Hal-hazırda `SUPER_ADMIN` roluna `ADMIN_PANEL`, qalanlarına `USER_PANEL` təyin olunur. Gələcəkdə `org_admin`, `waiter`, `chef` üçün ayrıca redirect əlavə olunacaq.
+
+Error (401):
+```json
+{
+  "type": "about:blank",
+  "title": "Invalid credentials",
+  "status": 401,
+  "detail": "Invalid username or password",
+  "instance": "/api/auth-ms/v1/auth/login",
+  "key": "auth_gateway_001",
+  "path": "/api/auth-ms/v1/auth/login",
+  "timestamp": "2026-07-30T12:00:00.000Z"
+}
+```
+
+Error (502 — Keycloak unavailable):
+```json
+{
+  "type": "about:blank",
+  "title": "Authentication service unavailable",
+  "status": 502,
+  "detail": "Failed to authenticate. Please try again.",
+  "instance": "/api/auth-ms/v1/auth/login",
+  "key": "auth_gateway_005",
+  "path": "/api/auth-ms/v1/auth/login",
+  "timestamp": "2026-07-30T12:00:00.000Z"
+}
+```
+
+---
+
+### `POST /api/auth-ms/v1/auth/refresh`
+
+**Refresh token ilə yeni access token.**
+
+Request:
+```json
+{
+  "refreshToken": "dGhpcyBpcyBhIHJlZnJl..."
+}
+```
+
+Success (200):
+```json
+{
+  "accessToken": "eyJhbGciOiJSUzI1NiIs...",
+  "refreshToken": "bmV3IHJlZnJlc2ggdG9r...",
+  "expiresIn": 300
+}
+```
+
+Error (401):
+```json
+{
+  "type": "about:blank",
+  "title": "Token expired",
+  "status": 401,
+  "detail": "Refresh token has expired. Please login again.",
+  "instance": "/api/auth-ms/v1/auth/refresh",
+  "key": "auth_gateway_002",
+  "path": "/api/auth-ms/v1/auth/refresh",
+  "timestamp": "2026-07-30T12:00:00.000Z"
+}
+```
+
+---
+
+### `POST /api/auth-ms/v1/auth/logout`
+
+**Refresh token-i invalid edir (Keycloak session).**
+
+Request:
+```json
+{
+  "refreshToken": "dGhpcyBpcyBhIHJlZnJl..."
+}
+```
+
+Success (200): *empty body*
+
+Error (502):
+```json
+{
+  "type": "about:blank",
+  "title": "Logout failed",
+  "status": 502,
+  "detail": "Failed to revoke the session. Please try again.",
+  "instance": "/api/auth-ms/v1/auth/logout",
+  "key": "auth_gateway_004",
+  "path": "/api/auth-ms/v1/auth/logout",
+  "timestamp": "2026-07-30T12:00:00.000Z"
+}
+```
+
+---
+
+## 2. Organization — `organization-service` (port 8102)
+
+> API prefix: `/api/organization-ms/v1/...`
+> Response: `ApiResponse<T>` wrapper
+> Error: Spring `ProblemDetail`
+
+### `GET /api/organization-ms/v1/organizations`
+
+**Bütün təşkilatların siyahısı. Super admin üçün.**
+
+Headers: `Authorization: Bearer {token}`
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Success",
+  "errorCode": null,
+  "data": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440001",
+      "name": "Nərimanov Restoranı",
+      "slug": "nerimanov-restoran",
+      "adminName": "Orxan Əliyev",
+      "adminEmail": "orxan@nerimanov.az",
+      "logoUrl": null,
+      "phone": "+994501234567",
+      "address": "Nərimanov, Bakı",
+      "createdAt": "2026-07-23T12:00:00.000Z"
+    }
+  ]
+}
+```
+
+Error (401): *yuxarıdakı ümumi 401 formatı*
+
+---
+
+### `POST /api/organization-ms/v1/organizations`
+
+**Yeni təşkilat yarat. Arxada avtomatik:**
+- `org_admin` user-i (Keycloak + local DB)
+- Org-a aid rol (permissions: `dashboard.view`, `menu.*`, `tables.*`, `orders.*`, `kitchen.*`)
+- Default `OrgSetting` (`orderMode=customer`, `paymentTiming=after`, `customerTheme=classic`)
+- Default `Zal 1` section
+
+Headers: `Authorization: Bearer {token}` (super admin)
+
+Request:
+```json
+{
+  "name": "Nərimanov Restoranı",
+  "adminName": "Orxan Əliyev",
+  "adminEmail": "orxan@nerimanov.az",
+  "adminPassword": "orxan123"
+}
+```
+
+Success (201):
+```json
+{
+  "success": true,
+  "message": "Organization created",
+  "errorCode": null,
+  "data": {
+    "organization": {
+      "id": "550e8400-e29b-41d4-a716-446655440001",
+      "name": "Nərimanov Restoranı",
+      "slug": "nerimanov-restoran",
+      "adminName": "Orxan Əliyev",
+      "adminEmail": "orxan@nerimanov.az",
+      "logoUrl": null,
+      "phone": null,
+      "address": null,
+      "createdAt": "2026-07-30T12:00:00.000Z"
+    },
+    "adminUser": {
+      "id": "550e8400-e29b-41d4-a716-446655440005",
+      "name": "Orxan Əliyev",
+      "username": "orxan@nerimanov.az",
+      "email": "orxan@nerimanov.az",
+      "role": "ORG_ADMIN",
+      "roleId": "550e8400-e29b-41d4-a716-4466554400a1",
+      "orgId": "550e8400-e29b-41d4-a716-446655440001"
+    },
+    "adminRole": {
+      "id": "550e8400-e29b-41d4-a716-4466554400a1",
+      "name": "Nərimanov Restoranı Admin",
+      "permissions": [
+        "dashboard.view",
+        "menu.view", "menu.create", "menu.edit", "menu.delete",
+        "tables.view", "tables.manage", "tables.status",
+        "orders.view", "orders.manage", "orders.cancel",
+        "kitchen.view", "kitchen.manage"
+      ],
+      "isSystem": false,
+      "orgId": "550e8400-e29b-41d4-a716-446655440001"
+    }
+  }
+}
+```
+
+Error (400):
+```json
+{
+  "type": "about:blank",
+  "title": "Validation error",
+  "status": 400,
+  "detail": "One or more fields are invalid",
+  "instance": "trace:xxx",
+  "key": "org_ms_1000",
+  "path": "/api/organization-ms/v1/organizations",
+  "timestamp": "2026-07-30T12:00:00.000Z",
+  "fieldErrors": [
+    { "field": "name", "message": "Name is required" },
+    { "field": "adminEmail", "message": "Invalid email format" }
+  ]
+}
+```
+
+---
+
+### `GET /api/organization-ms/v1/organizations/{orgId}`
+
+**Tək təşkilat məlumatı.**
+
+Headers: `Authorization: Bearer {token}`
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Success",
+  "errorCode": null,
+  "data": {
+    "id": "550e8400-e29b-41d4-a716-446655440001",
+    "name": "Nərimanov Restoranı",
+    "slug": "nerimanov-restoran",
+    "adminName": "Orxan Əliyev",
+    "adminEmail": "orxan@nerimanov.az",
+    "logoUrl": null,
+    "phone": "+994501234567",
+    "address": "Nərimanov, Bakı",
+    "createdAt": "2026-07-23T12:00:00.000Z"
+  }
+}
+```
+
+Error (404):
+```json
+{
+  "type": "about:blank",
+  "title": "Resource not found",
+  "status": 404,
+  "detail": "Organization with id org99 not found",
+  "instance": "trace:xxx",
+  "key": "org_ms_3001",
+  "path": "/api/organization-ms/v1/organizations/org99",
+  "timestamp": "2026-07-30T12:00:00.000Z"
+}
+```
+
+---
+
+### `GET /api/organization-ms/v1/organizations/{orgId}/qr-code`
+
+**QR kod (müştəri menyusu üçün).**
+
+Headers: `Authorization: Bearer {token}`
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Success",
+  "errorCode": null,
+  "data": {
+    "qrCodeUrl": "https://api.qrserver.com/v1/create-qr-code/?size=512x512&data=https%3A%2F%2Ftabler.az%2Forg%2F550e8400-e29b-41d4-a716-446655440001%2Fmenu"
+  }
+}
+```
+
+> Frontend hazırda `api.qrserver.com` istifadə edir. Backend öz QR generatoru əlavə edə bilər.
+
+---
+
+## 3. User / Staff — `user-service` (port 8103)
+
+> API prefix: `/api/user-ms/v1/...`
+> Response: `ApiResponse<T>` wrapper
+> Error: Spring `ProblemDetail`
+
+### `GET /api/user-ms/v1/users`
+
+**Bütün istifadəçilər.**
+
+Headers: `Authorization: Bearer {token}`
+
+Query:
+| Parameter | Tip | Məcburi | İzah |
+|---|---|---|---|
+| `orgId` | UUID | X | Org-a görə filtr |
+| `role` | String | X | Role adına görə filtr (`waiter`, `chef`) |
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Success",
+  "errorCode": null,
+  "data": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440010",
+      "keycloakId": "k123-keycloak-uuid",
+      "name": "Leyla Hüseynova",
+      "username": "waiter1",
+      "email": null,
+      "phone": "+994501112233",
+      "role": "WAITER",
+      "roleId": "550e8400-e29b-41d4-a716-446655440030",
+      "orgId": "550e8400-e29b-41d4-a716-446655440001",
+      "avatar": "",
+      "isActive": true,
+      "createdAt": "2026-07-24T10:00:00.000Z"
+    }
+  ]
+}
+```
+
+> `password` field-i heç vaxt response-da qayıtmır.
+
+---
+
+### `GET /api/user-ms/v1/users/{id}`
+
+**Tək istifadəçi.**
+
+Headers: `Authorization: Bearer {token}`
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Success",
+  "errorCode": null,
+  "data": {
+    "id": "550e8400-e29b-41d4-a716-446655440010",
+    "name": "Leyla Hüseynova",
+    "username": "waiter1",
+    "email": null,
+    "role": "WAITER",
+    "roleId": "550e8400-e29b-41d4-a716-446655440030",
+    "orgId": "550e8400-e29b-41d4-a716-446655440001",
+    "avatar": "",
+    "isActive": true,
+    "createdAt": "2026-07-24T10:00:00.000Z"
+  }
+}
+```
+
+Error (404):
+```json
+{
+  "type": "about:blank",
+  "title": "Resource not found",
+  "status": 404,
+  "detail": "User with id u99 not found",
+  "instance": "trace:xxx",
+  "key": "user_ms_3001",
+  "path": "/api/user-ms/v1/users/u99",
+  "timestamp": "2026-07-30T12:00:00.000Z"
+}
+```
+
+---
+
+### `POST /api/user-ms/v1/users`
+
+**Yeni istifadəçi yarat (personal əlavə et). Keycloak-da da user yaranır.**
+
+Headers: `Authorization: Bearer {token}`
+
+Request:
+```json
+{
+  "name": "Leyla Hüseynova",
+  "username": "waiter1",
+  "password": "waiter123",
+  "roleId": "550e8400-e29b-41d4-a716-446655440030",
+  "orgId": "550e8400-e29b-41d4-a716-446655440001",
+  "email": null,
+  "phone": "+994501112233"
+}
+```
+
+Success (201):
+```json
+{
+  "success": true,
+  "message": "User created",
+  "errorCode": null,
+  "data": {
+    "id": "550e8400-e29b-41d4-a716-446655440010",
+    "name": "Leyla Hüseynova",
+    "username": "waiter1",
+    "email": null,
+    "role": "WAITER",
+    "roleId": "550e8400-e29b-41d4-a716-446655440030",
+    "orgId": "550e8400-e29b-41d4-a716-446655440001",
+    "avatar": "",
+    "isActive": true
+  }
+}
+```
+
+**Business rule — `role` field-i `roleId`-dən avtomatik təyin edilir:**
+
+| Role xüsusiyyəti | Nəticə `role` |
+|---|---|
+| `isSystem=true` | `ADMIN` |
+| `kitchen.view` + `kitchen.manage` icazələri var | `CHEF` |
+| Yuxarıdakılar yoxdur | `WAITER` |
+
+---
+
+### `PUT /api/user-ms/v1/users/{id}`
+
+**İstifadəçini redaktə et.**
+
+Headers: `Authorization: Bearer {token}`
+
+Request:
+```json
+{
+  "name": "Leyla H.",
+  "username": "waiter1",
+  "password": "yeniParol123",
+  "roleId": "550e8400-e29b-41d4-a716-446655440031",
+  "phone": "+994501112233",
+  "isActive": true
+}
+```
+
+> `password` göndərilməsə, köhnə şifrə qalır. Bütün field-lar optionaldır (partial update). Keycloak-da da məlumatlar yenilənir.
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "User updated",
+  "errorCode": null,
+  "data": { "...User..." }
+}
+```
+
+---
+
+### `DELETE /api/user-ms/v1/users/{id}`
+
+**İstifadəçini sil. Keycloak-da da user deaktiv edilir.**
+
+Headers: `Authorization: Bearer {token}`
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "User deleted",
+  "errorCode": null,
+  "data": null
+}
+```
+
+---
+
+### `GET /api/user-ms/v1/users/staff-performance`
+
+**Personal performans statistikası.**
+
+Headers: `Authorization: Bearer {token}`
+
+Query: `?orgId=550e8400-e29b-41d4-a716-446655440001`
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Success",
+  "errorCode": null,
+  "data": [
+    {
+      "userId": "550e8400-e29b-41d4-a716-446655440010",
+      "name": "Leyla Hüseynova",
+      "role": "WAITER",
+      "totalOrders": 25,
+      "completedOrders": 20,
+      "revenue": 450.00,
+      "activeOrders": 3
+    }
+  ]
+}
+```
+
+> `role` dəyəri enum formatındadır (`WAITER`, `CHEF`). Frontend öz `t('role.waiter')` tərcüməsini istifadə edir.
+
+---
+
+## 4. Role — `role-service` (port 8104)
+
+> API prefix: `/api/role-ms/v1/...`
+> Response: `ApiResponse<T>` wrapper
+> Error: Spring `ProblemDetail`
+
+### `GET /api/role-ms/v1/roles`
+
+**Bütün rollar.**
+
+Headers: `Authorization: Bearer {token}`
+
+Query: `?orgId=550e8400-e29b-41d4-a716-446655440001`
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Success",
+  "errorCode": null,
+  "data": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440020",
+      "name": "Süper Admin",
+      "permissions": [
+        "dashboard.view", "menu.view", "menu.create", "menu.edit", "menu.delete",
+        "tables.view", "tables.manage", "tables.status",
+        "orders.view", "orders.manage", "orders.cancel",
+        "reports.view",
+        "staff.view", "staff.create", "staff.edit", "staff.delete",
+        "roles.view", "roles.create", "roles.edit", "roles.delete",
+        "kitchen.view", "kitchen.manage",
+        "settings.view", "settings.edit"
+      ],
+      "isSystem": true,
+      "orgId": null
+    }
+  ]
+}
+```
+
+---
+
+### `POST /api/role-ms/v1/roles`
+
+**Yeni rol yarat.**
+
+Headers: `Authorization: Bearer {token}`
+
+Request:
+```json
+{
+  "name": "Menecer",
+  "permissions": [
+    "dashboard.view", "menu.view", "menu.create", "menu.edit",
+    "tables.view", "tables.manage",
+    "orders.view", "orders.manage"
+  ],
+  "orgId": "550e8400-e29b-41d4-a716-446655440001"
+}
+```
+
+> `isSystem` həmişə `false` olur. `orgId` məcburidir.
+
+Success (201):
+```json
+{
+  "success": true,
+  "message": "Role created",
+  "errorCode": null,
+  "data": {
+    "id": "550e8400-e29b-41d4-a716-446655440032",
+    "name": "Menecer",
+    "permissions": ["dashboard.view", "menu.view", "menu.create", "menu.edit", "tables.view", "tables.manage", "orders.view", "orders.manage"],
+    "isSystem": false,
+    "orgId": "550e8400-e29b-41d4-a716-446655440001"
+  }
+}
+```
+
+---
+
+### `PUT /api/role-ms/v1/roles/{id}`
+
+**Rol redaktə et.**
+
+Headers: `Authorization: Bearer {token}`
+
+Request:
+```json
+{
+  "name": "Menecer+",
+  "permissions": [
+    "dashboard.view", "menu.view", "menu.create", "menu.edit", "menu.delete",
+    "tables.view", "tables.manage", "tables.status",
+    "orders.view", "orders.manage"
+  ]
+}
+```
+
+> `isSystem=true` olan rollar redaktə edilə bilməz.
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Role updated",
+  "errorCode": null,
+  "data": { "...Role..." }
+}
+```
+
+Error (403):
+```json
+{
+  "type": "about:blank",
+  "title": "Access Denied",
+  "status": 403,
+  "detail": "System role cannot be modified",
+  "instance": "trace:xxx",
+  "key": "role_ms_4003",
+  "path": "/api/role-ms/v1/roles/r1",
+  "timestamp": "2026-07-30T12:00:00.000Z"
+}
+```
+
+---
+
+### `DELETE /api/role-ms/v1/roles/{id}`
+
+**Rol sil.**
+
+Headers: `Authorization: Bearer {token}`
+
+**Business rules:**
+- `isSystem=true` olan rollar silinə bilməz → 403
+- Rola aid istifadəçilər varsa, onların `roleId`-si `null` olur
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Role deleted",
+  "errorCode": null,
+  "data": null
+}
+```
+
+---
+
+### `GET /api/role-ms/v1/roles/permissions`
+
+**Bütün mövcud icazələrin siyahısı (frontend checkbox list üçün).**
+
+Headers: `Authorization: Bearer {token}`
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Success",
+  "errorCode": null,
+  "data": {
+    "groups": {
+      "dashboard": ["dashboard.view"],
+      "menu": ["menu.view", "menu.create", "menu.edit", "menu.delete"],
+      "tables": ["tables.view", "tables.manage", "tables.status"],
+      "orders": ["orders.view", "orders.manage", "orders.cancel"],
+      "reports": ["reports.view"],
+      "staff": ["staff.view", "staff.create", "staff.edit", "staff.delete"],
+      "roles": ["roles.view", "roles.create", "roles.edit", "roles.delete"],
+      "kitchen": ["kitchen.view", "kitchen.manage"],
+      "settings": ["settings.view", "settings.edit"]
+    }
+  }
+}
+```
+
+---
+
+## 5. Menu — `menu-service` (port 8105)
+
+> API prefix: `/api/menu-ms/v1/...`
+> Response: `ApiResponse<T>` wrapper
+> Error: Spring `ProblemDetail`
+
+### `GET /api/menu-ms/v1/items`
+
+**Bütün menu maddələri.**
+
+Headers: `Authorization: Bearer {token}`
+
+Query:
+| Parameter | Tip | Məcburi | İzah |
+|---|---|---|---|
+| `orgId` | UUID | Bəli | Org filter |
+| `categoryId` | UUID | X | Kateqoriya filter |
+| `available` | Boolean | X | `true` = yalnız aktiv |
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Success",
+  "errorCode": null,
+  "data": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440040",
+      "name": {
+        "az": "Pomidor Şorbası",
+        "en": "Tomato Soup",
+        "ru": "Томатный суп"
+      },
+      "description": {
+        "az": "Klassik pomidor şorbası, krem ilə",
+        "en": "Classic tomato soup with cream",
+        "ru": "Классический томатный суп со сливками"
+      },
+      "price": 8.00,
+      "categoryId": "550e8400-e29b-41d4-a716-446655440050",
+      "imageUrl": null,
+      "isAvailable": true,
+      "preparationTime": 10,
+      "orgId": "550e8400-e29b-41d4-a716-446655440001",
+      "createdAt": "2026-07-25T12:00:00.000Z"
+    }
+  ]
+}
+```
+
+---
+
+### `GET /api/menu-ms/v1/items/{id}`
+
+**Tək menu maddəsi.**
+
+Headers: `Authorization: Bearer {token}`
+
+Success (200): *yuxarıdakı kimi tək element*
+
+Error (404):
+```json
+{
+  "type": "about:blank",
+  "title": "Resource not found",
+  "status": 404,
+  "detail": "Menu item with id m99 not found",
+  "instance": "trace:xxx",
+  "key": "menu_ms_3001",
+  "path": "/api/menu-ms/v1/items/m99",
+  "timestamp": "2026-07-30T12:00:00.000Z"
+}
+```
+
+---
+
+### `POST /api/menu-ms/v1/items`
+
+**Yeni menu maddəsi yarat.**
+
+Headers: `Authorization: Bearer {token}`
+
+Request:
+```json
+{
+  "name": {
+    "az": "Pomidor Şorbası",
+    "en": "Tomato Soup",
+    "ru": "Томатный суп"
+  },
+  "description": {
+    "az": "Klassik pomidor şorbası, krem ilə",
+    "en": "Classic tomato soup with cream",
+    "ru": "Классический томатный суп со сливками"
+  },
+  "price": 8.00,
+  "categoryId": "550e8400-e29b-41d4-a716-446655440050",
+  "preparationTime": 10,
+  "isAvailable": true,
+  "imageUrl": "data:image/png;base64,...",
+  "orgId": "550e8400-e29b-41d4-a716-446655440001"
+}
+```
+
+> `imageUrl` base64 data URL və ya boş string ola bilər. Böyük fayllar üçün ayrıca `/items/{id}/image` endpoint-i var.
+
+Success (201):
+```json
+{
+  "success": true,
+  "message": "Menu item created",
+  "errorCode": null,
+  "data": { "...MenuItem..." }
+}
+```
+
+---
+
+### `PUT /api/menu-ms/v1/items/{id}`
+
+**Menu maddəsini redaktə et.**
+
+Headers: `Authorization: Bearer {token}`
+
+Request:
+```json
+{
+  "name": { "az": "...", "en": "...", "ru": "..." },
+  "description": { "az": "...", "en": "...", "ru": "..." },
+  "price": 9.00,
+  "categoryId": "550e8400-e29b-41d4-a716-446655440051",
+  "preparationTime": 12,
+  "isAvailable": false,
+  "imageUrl": "https://cdn.tabler.az/images/m1.jpg"
+}
+```
+
+> Bütün field-lar optionaldır (partial update).
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Menu item updated",
+  "errorCode": null,
+  "data": { "...MenuItem..." }
+}
+```
+
+---
+
+### `DELETE /api/menu-ms/v1/items/{id}`
+
+**Menu maddəsini sil.**
+
+Headers: `Authorization: Bearer {token}`
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Menu item deleted",
+  "errorCode": null,
+  "data": null
+}
+```
+
+---
+
+### `POST /api/menu-ms/v1/items/{id}/image`
+
+**Şəkil yüklə (multipart).**
+
+Headers: `Authorization: Bearer {token}`
+
+Request: `multipart/form-data`, field: `file`
+
+Constraints:
+- Max 2MB
+- MIME types: `image/jpeg`, `image/png`, `image/webp`
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Image uploaded",
+  "errorCode": null,
+  "data": {
+    "imageUrl": "https://cdn.tabler.az/images/550e8400-e29b-41d4-a716-446655440040.jpg"
+  }
+}
+```
+
+---
+
+### `DELETE /api/menu-ms/v1/items/{id}/image`
+
+**Şəkli sil.**
+
+Headers: `Authorization: Bearer {token}`
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Image deleted",
+  "errorCode": null,
+  "data": null
+}
+```
+
+---
+
+### `GET /api/menu-ms/v1/categories`
+
+**Bütün kateqoriyalar.**
+
+Headers: `Authorization: Bearer {token}`
+
+Query: `?orgId=550e8400-e29b-41d4-a716-446655440001`
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Success",
+  "errorCode": null,
+  "data": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440050",
+      "name": { "az": "Şorbalar", "en": "Soups", "ru": "Супы" },
+      "icon": "soup",
+      "sortOrder": 1,
+      "orgId": "550e8400-e29b-41d4-a716-446655440001"
+    }
+  ]
+}
+```
+
+> `icon` field-ı Lucide React ikon adıdır: `soup`, `beef`, `salad`, `pizza`, `hamburger`, `cup-soda`, `cake`, `cookie`.
+
+---
+
+### `POST /api/menu-ms/v1/categories`
+
+**Yeni kateqoriya yarat.**
+
+Headers: `Authorization: Bearer {token}`
+
+Request:
+```json
+{
+  "name": { "az": "Şorbalar", "en": "Soups", "ru": "Супы" },
+  "icon": "soup",
+  "sortOrder": 1,
+  "orgId": "550e8400-e29b-41d4-a716-446655440001"
+}
+```
+
+Success (201):
+```json
+{
+  "success": true,
+  "message": "Category created",
+  "errorCode": null,
+  "data": { "...MenuCategory..." }
+}
+```
+
+---
+
+### `PUT /api/menu-ms/v1/categories/{id}`
+
+**Kateqoriyanı redaktə et.**
+
+Headers: `Authorization: Bearer {token}`
+
+Request:
+```json
+{
+  "name": { "az": "Soyuq Şorbalar", "en": "Cold Soups", "ru": "Холодные супы" },
+  "icon": "soup",
+  "sortOrder": 2
+}
+```
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Category updated",
+  "errorCode": null,
+  "data": { "...MenuCategory..." }
+}
+```
+
+---
+
+### `DELETE /api/menu-ms/v1/categories/{id}`
+
+**Kateqoriyanı sil.**
+
+Headers: `Authorization: Bearer {token}`
+
+Request body (opsional):
+```json
+{
+  "moveItemsTo": "550e8400-e29b-41d4-a716-446655440051"
+}
+```
+
+**Business rules:**
+- `moveItemsTo` göndərilsə, həmin kateqoriyadakı bütün maddələr ora köçürülür
+- Göndərilməsə, kateqoriyadakı bütün maddələr də silinir
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Category deleted",
+  "errorCode": null,
+  "data": null
+}
+```
+
+---
+
+## 6. Table — `table-service` (port 8106)
+
+> API prefix: `/api/table-ms/v1/...`
+> Response: `ApiResponse<T>` wrapper
+> Error: Spring `ProblemDetail`
+
+### `GET /api/table-ms/v1/tables`
+
+**Bütün masalar.**
+
+Headers: `Authorization: Bearer {token}`
+
+Query:
+| Parameter | Tip | Məcburi | İzah |
+|---|---|---|---|
+| `orgId` | UUID | Bəli | Org filter |
+| `sectionId` | UUID | X | Bölmə filter |
+| `status` | String | X | Status filter (`available`, `occupied`, `reserved`, `cleaning`) |
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Success",
+  "errorCode": null,
+  "data": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440060",
+      "tableNumber": 1,
+      "capacity": 2,
+      "status": "AVAILABLE",
+      "sectionId": "550e8400-e29b-41d4-a716-446655440070",
+      "currentOrderId": null,
+      "reservation": null,
+      "orgId": "550e8400-e29b-41d4-a716-446655440001"
+    },
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440061",
+      "tableNumber": 2,
+      "capacity": 2,
+      "status": "OCCUPIED",
+      "sectionId": "550e8400-e29b-41d4-a716-446655440070",
+      "currentOrderId": "550e8400-e29b-41d4-a716-446655440080",
+      "reservation": null,
+      "orgId": "550e8400-e29b-41d4-a716-446655440001"
+    },
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440062",
+      "tableNumber": 4,
+      "capacity": 4,
+      "status": "RESERVED",
+      "sectionId": "550e8400-e29b-41d4-a716-446655440070",
+      "currentOrderId": null,
+      "reservation": {
+        "guestName": "Əli Həsənov",
+        "phone": "+994501234567",
+        "time": "2026-07-30T19:00:00.000Z",
+        "guestCount": 4,
+        "notes": "Ad gününə həsr olunub"
+      },
+      "orgId": "550e8400-e29b-41d4-a716-446655440001"
+    }
+  ]
+}
+```
+
+**`status` enum:** `AVAILABLE` | `OCCUPIED` | `RESERVED` | `CLEANING`
+
+---
+
+### `GET /api/table-ms/v1/tables/{id}`
+
+**Tək masa.**
+
+Headers: `Authorization: Bearer {token}`
+
+Success (200): *yuxarıdakı kimi tək element*
+
+---
+
+### `POST /api/table-ms/v1/tables`
+
+**Yeni masa yarat.**
+
+Headers: `Authorization: Bearer {token}`
+
+Request:
+```json
+{
+  "tableNumber": 11,
+  "capacity": 4,
+  "sectionId": "550e8400-e29b-41d4-a716-446655440070",
+  "orgId": "550e8400-e29b-41d4-a716-446655440001"
+}
+```
+
+> `status` avtomatik `AVAILABLE` təyin olunur.
+
+Success (201):
+```json
+{
+  "success": true,
+  "message": "Table created",
+  "errorCode": null,
+  "data": { "...RestaurantTable..." }
+}
+```
+
+---
+
+### `PUT /api/table-ms/v1/tables/{id}`
+
+**Masanı redaktə et.**
+
+Headers: `Authorization: Bearer {token}`
+
+Request:
+```json
+{
+  "tableNumber": 11,
+  "capacity": 6,
+  "sectionId": "550e8400-e29b-41d4-a716-446655440071",
+  "status": "AVAILABLE"
+}
+```
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Table updated",
+  "errorCode": null,
+  "data": { "...RestaurantTable..." }
+}
+```
+
+---
+
+### `DELETE /api/table-ms/v1/tables/{id}`
+
+**Masanı sil.**
+
+Headers: `Authorization: Bearer {token}`
+
+**Business rule:** Aktiv sifarişi olan masa silinə bilməz → 409 Conflict.
+
+Error (409):
+```json
+{
+  "type": "about:blank",
+  "title": "Conflict",
+  "status": 409,
+  "detail": "Table has an active order and cannot be deleted",
+  "instance": "trace:xxx",
+  "key": "table_ms_2001",
+  "path": "/api/table-ms/v1/tables/t2",
+  "timestamp": "2026-07-30T12:00:00.000Z"
+}
+```
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Table deleted",
+  "errorCode": null,
+  "data": null
+}
+```
+
+---
+
+### `PUT /api/table-ms/v1/tables/{id}/status`
+
+**Status dəyiş.**
+
+Headers: `Authorization: Bearer {token}`
+
+Request:
+```json
+{
+  "status": "CLEANING"
+}
+```
+
+**Frontend-in istifadə etdiyi status dəyişiklikləri:**
+
+| Hadisə | Yeni status |
+|---|---|
+| Sifariş yaradıldı | `OCCUPIED` |
+| Sifariş ləğv edildi | `CLEANING` |
+| Təmizlik bitdi | `AVAILABLE` |
+| Admin əl ilə dəyişdi | İstənilən |
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Table status updated",
+  "errorCode": null,
+  "data": { "...RestaurantTable..." }
+}
+```
+
+---
+
+### `PUT /api/table-ms/v1/tables/{id}/reservation`
+
+**Rezervasiya əlavə et / yenilə.**
+
+Headers: `Authorization: Bearer {token}`
+
+Request:
+```json
+{
+  "guestName": "Əli Həsənov",
+  "phone": "+994501234567",
+  "time": "2026-07-30T19:00:00.000Z",
+  "guestCount": 4,
+  "notes": "Ad gününə həsr olunub"
+}
+```
+
+> `status` avtomatik `RESERVED` olur.
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Reservation updated",
+  "errorCode": null,
+  "data": { "...RestaurantTable..." }
+}
+```
+
+---
+
+### `DELETE /api/table-ms/v1/tables/{id}/reservation`
+
+**Rezervasiyanı sil + status-u `AVAILABLE` et.**
+
+Headers: `Authorization: Bearer {token}`
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Reservation cancelled",
+  "errorCode": null,
+  "data": { "...RestaurantTable..." }
+}
+```
+
+---
+
+### `GET /api/table-ms/v1/sections`
+
+**Bölmə adları siyahısı.**
+
+Headers: `Authorization: Bearer {token}`
+
+Query: `?orgId=550e8400-e29b-41d4-a716-446655440001`
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Success",
+  "errorCode": null,
+  "data": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440070",
+      "name": "Zal 1",
+      "orgId": "550e8400-e29b-41d4-a716-446655440001"
+    },
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440071",
+      "name": "Zal 2",
+      "orgId": "550e8400-e29b-41d4-a716-446655440001"
+    }
+  ]
+}
+```
+
+---
+
+### `POST /api/table-ms/v1/sections`
+
+**Yeni bölmə yarat.**
+
+Headers: `Authorization: Bearer {token}`
+
+Request:
+```json
+{
+  "name": "Bağ evi",
+  "orgId": "550e8400-e29b-41d4-a716-446655440001"
+}
+```
+
+Success (201):
+```json
+{
+  "success": true,
+  "message": "Section created",
+  "errorCode": null,
+  "data": { "...Section..." }
+}
+```
+
+---
+
+### `PUT /api/table-ms/v1/sections/{id}`
+
+**Bölmə adını dəyiş.**
+
+Headers: `Authorization: Bearer {token}`
+
+Request:
+```json
+{
+  "name": "Bağ Evi"
+}
+```
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Section renamed",
+  "errorCode": null,
+  "data": { "...Section..." }
+}
+```
+
+---
+
+### `DELETE /api/table-ms/v1/sections/{id}`
+
+**Bölməni sil.**
+
+Headers: `Authorization: Bearer {token}`
+
+**Business rule:** Bölmədəki masalar avtomatik qalan ilk bölməyə köçürülür. Tək bölmə qalıbsa silinə bilməz → 409.
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Section deleted",
+  "errorCode": null,
+  "data": null
+}
+```
+
+---
+
+## 7. Order — `order-service` (port 8107)
+
+> API prefix: `/api/order-ms/v1/...`
+> Response: `ApiResponse<T>` wrapper
+> Error: Spring `ProblemDetail`
+
+### `GET /api/order-ms/v1/orders`
+
+**Sifariş siyahısı.**
+
+Headers: `Authorization: Bearer {token}`
+
+Query:
+| Parameter | Tip | Məcburi | İzah |
+|---|---|---|---|
+| `orgId` | UUID | Bəli | Org filter |
+| `status` | String | X | Status: `pending`, `confirmed`, `preparing`, `ready`, `served`, `completed`, `cancelled` |
+| `tableId` | UUID | X | Masa filter |
+| `waiterId` | UUID | X | Ofisant filter |
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Success",
+  "errorCode": null,
+  "data": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440080",
+      "tableId": "550e8400-e29b-41d4-a716-446655440061",
+      "tableNumber": 2,
+      "items": [
+        {
+          "id": "550e8400-e29b-41d4-a716-446655440090",
+          "menuItemId": "550e8400-e29b-41d4-a716-446655440040",
+          "menuItemName": "Pomidor Şorbası",
+          "quantity": 2,
+          "price": 8.00,
+          "notes": "",
+          "status": "READY"
+        }
+      ],
+      "status": "CONFIRMED",
+      "paymentStatus": "PENDING",
+      "totalAmount": 16.00,
+      "waiterId": "550e8400-e29b-41d4-a716-446655440010",
+      "waiterName": "Leyla Hüseynova",
+      "orderSource": "WAITER",
+      "waiterConfirmed": true,
+      "confirmedBy": "Leyla Hüseynova",
+      "customerPhoto": null,
+      "paymentMethod": null,
+      "paymentRequested": false,
+      "cancelReason": null,
+      "orgId": "550e8400-e29b-41d4-a716-446655440001",
+      "createdAt": "2026-07-30T18:30:00.000Z",
+      "updatedAt": "2026-07-30T18:32:00.000Z"
+    }
+  ]
+}
+```
+
+---
+
+### `GET /api/order-ms/v1/orders/{id}`
+
+**Tək sifariş.**
+
+Headers: `Authorization: Bearer {token}`
+
+Success (200): *yuxarıdakı kimi tək element*
+
+Error (404):
+```json
+{
+  "type": "about:blank",
+  "title": "Resource not found",
+  "status": 404,
+  "detail": "Order with id o99 not found",
+  "instance": "trace:xxx",
+  "key": "order_ms_3001",
+  "path": "/api/order-ms/v1/orders/o99",
+  "timestamp": "2026-07-30T12:00:00.000Z"
+}
+```
+
+---
+
+### `POST /api/order-ms/v1/orders`
+
+**Yeni sifariş yarat.**
+
+Headers: `Authorization: Bearer {token}` (opsional — customer endpoint-i istifadə etmir)
+
+**Request (waiter):**
+```json
+{
+  "tableId": "550e8400-e29b-41d4-a716-446655440061",
+  "waiterId": "550e8400-e29b-41d4-a716-446655440010",
+  "waiterName": "Leyla Hüseynova",
+  "orderSource": "WAITER",
+  "items": [
+    {
+      "menuItemId": "550e8400-e29b-41d4-a716-446655440040",
+      "menuItemName": "Pomidor Şorbası",
+      "quantity": 2,
+      "price": 8.00,
+      "notes": ""
+    },
+    {
+      "menuItemId": "550e8400-e29b-41d4-a716-446655440041",
+      "menuItemName": "Lülə Kebab",
+      "quantity": 1,
+      "price": 28.00,
+      "notes": "Az bişmiş"
+    }
+  ],
+  "orgId": "550e8400-e29b-41d4-a716-446655440001"
+}
+```
+
+**Request (customer):**
+```json
+{
+  "tableId": "550e8400-e29b-41d4-a716-446655440063",
+  "orderSource": "CUSTOMER",
+  "items": [
+    {
+      "menuItemId": "550e8400-e29b-41d4-a716-446655440042",
+      "menuItemName": "Margarita Pizza",
+      "quantity": 1,
+      "price": 18.00,
+      "notes": ""
+    }
+  ],
+  "customerPhoto": "data:image/jpeg;base64,...",
+  "paymentMethod": "CASH",
+  "orgId": "550e8400-e29b-41d4-a716-446655440001"
+}
+```
+
+**Status assignment rules (backend):**
+
+| orderSource | Mode | waiterConfirmed | status |
+|---|---|---|---|
+| `WAITER` | — | `true` | `CONFIRMED` |
+| `CUSTOMER` | `CUSTOMER` | `true` | `CONFIRMED` |
+| `CUSTOMER` | `CUSTOMER_WAITER_CONFIRM` | `false` | `PENDING` |
+
+**PaymentStatus rules:**
+- `paymentMethod` var + org setting `paymentTiming=BEFORE` → `PENDING`
+- `paymentMethod` yoxdursa → `PENDING`
+
+**Business rule:** Sifariş yaradılanda:
+- Masanın status-u `OCCUPIED` olur
+- Masanın `currentOrderId`-si set edilir
+
+Success (201):
+```json
+{
+  "success": true,
+  "message": "Order created",
+  "errorCode": null,
+  "data": {
+    "id": "550e8400-e29b-41d4-a716-446655440080",
+    "items": [
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440081",
+        "menuItemId": "550e8400-e29b-41d4-a716-446655440040",
+        "menuItemName": "Pomidor Şorbası",
+        "quantity": 2,
+        "price": 8.00,
+        "notes": "",
+        "status": "PENDING"
+      },
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440082",
+        "menuItemId": "550e8400-e29b-41d4-a716-446655440055",
+        "menuItemName": "Qızardılmış Balıq",
+        "quantity": 1,
+        "price": 18.00,
+        "notes": "Az duzlu",
+        "status": "PENDING"
+      }
+    ],
+    "tableId": "550e8400-e29b-41d4-a716-446655440061",
+    "tableNumber": 2,
+    "status": "PENDING",
+    "paymentStatus": "PENDING",
+    "totalAmount": 44.00,
+    "waiterId": "550e8400-e29b-41d4-a716-446655440090",
+    "waiterName": "Leyla Hüseynova",
+    "orderSource": "WAITER",
+    "waiterConfirmed": false,
+    "confirmedBy": null,
+    "customerPhoto": null,
+    "paymentMethod": null,
+    "paymentRequested": false,
+    "cancelReason": null,
+    "orgId": "550e8400-e29b-41d4-a716-446655440001",
+    "createdAt": "2026-07-30T14:30:00Z",
+    "updatedAt": "2026-07-30T14:30:00Z"
+  }
+}
+```
+
+---
+
+### `PUT /api/order-ms/v1/orders/{id}/status`
+
+**Sifariş statusunu dəyiş.**
+
+Headers: `Authorization: Bearer {token}`
+
+Request:
+```json
+{
+  "status": "PREPARING"
+}
+```
+
+**Status lifecycle:**
+```
+PENDING → CONFIRMED → PREPARING → READY → SERVED → COMPLETED
+                                                   ↓ (paymentStatus=PAID)
+```
+
+`CANCELLED` istənilən statusdan çağrıla bilər (xüsusi endpoint).
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Order status updated",
+  "errorCode": null,
+  "data": { "id": "550e8400-e29b-41d4-a716-446655440080",
+    "items": [
+      { "id": "uuid", "menuItemId": "uuid", "menuItemName": "Pomidor Şorbası", "quantity": 2, "price": 8.00, "notes": "", "status": "PENDING" }
+    ],
+    "tableId": "uuid",
+    "tableNumber": 2,
+    "status": "PENDING",
+    "paymentStatus": "PENDING",
+    "totalAmount": 44.00,
+    "waiterId": "uuid",
+    "waiterName": "Leyla Hüseynova",
+    "orderSource": "WAITER",
+    "waiterConfirmed": false,
+    "confirmedBy": null,
+    "customerPhoto": null,
+    "paymentMethod": null,
+    "paymentRequested": false,
+    "cancelReason": null,
+    "orgId": "550e8400-e29b-41d4-a716-446655440001",
+    "createdAt": "2026-07-30T14:30:00Z",
+    "updatedAt": "2026-07-30T14:30:00Z" }
+}
+```
+
+---
+
+### `PUT /api/order-ms/v1/orders/{id}/items/{itemId}/status`
+
+**Tək maddənin statusunu dəyiş.**
+
+Headers: `Authorization: Bearer {token}`
+
+Request:
+```json
+{
+  "status": "PREPARING"
+}
+```
+
+**Mümkün statuslar:** `PREPARING` | `READY` | `SERVED`
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Item status updated",
+  "errorCode": null,
+  "data": { "id": "550e8400-e29b-41d4-a716-446655440080",
+    "items": [
+      { "id": "uuid", "menuItemId": "uuid", "menuItemName": "Pomidor Şorbası", "quantity": 2, "price": 8.00, "notes": "", "status": "PENDING" }
+    ],
+    "tableId": "uuid",
+    "tableNumber": 2,
+    "status": "PENDING",
+    "paymentStatus": "PENDING",
+    "totalAmount": 44.00,
+    "waiterId": "uuid",
+    "waiterName": "Leyla Hüseynova",
+    "orderSource": "WAITER",
+    "waiterConfirmed": false,
+    "confirmedBy": null,
+    "customerPhoto": null,
+    "paymentMethod": null,
+    "paymentRequested": false,
+    "cancelReason": null,
+    "orgId": "550e8400-e29b-41d4-a716-446655440001",
+    "createdAt": "2026-07-30T14:30:00Z",
+    "updatedAt": "2026-07-30T14:30:00Z" }
+}
+```
+
+---
+
+### `POST /api/order-ms/v1/orders/{id}/items`
+
+**Mövcud sifarişə yeni maddələr əlavə et.**
+
+Headers: `Authorization: Bearer {token}`
+
+Request:
+```json
+{
+  "items": [
+    {
+      "menuItemId": "550e8400-e29b-41d4-a716-446655440043",
+      "menuItemName": "Cola",
+      "quantity": 2,
+      "price": 4.00,
+      "notes": ""
+    }
+  ]
+}
+```
+
+> Yeni maddələrin status-u `PENDING` olur. `totalAmount` yenidən hesablanır.
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Items added to order",
+  "errorCode": null,
+  "data": { "id": "550e8400-e29b-41d4-a716-446655440080",
+    "items": [
+      { "id": "uuid", "menuItemId": "uuid", "menuItemName": "Pomidor Şorbası", "quantity": 2, "price": 8.00, "notes": "", "status": "PENDING" }
+    ],
+    "tableId": "uuid",
+    "tableNumber": 2,
+    "status": "PENDING",
+    "paymentStatus": "PENDING",
+    "totalAmount": 44.00,
+    "waiterId": "uuid",
+    "waiterName": "Leyla Hüseynova",
+    "orderSource": "WAITER",
+    "waiterConfirmed": false,
+    "confirmedBy": null,
+    "customerPhoto": null,
+    "paymentMethod": null,
+    "paymentRequested": false,
+    "cancelReason": null,
+    "orgId": "550e8400-e29b-41d4-a716-446655440001",
+    "createdAt": "2026-07-30T14:30:00Z",
+    "updatedAt": "2026-07-30T14:30:00Z" }
+}
+```
+
+---
+
+### `PUT /api/order-ms/v1/orders/{id}/waiter-confirm`
+
+**Ofisant müştəri sifarişini təsdiqləyir** (customer-waiter-confirm mode).
+
+Headers: `Authorization: Bearer {token}`
+
+Request:
+```json
+{
+  "waiterId": "550e8400-e29b-41d4-a716-446655440010",
+  "waiterName": "Leyla Hüseynova"
+}
+```
+
+Result: `waiterConfirmed=true`, status `CONFIRMED`.
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Order confirmed",
+  "errorCode": null,
+  "data": { "id": "550e8400-e29b-41d4-a716-446655440080",
+    "items": [
+      { "id": "uuid", "menuItemId": "uuid", "menuItemName": "Pomidor Şorbası", "quantity": 2, "price": 8.00, "notes": "", "status": "PENDING" }
+    ],
+    "tableId": "uuid",
+    "tableNumber": 2,
+    "status": "PENDING",
+    "paymentStatus": "PENDING",
+    "totalAmount": 44.00,
+    "waiterId": "uuid",
+    "waiterName": "Leyla Hüseynova",
+    "orderSource": "WAITER",
+    "waiterConfirmed": false,
+    "confirmedBy": null,
+    "customerPhoto": null,
+    "paymentMethod": null,
+    "paymentRequested": false,
+    "cancelReason": null,
+    "orgId": "550e8400-e29b-41d4-a716-446655440001",
+    "createdAt": "2026-07-30T14:30:00Z",
+    "updatedAt": "2026-07-30T14:30:00Z" }
+}
+```
+
+---
+
+### `POST /api/order-ms/v1/orders/{id}/cancel`
+
+**Sifarişi ləğv et.**
+
+Headers: `Authorization: Bearer {token}`
+
+Request (opsional):
+```json
+{
+  "reason": "Müştəri imtina etdi"
+}
+```
+
+**Business rule:** Masa status-u `CLEANING` olur, `currentOrderId` təmizlənir.
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Order cancelled",
+  "errorCode": null,
+  "data": { "id": "550e8400-e29b-41d4-a716-446655440080",
+    "items": [
+      { "id": "uuid", "menuItemId": "uuid", "menuItemName": "Pomidor Şorbası", "quantity": 2, "price": 8.00, "notes": "", "status": "PENDING" }
+    ],
+    "tableId": "uuid",
+    "tableNumber": 2,
+    "status": "PENDING",
+    "paymentStatus": "PENDING",
+    "totalAmount": 44.00,
+    "waiterId": "uuid",
+    "waiterName": "Leyla Hüseynova",
+    "orderSource": "WAITER",
+    "waiterConfirmed": false,
+    "confirmedBy": null,
+    "customerPhoto": null,
+    "paymentMethod": null,
+    "paymentRequested": false,
+    "cancelReason": null,
+    "orgId": "550e8400-e29b-41d4-a716-446655440001",
+    "createdAt": "2026-07-30T14:30:00Z",
+    "updatedAt": "2026-07-30T14:30:00Z" }
+}
+```
+
+---
+
+### `POST /api/order-ms/v1/orders/{id}/request-payment`
+
+**Ödəniş tələbi (müştəri və ya ofisant).**
+
+Headers: `Authorization: Bearer {token}`
+
+Request:
+```json
+{
+  "method": "CASH"
+}
+```
+
+Result: `paymentRequested=true`, `paymentMethod` set.
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Payment requested",
+  "errorCode": null,
+  "data": { "id": "550e8400-e29b-41d4-a716-446655440080",
+    "items": [
+      { "id": "uuid", "menuItemId": "uuid", "menuItemName": "Pomidor Şorbası", "quantity": 2, "price": 8.00, "notes": "", "status": "PENDING" }
+    ],
+    "tableId": "uuid",
+    "tableNumber": 2,
+    "status": "PENDING",
+    "paymentStatus": "PENDING",
+    "totalAmount": 44.00,
+    "waiterId": "uuid",
+    "waiterName": "Leyla Hüseynova",
+    "orderSource": "WAITER",
+    "waiterConfirmed": false,
+    "confirmedBy": null,
+    "customerPhoto": null,
+    "paymentMethod": null,
+    "paymentRequested": false,
+    "cancelReason": null,
+    "orgId": "550e8400-e29b-41d4-a716-446655440001",
+    "createdAt": "2026-07-30T14:30:00Z",
+    "updatedAt": "2026-07-30T14:30:00Z" }
+}
+```
+
+---
+
+### `POST /api/order-ms/v1/orders/{id}/complete-payment`
+
+**Ödənişi qəbul et (ofisant).**
+
+Headers: `Authorization: Bearer {token}`
+
+Request body yoxdur.
+
+Result: `paymentStatus=PAID`, order status `COMPLETED`, masa `AVAILABLE`.
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Payment completed",
+  "errorCode": null,
+  "data": { "id": "550e8400-e29b-41d4-a716-446655440080",
+    "items": [
+      { "id": "uuid", "menuItemId": "uuid", "menuItemName": "Pomidor Şorbası", "quantity": 2, "price": 8.00, "notes": "", "status": "PENDING" }
+    ],
+    "tableId": "uuid",
+    "tableNumber": 2,
+    "status": "PENDING",
+    "paymentStatus": "PENDING",
+    "totalAmount": 44.00,
+    "waiterId": "uuid",
+    "waiterName": "Leyla Hüseynova",
+    "orderSource": "WAITER",
+    "waiterConfirmed": false,
+    "confirmedBy": null,
+    "customerPhoto": null,
+    "paymentMethod": null,
+    "paymentRequested": false,
+    "cancelReason": null,
+    "orgId": "550e8400-e29b-41d4-a716-446655440001",
+    "createdAt": "2026-07-30T14:30:00Z",
+    "updatedAt": "2026-07-30T14:30:00Z" }
+}
+```
+
+---
+
+### `POST /api/order-ms/v1/orders/{id}/start-preparing`
+
+**Bütün gözləyən maddələri `PREPARING` et. Order status-u `PREPARING` olur.**
+
+Headers: `Authorization: Bearer {token}`
+
+Request body yoxdur.
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Order is now being prepared",
+  "errorCode": null,
+  "data": { "id": "550e8400-e29b-41d4-a716-446655440080",
+    "items": [
+      { "id": "uuid", "menuItemId": "uuid", "menuItemName": "Pomidor Şorbası", "quantity": 2, "price": 8.00, "notes": "", "status": "PENDING" }
+    ],
+    "tableId": "uuid",
+    "tableNumber": 2,
+    "status": "PENDING",
+    "paymentStatus": "PENDING",
+    "totalAmount": 44.00,
+    "waiterId": "uuid",
+    "waiterName": "Leyla Hüseynova",
+    "orderSource": "WAITER",
+    "waiterConfirmed": false,
+    "confirmedBy": null,
+    "customerPhoto": null,
+    "paymentMethod": null,
+    "paymentRequested": false,
+    "cancelReason": null,
+    "orgId": "550e8400-e29b-41d4-a716-446655440001",
+    "createdAt": "2026-07-30T14:30:00Z",
+    "updatedAt": "2026-07-30T14:30:00Z" }
+}
+```
+
+---
+
+### `POST /api/order-ms/v1/orders/{id}/mark-all-ready`
+
+**Bütün maddələri `READY` et. Order status-u `READY` olur.**
+
+Headers: `Authorization: Bearer {token}`
+
+Request body yoxdur.
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "All items are ready",
+  "errorCode": null,
+  "data": { "id": "550e8400-e29b-41d4-a716-446655440080",
+    "items": [
+      { "id": "uuid", "menuItemId": "uuid", "menuItemName": "Pomidor Şorbası", "quantity": 2, "price": 8.00, "notes": "", "status": "PENDING" }
+    ],
+    "tableId": "uuid",
+    "tableNumber": 2,
+    "status": "PENDING",
+    "paymentStatus": "PENDING",
+    "totalAmount": 44.00,
+    "waiterId": "uuid",
+    "waiterName": "Leyla Hüseynova",
+    "orderSource": "WAITER",
+    "waiterConfirmed": false,
+    "confirmedBy": null,
+    "customerPhoto": null,
+    "paymentMethod": null,
+    "paymentRequested": false,
+    "cancelReason": null,
+    "orgId": "550e8400-e29b-41d4-a716-446655440001",
+    "createdAt": "2026-07-30T14:30:00Z",
+    "updatedAt": "2026-07-30T14:30:00Z" }
+}
+```
+
+---
+
+## 8. Kitchen — `kitchen-service` (port 8108)
+
+> API prefix: `/api/kitchen-ms/v1/...`
+> Response: `ApiResponse<T>` wrapper
+> **Order əməliyyatları** (`start-preparing`, `mark-all-ready`) `order-service`-də yerləşir (yuxarıya bax)
+
+### `GET /api/kitchen-ms/v1/orders`
+
+**Mətbəx üçün sifarişlər, qruplaşdırılmış.**
+
+Headers: `Authorization: Bearer {token}`
+
+Query: `?orgId=550e8400-e29b-41d4-a716-446655440001`
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Success",
+  "errorCode": null,
+  "data": {
+    "new": [
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440080",
+        "items": [
+          { "id": "uuid", "menuItemId": "uuid", "menuItemName": "Pomidor Şorbası", "quantity": 2, "price": 8.00, "notes": "", "status": "PENDING" }
+        ],
+        "tableId": "uuid", "tableNumber": 2, "status": "PENDING",
+        "paymentStatus": "PENDING", "totalAmount": 44.00,
+        "waiterName": "Leyla Hüseynova", "orderSource": "WAITER",
+        "createdAt": "2026-07-30T14:30:00Z"
+      },
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440083",
+        "items": [
+          { "id": "uuid", "menuItemId": "uuid", "menuItemName": "Qızardılmış Balıq", "quantity": 1, "price": 18.00, "notes": "", "status": "CONFIRMED" }
+        ],
+        "tableId": "uuid", "tableNumber": 5, "status": "CONFIRMED",
+        "paymentStatus": "PENDING", "totalAmount": 18.00,
+        "waiterName": "Murad Əliyev", "orderSource": "WAITER",
+        "createdAt": "2026-07-30T14:35:00Z"
+      }
+    ],
+    "preparing": [
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440084",
+        "items": [
+          { "id": "uuid", "menuItemId": "uuid", "menuItemName": "Margarita Pizza", "quantity": 2, "price": 18.00, "notes": "", "status": "PREPARING" }
+        ],
+        "tableId": "uuid", "tableNumber": 3, "status": "PREPARING",
+        "paymentStatus": "PENDING", "totalAmount": 36.00,
+        "waiterName": "Leyla Hüseynova", "orderSource": "CUSTOMER",
+        "createdAt": "2026-07-30T14:20:00Z"
+      }
+    ],
+    "ready": [
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440085",
+        "items": [
+          { "id": "uuid", "menuItemId": "uuid", "menuItemName": "Cola", "quantity": 3, "price": 4.00, "notes": "", "status": "READY" }
+        ],
+        "tableId": "uuid", "tableNumber": 1, "status": "READY",
+        "paymentStatus": "PENDING", "totalAmount": 12.00,
+        "waiterName": "Murad Əliyev", "orderSource": "WAITER",
+        "createdAt": "2026-07-30T14:10:00Z"
+      }
+    ]
+  }
+}
+```
+
+**Filter:**
+| Group | Status | Başlıq |
+|---|---|---|
+| `new` | `PENDING`, `CONFIRMED` | Yeni Sifarişlər |
+| `preparing` | `PREPARING` | Hazırlanır |
+| `ready` | `READY` | Hazırdır |
+
+---
+
+## 9. Waiter — `waiter-service` (port 8109)
+
+> API prefix: `/api/waiter-ms/v1/...`
+> Response: `ApiResponse<T>` wrapper
+> **Not:** Aggregation service — öz DB-si yoxdur, digər servislərdən məlumatları birləşdirir
+
+### `GET /api/waiter-ms/v1/tables`
+
+**Ofisant paneli üçün masa məlumatları (aktiv sifarişlərlə).**
+
+Headers: `Authorization: Bearer {token}`
+
+Query: `?orgId=550e8400-e29b-41d4-a716-446655440001`
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Success",
+  "errorCode": null,
+  "data": {
+    "tables": [
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440061",
+        "tableNumber": 2,
+        "capacity": 2,
+        "status": "OCCUPIED",
+        "section": "Zal 1",
+        "currentOrderId": "550e8400-e29b-41d4-a716-446655440080",
+        "orderSummary": {
+          "totalAmount": 44.00,
+          "itemCount": 3,
+          "status": "CONFIRMED"
+        }
+      },
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440060",
+        "tableNumber": 1,
+        "capacity": 2,
+        "status": "AVAILABLE",
+        "section": "Zal 1",
+        "currentOrderId": null,
+        "orderSummary": null
+      }
+    ]
+  }
+}
+```
+
+---
+
+### `GET /api/waiter-ms/v1/orders/pending-confirm`
+
+**Təsdiq gözləyən müştəri sifarişləri.**
+
+Headers: `Authorization: Bearer {token}`
+
+Query: `?orgId=550e8400-e29b-41d4-a716-446655440001`
+
+Filter: `waiterConfirmed=false`, `orderSource=CUSTOMER`, status `PENDING`.
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Success",
+  "errorCode": null,
+  "data": [
+    { "id": "550e8400-e29b-41d4-a716-446655440080",
+    "items": [
+      { "id": "uuid", "menuItemId": "uuid", "menuItemName": "Pomidor Şorbası", "quantity": 2, "price": 8.00, "notes": "", "status": "PENDING" }
+    ],
+    "tableId": "uuid",
+    "tableNumber": 2,
+    "status": "PENDING",
+    "paymentStatus": "PENDING",
+    "totalAmount": 44.00,
+    "waiterId": "uuid",
+    "waiterName": "Leyla Hüseynova",
+    "orderSource": "WAITER",
+    "waiterConfirmed": false,
+    "confirmedBy": null,
+    "customerPhoto": null,
+    "paymentMethod": null,
+    "paymentRequested": false,
+    "cancelReason": null,
+    "orgId": "550e8400-e29b-41d4-a716-446655440001",
+    "createdAt": "2026-07-30T14:30:00Z",
+    "updatedAt": "2026-07-30T14:30:00Z" }
+  ]
+}
+```
+
+---
+
+### `GET /api/waiter-ms/v1/orders/payment-requests`
+
+**Ödəniş tələbi gözləyən sifarişlər.**
+
+Headers: `Authorization: Bearer {token}`
+
+Query: `?orgId=550e8400-e29b-41d4-a716-446655440001`
+
+Filter: `paymentRequested=true`, `paymentStatus=PENDING`.
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Success",
+  "errorCode": null,
+  "data": [
+    { "id": "550e8400-e29b-41d4-a716-446655440080",
+    "items": [
+      { "id": "uuid", "menuItemId": "uuid", "menuItemName": "Pomidor Şorbası", "quantity": 2, "price": 8.00, "notes": "", "status": "PENDING" }
+    ],
+    "tableId": "uuid",
+    "tableNumber": 2,
+    "status": "PENDING",
+    "paymentStatus": "PENDING",
+    "totalAmount": 44.00,
+    "waiterId": "uuid",
+    "waiterName": "Leyla Hüseynova",
+    "orderSource": "WAITER",
+    "waiterConfirmed": false,
+    "confirmedBy": null,
+    "customerPhoto": null,
+    "paymentMethod": null,
+    "paymentRequested": false,
+    "cancelReason": null,
+    "orgId": "550e8400-e29b-41d4-a716-446655440001",
+    "createdAt": "2026-07-30T14:30:00Z",
+    "updatedAt": "2026-07-30T14:30:00Z" }
+  ]
+}
+```
+
+---
+
+## 10. Customer — `customer-service` (port 8110)
+
+> API prefix: `/api/customer-ms/v1/...`
+> Response: `ApiResponse<T>` wrapper
+> **Not:** Bu endpoint-lər AUTH TƏLƏB ETMİR. İctimai API-lərdir.
+
+### `GET /api/customer-ms/v1/{orgId}/menu`
+
+**Müştəri menyusu — kateqoriyalar + maddələr (yalnız `isAvailable=true`).**
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Success",
+  "errorCode": null,
+  "data": {
+    "categories": [
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440050",
+        "name": { "az": "Şorbalar", "en": "Soups", "ru": "Супы" },
+        "icon": "soup"
+      }
+    ],
+    "items": [
+      {
+        "id": "550e8400-e29b-41d4-a716-446655440040",
+        "name": { "az": "Pomidor Şorbası", "en": "Tomato Soup", "ru": "Томатный суп" },
+        "description": { "az": "Klassik pomidor şorbası", "en": "Classic tomato soup", "ru": "Классический томатный суп" },
+        "price": 8.00,
+        "categoryId": "550e8400-e29b-41d4-a716-446655440050",
+        "imageUrl": null,
+        "isAvailable": true,
+        "preparationTime": 10
+      }
+    ]
+  }
+}
+```
+
+---
+
+### `GET /api/customer-ms/v1/{orgId}/tables`
+
+**Müştəri üçün boş masalar (yalnız `status=AVAILABLE`).**
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Success",
+  "errorCode": null,
+  "data": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440060",
+      "tableNumber": 1,
+      "capacity": 2,
+      "sectionId": "550e8400-e29b-41d4-a716-446655440070"
+    }
+  ]
+}
+```
+
+---
+
+### `POST /api/customer-ms/v1/orders`
+
+**Müştəri sifarişi yarat.**
+
+Request:
+```json
+{
+  "orgId": "550e8400-e29b-41d4-a716-446655440001",
+  "tableId": "550e8400-e29b-41d4-a716-446655440063",
+  "items": [
+    {
+      "menuItemId": "550e8400-e29b-41d4-a716-446655440042",
+      "menuItemName": "Margarita Pizza",
+      "quantity": 1,
+      "price": 18.00,
+      "notes": ""
+    }
+  ],
+  "customerPhoto": "data:image/jpeg;base64,...",
+  "paymentMethod": null
+}
+```
+
+> `paymentMethod` `paymentTiming=BEFORE` olduqda göndərilir (`CASH` və ya `CARD`), `AFTER` olduqda `null`.
+
+Success (201):
+```json
+{
+  "success": true,
+  "message": "Order placed",
+  "errorCode": null,
+  "data": { "id": "550e8400-e29b-41d4-a716-446655440080",
+    "items": [
+      { "id": "uuid", "menuItemId": "uuid", "menuItemName": "Pomidor Şorbası", "quantity": 2, "price": 8.00, "notes": "", "status": "PENDING" }
+    ],
+    "tableId": "uuid",
+    "tableNumber": 2,
+    "status": "PENDING",
+    "paymentStatus": "PENDING",
+    "totalAmount": 44.00,
+    "waiterId": "uuid",
+    "waiterName": "Leyla Hüseynova",
+    "orderSource": "WAITER",
+    "waiterConfirmed": false,
+    "confirmedBy": null,
+    "customerPhoto": null,
+    "paymentMethod": null,
+    "paymentRequested": false,
+    "cancelReason": null,
+    "orgId": "550e8400-e29b-41d4-a716-446655440001",
+    "createdAt": "2026-07-30T14:30:00Z",
+    "updatedAt": "2026-07-30T14:30:00Z" }
+}
+```
+
+---
+
+### `GET /api/customer-ms/v1/orders/{orderId}`
+
+**Sifariş izləmə.**
+
+Headers: `Authorization: Bearer {token}` (opsional)
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Success",
+  "errorCode": null,
+  "data": { "id": "550e8400-e29b-41d4-a716-446655440080",
+    "items": [
+      { "id": "uuid", "menuItemId": "uuid", "menuItemName": "Pomidor Şorbası", "quantity": 2, "price": 8.00, "notes": "", "status": "PENDING" }
+    ],
+    "tableId": "uuid",
+    "tableNumber": 2,
+    "status": "PENDING",
+    "paymentStatus": "PENDING",
+    "totalAmount": 44.00,
+    "waiterId": "uuid",
+    "waiterName": "Leyla Hüseynova",
+    "orderSource": "WAITER",
+    "waiterConfirmed": false,
+    "confirmedBy": null,
+    "customerPhoto": null,
+    "paymentMethod": null,
+    "paymentRequested": false,
+    "cancelReason": null,
+    "orgId": "550e8400-e29b-41d4-a716-446655440001",
+    "createdAt": "2026-07-30T14:30:00Z",
+    "updatedAt": "2026-07-30T14:30:00Z" }
+}
+```
+
+---
+
+### `POST /api/customer-ms/v1/orders/{orderId}/request-bill`
+
+**Hesab tələbi.**
+
+Request:
+```json
+{
+  "method": "CASH"
+}
+```
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Bill requested",
+  "errorCode": null,
+  "data": null
+}
+```
+
+---
+
+## 11. Settings — `setting-service` (port 8111)
+
+> API prefix: `/api/setting-ms/v1/...`
+> Response: `ApiResponse<T>` wrapper
+
+### `GET /api/setting-ms/v1/settings`
+
+**Təşkilat parametrləri.**
+
+Headers: `Authorization: Bearer {token}`
+
+Query: `?orgId=550e8400-e29b-41d4-a716-446655440001`
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Success",
+  "errorCode": null,
+  "data": {
+    "orgId": "550e8400-e29b-41d4-a716-446655440001",
+    "orderMode": "CUSTOMER",
+    "customerPhotoRequired": false,
+    "paymentTiming": "AFTER",
+    "customerTheme": "CLASSIC"
+  }
+}
+```
+
+**Enum dəyərləri:**
+
+| Field | Mümkün dəyərlər |
+|---|---|
+| `orderMode` | `WAITER`, `CUSTOMER`, `CUSTOMER_WAITER_CONFIRM`, `KITCHEN` |
+| `paymentTiming` | `BEFORE`, `AFTER` |
+| `customerTheme` | `CLASSIC`, `EMERALD`, `SUNSET`, `ROSE`, `VIOLET`, `AMBER` |
+
+---
+
+### `PUT /api/setting-ms/v1/settings`
+
+**Parametrləri yenilə.**
+
+Headers: `Authorization: Bearer {token}`
+
+Request:
+```json
+{
+  "orgId": "550e8400-e29b-41d4-a716-446655440001",
+  "orderMode": "CUSTOMER",
+  "customerPhotoRequired": true,
+  "paymentTiming": "BEFORE",
+  "customerTheme": "EMERALD"
+}
+```
+
+> Bütün field-lar göndərilməlidir (tam yeniləmə).
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Settings updated",
+  "errorCode": null,
+  "data": { "...OrgSetting..." }
+}
+```
+
+---
+
+## 12. Dashboard — `dashboard-service` (port 8112)
+
+> API prefix: `/api/dashboard-ms/v1/...`
+> Response: `ApiResponse<T>` wrapper
+> **Not:** Aggregation service — öz DB-si yoxdur
+
+### `GET /api/dashboard-ms/v1/stats`
+
+**Ümumi statistika.**
+
+Headers: `Authorization: Bearer {token}`
+
+Query: `?orgId=550e8400-e29b-41d4-a716-446655440001`
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Success",
+  "errorCode": null,
+  "data": {
+    "totalRevenue": 15240.00,
+    "completedOrders": 128,
+    "activeOrders": 7,
+    "occupiedTables": 4
+  }
+}
+```
+
+---
+
+### `GET /api/dashboard-ms/v1/top-items`
+
+**Ən çox satılan 5 məhsul.**
+
+Headers: `Authorization: Bearer {token}`
+
+Query: `?orgId=550e8400-e29b-41d4-a716-446655440001`
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Success",
+  "errorCode": null,
+  "data": [
+    {
+      "menuItemId": "550e8400-e29b-41d4-a716-446655440040",
+      "name": { "az": "Pomidor Şorbası", "en": "Tomato Soup", "ru": "Томатный суп" },
+      "count": 45
+    },
+    {
+      "menuItemId": "550e8400-e29b-41d4-a716-446655440041",
+      "name": { "az": "Lülə Kebab", "en": "Lule Kebab", "ru": "Люля-кебаб" },
+      "count": 38
+    }
+  ]
+}
+```
+
+---
+
+### `GET /api/dashboard-ms/v1/recent-orders`
+
+**Son 6 sifariş.**
+
+Headers: `Authorization: Bearer {token}`
+
+Query: `?orgId=550e8400-e29b-41d4-a716-446655440001`
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Success",
+  "errorCode": null,
+  "data": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440080",
+      "tableNumber": 2,
+      "waiterName": "Leyla Hüseynova",
+      "totalAmount": 44.00,
+      "status": "COMPLETED",
+      "createdAt": "2026-07-30T18:30:00.000Z"
+    }
+  ]
+}
+```
+
+---
+
+### `GET /api/dashboard-ms/v1/staff-list`
+
+**Aktiv personal (sifariş sayı ilə).**
+
+Headers: `Authorization: Bearer {token}`
+
+Query: `?orgId=550e8400-e29b-41d4-a716-446655440001`
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Success",
+  "errorCode": null,
+  "data": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440010",
+      "name": "Leyla Hüseynova",
+      "role": "WAITER",
+      "activeOrders": 3
+    }
+  ]
+}
+```
+
+---
+
+## 13. Reports — `report-service` (port 8113)
+
+> API prefix: `/api/report-ms/v1/...`
+> Response: `ApiResponse<T>` wrapper
+> **Not:** Aggregation service — öz DB-si yoxdur
+
+### `GET /api/report-ms/v1/summary`
+
+**Xülasə.**
+
+Headers: `Authorization: Bearer {token}`
+
+Query: `?orgId=550e8400-e29b-41d4-a716-446655440001`
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Success",
+  "errorCode": null,
+  "data": {
+    "totalRevenue": 15240.00,
+    "completed": 128,
+    "cancelled": 5,
+    "avgOrderValue": 119.06
+  }
+}
+```
+
+---
+
+### `GET /api/report-ms/v1/daily-revenue`
+
+**Son 7 günlük gəlir.**
+
+Headers: `Authorization: Bearer {token}`
+
+Query: `?orgId=550e8400-e29b-41d4-a716-446655440001`
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Success",
+  "errorCode": null,
+  "data": [
+    { "date": "2026-07-24", "revenue": 2150.00, "orderCount": 18 },
+    { "date": "2026-07-25", "revenue": 1890.00, "orderCount": 15 },
+    { "date": "2026-07-26", "revenue": 2450.00, "orderCount": 22 },
+    { "date": "2026-07-27", "revenue": 3120.00, "orderCount": 28 },
+    { "date": "2026-07-28", "revenue": 1780.00, "orderCount": 14 },
+    { "date": "2026-07-29", "revenue": 1980.00, "orderCount": 16 },
+    { "date": "2026-07-30", "revenue": 1870.00, "orderCount": 15 }
+  ]
+}
+```
+
+---
+
+### `GET /api/report-ms/v1/hourly`
+
+**Saatlıq sifariş paylanması (24 saat).**
+
+Headers: `Authorization: Bearer {token}`
+
+Query: `?orgId=550e8400-e29b-41d4-a716-446655440001`
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Success",
+  "errorCode": null,
+  "data": {
+    "hourly": [0, 0, 0, 0, 0, 0, 0, 0, 5, 8, 12, 18, 22, 15, 10, 14, 20, 25, 18, 12, 8, 3, 0, 0]
+  }
+}
+```
+
+> Array indeksi saatı göstərir (0=00:00, 23=23:00).
+
+---
+
+### `GET /api/report-ms/v1/sales-by-category`
+
+**Kateqoriyaya görə satış.**
+
+Headers: `Authorization: Bearer {token}`
+
+Query: `?orgId=550e8400-e29b-41d4-a716-446655440001`
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Success",
+  "errorCode": null,
+  "data": [
+    {
+      "categoryId": "550e8400-e29b-41d4-a716-446655440050",
+      "name": { "az": "Şorbalar", "en": "Soups", "ru": "Супы" },
+      "count": 85
+    },
+    {
+      "categoryId": "550e8400-e29b-41d4-a716-446655440051",
+      "name": { "az": "Əsas Yeməklər", "en": "Main Courses", "ru": "Основные блюда" },
+      "count": 62
+    }
+  ]
+}
+```
+
+> `count` = satılan maddələrin ümumi sayı (quantity cəmi).
+
+---
+
+### `GET /api/report-ms/v1/top-items`
+
+**Ən çox satılan 8 məhsul (gəlirlə).**
+
+Headers: `Authorization: Bearer {token}`
+
+Query: `?orgId=550e8400-e29b-41d4-a716-446655440001`
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Success",
+  "errorCode": null,
+  "data": [
+    {
+      "menuItemId": "550e8400-e29b-41d4-a716-446655440041",
+      "name": { "az": "Lülə Kebab", "en": "Lule Kebab", "ru": "Люля-кебаб" },
+      "count": 38,
+      "revenue": 1064.00
+    }
+  ]
+}
+```
+
+---
+
+### `GET /api/report-ms/v1/staff-performance`
+
+**Personal performansı.**
+
+Headers: `Authorization: Bearer {token}`
+
+Query: `?orgId=550e8400-e29b-41d4-a716-446655440001`
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Success",
+  "errorCode": null,
+  "data": [
+    {
+      "userId": "550e8400-e29b-41d4-a716-446655440010",
+      "name": "Leyla Hüseynova",
+      "role": "WAITER",
+      "totalOrders": 45,
+      "completedOrders": 40,
+      "revenue": 4800.00
+    }
+  ]
+}
+```
+
+---
+
+## 14. Microservice Architecture & Port Plan
+
+| Service | Module Name | Port | API Prefix | Purpose |
+|---|---|---|---|---|
+| **API Gateway** | `cloud-gateway` | 8001 | `/api/...` (route) | Gateway, auth filter, routing |
+| **Auth** | `auth-gateway` | 8002 | `/api/auth-ms/v1/auth/` | Login, JWT, refresh (Keycloak proxy) |
+| **Organization** | `organization-service` | 8102 | `/api/organization-ms/v1/` | Org CRUD |
+| **User / Staff** | `user-service` | 8103 | `/api/user-ms/v1/` | User/staff CRUD, staff perf |
+| **Role** | `role-service` | 8104 | `/api/role-ms/v1/` | Role/permission CRUD |
+| **Menu** | `menu-service` | 8105 | `/api/menu-ms/v1/` | Menu items & categories |
+| **Table** | `table-service` | 8106 | `/api/table-ms/v1/` | Table & section management |
+| **Order** | `order-service` | 8107 | `/api/order-ms/v1/` | Order lifecycle, cart |
+| **Kitchen** | `kitchen-service` | 8108 | `/api/kitchen-ms/v1/` | Kitchen order views |
+| **Waiter** | `waiter-service` | 8109 | `/api/waiter-ms/v1/` | Waiter-specific aggregated data |
+| **Customer** | `customer-service` | 8110 | `/api/customer-ms/v1/` | Public menu & order placement |
+| **Settings** | `setting-service` | 8111 | `/api/setting-ms/v1/` | Org settings |
+| **Dashboard** | `dashboard-service` | 8112 | `/api/dashboard-ms/v1/` | Dashboard aggregates |
+| **Reports** | `report-service` | 8113 | `/api/report-ms/v1/` | Report aggregates |
+
+---
+
+## 15. Complete API Route Index (by module)
+
+```
+AUTH          (/api/auth-ms/v1/auth/)
+  POST          /login
+  POST          /refresh
+  POST          /logout
+
+ORGANIZATION  (/api/organization-ms/v1/)
+  GET           /organizations
+  POST          /organizations
+  GET           /organizations/{id}
+  GET           /organizations/{id}/qr-code
+
+USER          (/api/user-ms/v1/)
+  GET           /users
+  GET           /users/{id}
+  POST          /users
+  PUT           /users/{id}
+  DELETE        /users/{id}
+  GET           /users/staff-performance
+  PUT           /users/clear-role?roleId={roleId}
+
+ROLE          (/api/role-ms/v1/)
+  GET           /roles
+  GET           /roles/{id}
+  POST          /roles
+  PUT           /roles/{id}
+  DELETE        /roles/{id}
+  GET           /roles/permissions
+
+MENU          (/api/menu-ms/v1/)
+  GET           /items
+  GET           /items/{id}
+  POST          /items
+  PUT           /items/{id}
+  DELETE        /items/{id}
+  POST          /items/{id}/image
+  DELETE        /items/{id}/image
+  GET           /categories
+  POST          /categories
+  PUT           /categories/{id}
+  DELETE        /categories/{id}
+
+TABLE         (/api/table-ms/v1/)
+  GET           /tables
+  GET           /tables/{id}
+  POST          /tables
+  PUT           /tables/{id}
+  DELETE        /tables/{id}
+  PUT           /tables/{id}/status
+  PUT           /tables/{id}/reservation
+  DELETE        /tables/{id}/reservation
+  GET           /sections
+  POST          /sections
+  PUT           /sections/{id}
+  DELETE        /sections/{id}
+
+ORDER         (/api/order-ms/v1/)
+  GET           /orders
+  GET           /orders/{id}
+  POST          /orders
+  PUT           /orders/{id}/status
+  PUT           /orders/{id}/items/{itemId}/status
+  POST          /orders/{id}/items
+  PUT           /orders/{id}/waiter-confirm
+  POST          /orders/{id}/cancel
+  POST          /orders/{id}/request-payment
+  POST          /orders/{id}/complete-payment
+  POST          /orders/{id}/start-preparing
+  POST          /orders/{id}/mark-all-ready
+
+KITCHEN       (/api/kitchen-ms/v1/)
+  GET           /orders
+
+WAITER        (/api/waiter-ms/v1/)
+  GET           /tables
+  GET           /orders/pending-confirm
+  GET           /orders/payment-requests
+
+CUSTOMER      (/api/customer-ms/v1/)
+  GET           /{orgId}/menu
+  GET           /{orgId}/tables
+  POST          /orders
+  GET           /orders/{orderId}
+  POST          /orders/{orderId}/request-bill
+
+SETTINGS      (/api/setting-ms/v1/)
+  GET           /settings
+  PUT           /settings
+
+DASHBOARD     (/api/dashboard-ms/v1/)
+  GET           /stats
+  GET           /top-items
+  GET           /recent-orders
+  GET           /staff-list
+
+REPORTS       (/api/report-ms/v1/)
+  GET           /summary
+  GET           /daily-revenue
+  GET           /hourly
+  GET           /sales-by-category
+  GET           /top-items
+  GET           /staff-performance
+```
+
+---
+
+## 16. Common Shared Types (for reference)
+
+Hamısı `common-core` modulunda yerləşir:
+
+```java
+// === Enums ===
+UserRole        { ADMIN, ORG_ADMIN, WAITER, CHEF, CUSTOMER }
+TableStatus     { AVAILABLE, OCCUPIED, RESERVED, CLEANING }
+OrderStatus     { PENDING, CONFIRMED, PREPARING, READY, SERVED, COMPLETED, CANCELLED }
+PaymentStatus   { PENDING, PAID }
+PaymentMethod   { CASH, CARD }
+OrderMode       { WAITER, CUSTOMER, CUSTOMER_WAITER_CONFIRM, KITCHEN }
+OrderSource     { WAITER, CUSTOMER }
+CustomerTheme   { CLASSIC, EMERALD, SUNSET, ROSE, VIOLET, AMBER }
+PaymentTiming   { BEFORE, AFTER }
+UiScope         { ADMIN_PANEL, USER_PANEL }  // auth-gateway-specific
+
+// === JSON Columns (PostgreSQL jsonb) ===
+LocalizedString   { az, en, ru }
+TableReservation  { guestName, phone, time, guestCount, notes }
+
+// === Common fields (SoftDeletableCoreEntity) ===
+id: UUID (PK)
+createdAt: Instant
+updatedAt: Instant
+createdBy: UUID
+updatedBy: UUID
+isDeleted: boolean
+deletedAt: Instant
+deletedBy: UUID
+orgId: UUID (nullable, multi-tenant)
+```
+
+**Permission constants:**
+```
+dashboard.view, menu.view, menu.create, menu.edit, menu.delete,
+tables.view, tables.manage, tables.status,
+orders.view, orders.manage, orders.cancel,
+reports.view,
+staff.view, staff.create, staff.edit, staff.delete,
+roles.view, roles.create, roles.edit, roles.delete,
+kitchen.view, kitchen.manage,
+settings.view, settings.edit
+```
+
+---
+
+## 17. Gradle Modules
+
+Bütün modullar hazırdır (`settings.gradle`):
+
+```gradle
+include 'auth-gateway'
+include 'cloud-gateway'
+include 'common-core'
+include 'common-jpa'
+include 'common-exception-handling'
+include 'common-security'
+include 'db-migrations'
+include 'organization-service'
+include 'user-service'
+include 'role-service'
+include 'menu-service'
+include 'table-service'
+include 'order-service'
+include 'kitchen-service'
+include 'waiter-service'
+include 'customer-service'
+include 'setting-service'
+include 'dashboard-service'
+include 'report-service'
+```

@@ -294,21 +294,10 @@
       "admin-cli": [],
       "tabler-auth": [
         {
-          "id": "1f419974-9029-4a4c-a2a5-b7b69909a86d",
           "name": "SUPER_ADMIN",
-          "description": "",
+          "description": "Platform super admin role",
           "composite": false,
           "clientRole": true,
-          "containerId": "75305011-8a7b-4499-a599-b940f02888cf",
-          "attributes": {}
-        },
-        {
-          "id": "a1b6d5c6-fb84-4566-865f-10f9b5ea9456",
-          "name": "ORG_ADMIN",
-          "description": "",
-          "composite": false,
-          "clientRole": true,
-          "containerId": "75305011-8a7b-4499-a599-b940f02888cf",
           "attributes": {}
         }
       ],
@@ -802,15 +791,6 @@
         "organization",
         "microprofile-jwt",
         "basic"
-      ],
-      "roles": [
-        {
-          "name": "SUPER_ADMIN",
-          "description": "Platform super admin role",
-          "composite": false,
-          "clientRole": true,
-          "attributes": {}
-        }
       ]
     },
     {

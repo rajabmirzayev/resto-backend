@@ -1,0 +1,11 @@
+.git
+.gradle
+**/build
+**/.classpath
+**/.project
+**/.settings
+script/.env
+*.log
+.idea
+.vscode
+.DS_Store

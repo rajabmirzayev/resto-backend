@@ -1,0 +1,12 @@
+description = 'common-core'
+
+dependencies {
+    compileOnly 'org.projectlombok:lombok:1.18.42'
+    annotationProcessor 'org.projectlombok:lombok:1.18.42'
+}
+
+jar {
+    archiveBaseName.set('common-core')
+    archiveVersion.set(project.version)
+    enabled = true
+}

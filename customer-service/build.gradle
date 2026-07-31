@@ -7,7 +7,7 @@ description = 'customer-service'
 dependencies {
     implementation project(':common-exception-handling')
     implementation project(':common-security')
-    implementation project(':common-jpa')
+    implementation project(':common-core')
 
     implementation 'org.springframework.cloud:spring-cloud-starter-openfeign'
     implementation 'org.springframework.boot:spring-boot-starter-web'

@@ -47,7 +47,7 @@ public class GatewaySecurityConfig {
                                 "/actuator/health/**",
                                 "/actuator/info",
                                 "/actuator/prometheus",
-                                "/api/auth-ms/auth/**",
+                                "/api/auth-ms/**",
                                 "/swagger-ui/**",
                                 "/api/*/swagger-ui/**",
                                 "/api/*/v3/api-docs/**",

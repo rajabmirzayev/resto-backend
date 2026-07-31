@@ -40,5 +40,4 @@ script/.env
 script/tabler-realm.json.local
 script/bootstrap-kc.local.sh
 
-api-specification.md
-tabler-entities.md
+data/
