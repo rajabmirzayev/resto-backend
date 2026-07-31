@@ -1,9 +1,23 @@
 databaseChangeLog:
   - changeSet:
-      id: 000-create-keycloak-schema
+      id: 000-create-schemas
       author: rajabmirzayev
       changes:
         - sql:
+            sql: CREATE SCHEMA IF NOT EXISTS tabler_organization
+        - sql:
+            sql: CREATE SCHEMA IF NOT EXISTS tabler_user
+        - sql:
+            sql: CREATE SCHEMA IF NOT EXISTS tabler_role
+        - sql:
+            sql: CREATE SCHEMA IF NOT EXISTS tabler_menu
+        - sql:
+            sql: CREATE SCHEMA IF NOT EXISTS tabler_table
+        - sql:
+            sql: CREATE SCHEMA IF NOT EXISTS tabler_setting
+        - sql:
+            sql: CREATE SCHEMA IF NOT EXISTS tabler_order
+        - sql:
             sql: CREATE SCHEMA IF NOT EXISTS keycloak
         - sql:
-            sql: GRANT ALL PRIVILEGES ON SCHEMA keycloak TO postgres
+            sql: GRANT ALL PRIVILEGES ON SCHEMA tabler_organization, tabler_user, tabler_role, tabler_menu, tabler_table, tabler_setting, tabler_order, keycloak TO postgres

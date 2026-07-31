@@ -5,6 +5,7 @@ databaseChangeLog:
       changes:
         # ==================== orders ====================
         - createTable:
+            schemaName: tabler_order
             tableName: orders
             remarks: Customer orders
             columns:
@@ -95,18 +96,21 @@ databaseChangeLog:
                   constraints:
                     nullable: false
         - createIndex:
+            schemaName: tabler_order
             tableName: orders
             indexName: idx_order_org
             columns:
               - column:
                   name: org_id
         - createIndex:
+            schemaName: tabler_order
             tableName: orders
             indexName: idx_order_table
             columns:
               - column:
                   name: table_id
         - createIndex:
+            schemaName: tabler_order
             tableName: orders
             indexName: idx_order_status
             columns:
@@ -115,18 +119,21 @@ databaseChangeLog:
               - column:
                   name: status
         - createIndex:
+            schemaName: tabler_order
             tableName: orders
             indexName: idx_order_waiter
             columns:
               - column:
                   name: waiter_id
         - createIndex:
+            schemaName: tabler_order
             tableName: orders
             indexName: idx_order_created
             columns:
               - column:
                   name: created_at
         - createIndex:
+            schemaName: tabler_order
             tableName: orders
             indexName: idx_order_payment
             where: payment_requested = true
@@ -138,6 +145,7 @@ databaseChangeLog:
 
         # ==================== order_items ====================
         - createTable:
+            schemaName: tabler_order
             tableName: order_items
             remarks: Order line items
             columns:
@@ -203,12 +211,14 @@ databaseChangeLog:
                   constraints:
                     nullable: false
         - createIndex:
+            schemaName: tabler_order
             tableName: order_items
             indexName: idx_order_item_order
             columns:
               - column:
                   name: order_id
         - createIndex:
+            schemaName: tabler_order
             tableName: order_items
             indexName: idx_order_item_status
             columns:

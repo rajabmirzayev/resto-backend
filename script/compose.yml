@@ -19,6 +19,22 @@ services:
       timeout: 5s
       retries: 5
 
+  migrations:
+    build:
+      context: ../
+      dockerfile: db-migrations/Dockerfile
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      POSTGRES_URL: jdbc:postgresql://db:5432/tabler
+      POSTGRES_USER: $POSTGRES_USER
+      POSTGRES_PASSWORD: $POSTGRES_PASSWORD
+      TZ: Asia/Baku
+    networks:
+      - tabler_net
+
   keycloak:
     image: quay.io/keycloak/keycloak:26.5.2
     restart: always
@@ -74,101 +90,364 @@ services:
     volumes:
       - valkey_data:/data
 
-  seaweedfs:
-    image: chrislusf/seaweedfs:4.12
-    restart: always
-    command: mini -dir=/data -ip.bind=0.0.0.0 -s3 -admin.user=$SEAWEED_ADMIN_USERNAME -admin.password=$SEAWEED_ADMIN_PASSWORD
-    environment:
-      AWS_ACCESS_KEY_ID: $SW_AWS_ACCESS_KEY_ID
-      AWS_SECRET_ACCESS_KEY: $SW_AWS_SECRET_ACCESS_KEY
-      SEAWEED_ADMIN_USERNAME: $SEAWEED_ADMIN_USERNAME
-      SEAWEED_ADMIN_PASSWORD: $SEAWEED_ADMIN_PASSWORD
-      SEAWEED_BUCKET_NAME: $SEAWEED_BUCKET_NAME
-      TZ: Asia/Baku
-    networks:
-      - tabler_net
-    ports:
-      - "9333:9333"
-      - "8888:8888"
-      - "8333:8333"
-      - "8181:8181"
-      - "7333:7333"
-      - "23646:23646"
-      - "9340:9340"
-    volumes:
-      - seaweedfs_data:/data
-
   auth-ms:
     build:
       context: ../
       dockerfile: auth-gateway/Dockerfile
+    restart: always
     depends_on:
-      db:
-        condition: service_healthy
+      - db
     environment:
-      AUTH_KEYCLOAK_URL: $AUTH_KEYCLOAK_URL
+      AUTH_KEYCLOAK_URL: http://keycloak:8080
       AUTH_KEYCLOAK_REALM: $AUTH_KEYCLOAK_REALM
       AUTH_KEYCLOAK_CLIENT_ID: $AUTH_KEYCLOAK_CLIENT_ID
       AUTH_KEYCLOAK_CLIENT_SECRET: $AUTH_KEYCLOAK_CLIENT_SECRET
       AUTH_KEYCLOAK_CONNECT_TIMEOUT: $AUTH_KEYCLOAK_CONNECT_TIMEOUT
       AUTH_KEYCLOAK_READ_TIMEOUT: $AUTH_KEYCLOAK_READ_TIMEOUT
-      AUTH_SERVER_PORT: $AUTH_SERVER_PORT
+      AUTH_SERVER_PORT: 8002
       TZ: Asia/Baku
     networks:
       - tabler_net
+    ports:
+      - "8002:8002"
 
   cloud-gateway:
     build:
       context: ../
       dockerfile: cloud-gateway/Dockerfile
+    restart: always
     depends_on:
-      db:
-        condition: service_healthy
+      - migrations
+      - auth-ms
     environment:
-      GW_REDIS_HOST: $GW_REDIS_HOST
-      GW_REDIS_PORT: $GW_REDIS_PORT
-      GW_KEYCLOAK_ISSUER_URI: $GW_KEYCLOAK_ISSUER_URI
+      GW_REDIS_HOST: valkey
+      GW_REDIS_PORT: 6379
+      GW_KEYCLOAK_ISSUER_URI: http://keycloak:8080/realms/tabler
       GW_KEYCLOAK_AUDIENCE: $GW_KEYCLOAK_AUDIENCE
       GW_KEYCLOAK_CLIENT_ID: $GW_KEYCLOAK_CLIENT_ID
-      GW_SERVER_PORT: $GW_SERVER_PORT
-      GW_AUTH_MANAGEMENT_URL: $GW_AUTH_MANAGEMENT_URL
-      GW_ORGANIZATION_URL: $GW_ORGANIZATION_URL
-      GW_DASHBOARD_URL: $GW_DASHBOARD_URL
-      GW_REPORT_URL: $GW_REPORT_URL
-      GW_CUSTOMER_URL: $GW_CUSTOMER_URL
-      GW_WAITER_URL: $GW_WAITER_URL
-      GW_KITCHEN_URL: $GW_KITCHEN_URL
-      GW_ORDER_URL: $GW_ORDER_URL
-      GW_SETTING_URL: $GW_SETTING_URL
-      GW_ROLE_URL: $GW_ROLE_URL
-      GW_USER_URL: $GW_USER_URL
-      GW_MENU_URL: $GW_MENU_URL
-      GW_TABLE_URL: $GW_TABLE_URL
+      GW_SERVER_PORT: 8001
+      CORS_ALLOWED_ORIGIN_PATTERNS: $CORS_ALLOWED_ORIGIN_PATTERNS
+      GW_AUTH_MANAGEMENT_URL: http://auth-ms:8002
+      GW_ORGANIZATION_URL: http://organization-service:8102
+      GW_DASHBOARD_URL: http://dashboard-service:8112
+      GW_REPORT_URL: http://report-service:8113
+      GW_CUSTOMER_URL: http://customer-service:8110
+      GW_WAITER_URL: http://waiter-service:8109
+      GW_KITCHEN_URL: http://kitchen-service:8108
+      GW_ORDER_URL: http://order-service:8107
+      GW_SETTING_URL: http://setting-service:8111
+      GW_ROLE_URL: http://role-service:8104
+      GW_USER_URL: http://user-service:8103
+      GW_MENU_URL: http://menu-service:8105
+      GW_TABLE_URL: http://table-service:8106
       TZ: Asia/Baku
     networks:
       - tabler_net
     ports:
-      - 8001:8001
+      - "8001:8001"
 
-  document-ms:
+  user-service:
     build:
       context: ../
-      dockerfile: document/Dockerfile
+      dockerfile: user-service/Dockerfile
+    restart: always
     depends_on:
-      db:
-        condition: service_healthy
+      migrations:
+        condition: service_completed_successfully
     environment:
-      S3_BUCKET: $DOC_S3_BUCKET
-      S3_REGION: $DOC_S3_REGION
-      S3_ENDPOINT: $DOC_S3_ENDPOINT
-      S3_PATH_STYLE_ACCESS: $DOC_S3_PATH_STYLE_ACCESS
-      S3_PRESIGNED_URL_EXPIRATION: $DOC_S3_PRESIGNED_URL_EXPIRATION
-      AWS_ACCESS_KEY_ID: $DOC_AWS_ACCESS_KEY_ID
-      AWS_SECRET_ACCESS_KEY: $DOC_AWS_SECRET_ACCESS_KEY
-      SERVER_PORT: $DOC_SERVER_PORT
+      USER_DB_URL: jdbc:postgresql://db:5432/tabler?currentSchema=tabler_user
+      USER_DB_USERNAME: $POSTGRES_USER
+      USER_DB_PASSWORD: $POSTGRES_PASSWORD
+      JPA_DDL_AUTO: $JPA_DDL_AUTO
+      USER_SERVER_PORT: 8103
+      USER_SERVICE_URL: http://user-service:8103
+      ROLE_SERVICE_URL: http://role-service:8104
+      ORGANIZATION_SERVICE_URL: http://organization-service:8102
+      MENU_SERVICE_URL: http://menu-service:8105
+      TABLE_SERVICE_URL: http://table-service:8106
+      ORDER_SERVICE_URL: http://order-service:8107
+      SETTING_SERVICE_URL: http://setting-service:8111
       TZ: Asia/Baku
     networks:
       - tabler_net
+    ports:
+      - "8103:8103"
+
+  role-service:
+    build:
+      context: ../
+      dockerfile: role-service/Dockerfile
+    restart: always
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+    environment:
+      ROLE_DB_URL: jdbc:postgresql://db:5432/tabler?currentSchema=tabler_role
+      ROLE_DB_USERNAME: $POSTGRES_USER
+      ROLE_DB_PASSWORD: $POSTGRES_PASSWORD
+      JPA_DDL_AUTO: $JPA_DDL_AUTO
+      ROLE_SERVER_PORT: 8104
+      USER_SERVICE_URL: http://user-service:8103
+      ROLE_SERVICE_URL: http://role-service:8104
+      ORGANIZATION_SERVICE_URL: http://organization-service:8102
+      MENU_SERVICE_URL: http://menu-service:8105
+      TABLE_SERVICE_URL: http://table-service:8106
+      ORDER_SERVICE_URL: http://order-service:8107
+      SETTING_SERVICE_URL: http://setting-service:8111
+      TZ: Asia/Baku
+    networks:
+      - tabler_net
+    ports:
+      - "8104:8104"
+
+  organization-service:
+    build:
+      context: ../
+      dockerfile: organization-service/Dockerfile
+    restart: always
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+    environment:
+      ORG_DB_URL: jdbc:postgresql://db:5432/tabler?currentSchema=tabler_organization
+      ORG_DB_USERNAME: $POSTGRES_USER
+      ORG_DB_PASSWORD: $POSTGRES_PASSWORD
+      JPA_DDL_AUTO: $JPA_DDL_AUTO
+      ORG_SERVER_PORT: 8102
+      USER_SERVICE_URL: http://user-service:8103
+      ROLE_SERVICE_URL: http://role-service:8104
+      ORGANIZATION_SERVICE_URL: http://organization-service:8102
+      MENU_SERVICE_URL: http://menu-service:8105
+      TABLE_SERVICE_URL: http://table-service:8106
+      ORDER_SERVICE_URL: http://order-service:8107
+      SETTING_SERVICE_URL: http://setting-service:8111
+      TZ: Asia/Baku
+    networks:
+      - tabler_net
+    ports:
+      - "8102:8102"
+
+  menu-service:
+    build:
+      context: ../
+      dockerfile: menu-service/Dockerfile
+    restart: always
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+    environment:
+      MENU_DB_URL: jdbc:postgresql://db:5432/tabler?currentSchema=tabler_menu
+      MENU_DB_USERNAME: $POSTGRES_USER
+      MENU_DB_PASSWORD: $POSTGRES_PASSWORD
+      JPA_DDL_AUTO: $JPA_DDL_AUTO
+      MENU_SERVER_PORT: 8105
+      MENU_STORAGE_DIR: /data/menu-images
+      MENU_PUBLIC_BASE_URL: $MENU_PUBLIC_BASE_URL
+      USER_SERVICE_URL: http://user-service:8103
+      ROLE_SERVICE_URL: http://role-service:8104
+      ORGANIZATION_SERVICE_URL: http://organization-service:8102
+      MENU_SERVICE_URL: http://menu-service:8105
+      TABLE_SERVICE_URL: http://table-service:8106
+      ORDER_SERVICE_URL: http://order-service:8107
+      SETTING_SERVICE_URL: http://setting-service:8111
+      TZ: Asia/Baku
+    networks:
+      - tabler_net
+    ports:
+      - "8105:8105"
+    volumes:
+      - menu_images:/data/menu-images
+
+  table-service:
+    build:
+      context: ../
+      dockerfile: table-service/Dockerfile
+    restart: always
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+    environment:
+      TABLE_DB_URL: jdbc:postgresql://db:5432/tabler?currentSchema=tabler_table
+      TABLE_DB_USERNAME: $POSTGRES_USER
+      TABLE_DB_PASSWORD: $POSTGRES_PASSWORD
+      JPA_DDL_AUTO: $JPA_DDL_AUTO
+      TABLE_SERVER_PORT: 8106
+      USER_SERVICE_URL: http://user-service:8103
+      ROLE_SERVICE_URL: http://role-service:8104
+      ORGANIZATION_SERVICE_URL: http://organization-service:8102
+      MENU_SERVICE_URL: http://menu-service:8105
+      TABLE_SERVICE_URL: http://table-service:8106
+      ORDER_SERVICE_URL: http://order-service:8107
+      SETTING_SERVICE_URL: http://setting-service:8111
+      TZ: Asia/Baku
+    networks:
+      - tabler_net
+    ports:
+      - "8106:8106"
+
+  order-service:
+    build:
+      context: ../
+      dockerfile: order-service/Dockerfile
+    restart: always
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+    environment:
+      ORDER_DB_URL: jdbc:postgresql://db:5432/tabler?currentSchema=tabler_order
+      ORDER_DB_USERNAME: $POSTGRES_USER
+      ORDER_DB_PASSWORD: $POSTGRES_PASSWORD
+      JPA_DDL_AUTO: $JPA_DDL_AUTO
+      ORDER_SERVER_PORT: 8107
+      USER_SERVICE_URL: http://user-service:8103
+      ROLE_SERVICE_URL: http://role-service:8104
+      ORGANIZATION_SERVICE_URL: http://organization-service:8102
+      MENU_SERVICE_URL: http://menu-service:8105
+      TABLE_SERVICE_URL: http://table-service:8106
+      ORDER_SERVICE_URL: http://order-service:8107
+      SETTING_SERVICE_URL: http://setting-service:8111
+      TZ: Asia/Baku
+    networks:
+      - tabler_net
+    ports:
+      - "8107:8107"
+
+  kitchen-service:
+    build:
+      context: ../
+      dockerfile: kitchen-service/Dockerfile
+    restart: always
+    depends_on:
+      - migrations
+    environment:
+      KITCHEN_SERVER_PORT: 8108
+      USER_SERVICE_URL: http://user-service:8103
+      ROLE_SERVICE_URL: http://role-service:8104
+      ORGANIZATION_SERVICE_URL: http://organization-service:8102
+      MENU_SERVICE_URL: http://menu-service:8105
+      TABLE_SERVICE_URL: http://table-service:8106
+      ORDER_SERVICE_URL: http://order-service:8107
+      SETTING_SERVICE_URL: http://setting-service:8111
+      TZ: Asia/Baku
+    networks:
+      - tabler_net
+    ports:
+      - "8108:8108"
+
+  waiter-service:
+    build:
+      context: ../
+      dockerfile: waiter-service/Dockerfile
+    restart: always
+    depends_on:
+      - migrations
+    environment:
+      WAITER_SERVER_PORT: 8109
+      USER_SERVICE_URL: http://user-service:8103
+      ROLE_SERVICE_URL: http://role-service:8104
+      ORGANIZATION_SERVICE_URL: http://organization-service:8102
+      MENU_SERVICE_URL: http://menu-service:8105
+      TABLE_SERVICE_URL: http://table-service:8106
+      ORDER_SERVICE_URL: http://order-service:8107
+      SETTING_SERVICE_URL: http://setting-service:8111
+      TZ: Asia/Baku
+    networks:
+      - tabler_net
+    ports:
+      - "8109:8109"
+
+  customer-service:
+    build:
+      context: ../
+      dockerfile: customer-service/Dockerfile
+    restart: always
+    depends_on:
+      - migrations
+    environment:
+      CUSTOMER_SERVER_PORT: 8110
+      USER_SERVICE_URL: http://user-service:8103
+      ROLE_SERVICE_URL: http://role-service:8104
+      ORGANIZATION_SERVICE_URL: http://organization-service:8102
+      MENU_SERVICE_URL: http://menu-service:8105
+      TABLE_SERVICE_URL: http://table-service:8106
+      ORDER_SERVICE_URL: http://order-service:8107
+      SETTING_SERVICE_URL: http://setting-service:8111
+      TZ: Asia/Baku
+    networks:
+      - tabler_net
+    ports:
+      - "8110:8110"
+
+  setting-service:
+    build:
+      context: ../
+      dockerfile: setting-service/Dockerfile
+    restart: always
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+    environment:
+      SETTING_DB_URL: jdbc:postgresql://db:5432/tabler?currentSchema=tabler_setting
+      SETTING_DB_USERNAME: $POSTGRES_USER
+      SETTING_DB_PASSWORD: $POSTGRES_PASSWORD
+      JPA_DDL_AUTO: $JPA_DDL_AUTO
+      SETTING_SERVER_PORT: 8111
+      USER_SERVICE_URL: http://user-service:8103
+      ROLE_SERVICE_URL: http://role-service:8104
+      ORGANIZATION_SERVICE_URL: http://organization-service:8102
+      MENU_SERVICE_URL: http://menu-service:8105
+      TABLE_SERVICE_URL: http://table-service:8106
+      ORDER_SERVICE_URL: http://order-service:8107
+      SETTING_SERVICE_URL: http://setting-service:8111
+      TZ: Asia/Baku
+    networks:
+      - tabler_net
+    ports:
+      - "8111:8111"
+
+  dashboard-service:
+    build:
+      context: ../
+      dockerfile: dashboard-service/Dockerfile
+    restart: always
+    depends_on:
+      - migrations
+    environment:
+      DASHBOARD_SERVER_PORT: 8112
+      USER_SERVICE_URL: http://user-service:8103
+      ROLE_SERVICE_URL: http://role-service:8104
+      ORGANIZATION_SERVICE_URL: http://organization-service:8102
+      MENU_SERVICE_URL: http://menu-service:8105
+      TABLE_SERVICE_URL: http://table-service:8106
+      ORDER_SERVICE_URL: http://order-service:8107
+      SETTING_SERVICE_URL: http://setting-service:8111
+      TZ: Asia/Baku
+    networks:
+      - tabler_net
+    ports:
+      - "8112:8112"
+
+  report-service:
+    build:
+      context: ../
+      dockerfile: report-service/Dockerfile
+    restart: always
+    depends_on:
+      - migrations
+    environment:
+      REPORT_SERVER_PORT: 8113
+      USER_SERVICE_URL: http://user-service:8103
+      ROLE_SERVICE_URL: http://role-service:8104
+      ORGANIZATION_SERVICE_URL: http://organization-service:8102
+      MENU_SERVICE_URL: http://menu-service:8105
+      TABLE_SERVICE_URL: http://table-service:8106
+      ORDER_SERVICE_URL: http://order-service:8107
+      SETTING_SERVICE_URL: http://setting-service:8111
+      TZ: Asia/Baku
+    networks:
+      - tabler_net
+    ports:
+      - "8113:8113"
 
 networks:
   tabler_net:
@@ -178,4 +457,4 @@ volumes:
   postgres_data:
   pgadmin_data:
   valkey_data:
-  seaweedfs_data:
+  menu_images:

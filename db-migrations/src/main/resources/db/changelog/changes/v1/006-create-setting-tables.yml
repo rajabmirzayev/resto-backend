@@ -5,6 +5,7 @@ databaseChangeLog:
       changes:
         # ==================== org_settings ====================
         - createTable:
+            schemaName: tabler_setting
             tableName: org_settings
             remarks: Organization settings
             columns:
@@ -58,10 +59,12 @@ databaseChangeLog:
                   constraints:
                     nullable: false
         - addUniqueConstraint:
+            schemaName: tabler_setting
             tableName: org_settings
             columnNames: org_id
             constraintName: uq_org_settings_org_id
         - createIndex:
+            schemaName: tabler_setting
             tableName: org_settings
             indexName: idx_org_settings_org
             columns:

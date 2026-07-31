@@ -5,6 +5,7 @@ databaseChangeLog:
       changes:
         # ==================== menu_categories ====================
         - createTable:
+            schemaName: tabler_menu
             tableName: menu_categories
             remarks: Menu categories
             columns:
@@ -60,6 +61,7 @@ databaseChangeLog:
                   constraints:
                     nullable: false
         - createIndex:
+            schemaName: tabler_menu
             tableName: menu_categories
             indexName: idx_category_org
             where: is_deleted = false
@@ -69,6 +71,7 @@ databaseChangeLog:
 
         # ==================== menu_items ====================
         - createTable:
+            schemaName: tabler_menu
             tableName: menu_items
             remarks: Menu items
             columns:
@@ -143,6 +146,7 @@ databaseChangeLog:
                   constraints:
                     nullable: false
         - createIndex:
+            schemaName: tabler_menu
             tableName: menu_items
             indexName: idx_item_org
             where: is_deleted = false
@@ -150,6 +154,7 @@ databaseChangeLog:
               - column:
                   name: org_id
         - createIndex:
+            schemaName: tabler_menu
             tableName: menu_items
             indexName: idx_item_category
             where: is_deleted = false
@@ -157,6 +162,7 @@ databaseChangeLog:
               - column:
                   name: category_id
         - createIndex:
+            schemaName: tabler_menu
             tableName: menu_items
             indexName: idx_item_available
             where: is_deleted = false

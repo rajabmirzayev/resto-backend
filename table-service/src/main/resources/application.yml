@@ -7,7 +7,7 @@ spring:
     name: table-service
 
   datasource:
-    url: ${TABLE_DB_URL:jdbc:postgresql://localhost:5432/tabler_table}
+    url: ${TABLE_DB_URL:jdbc:postgresql://localhost:5432/tabler?currentSchema=tabler_table}
     username: ${TABLE_DB_USERNAME:postgres}
     password: ${TABLE_DB_PASSWORD}
     driver-class-name: org.postgresql.Driver

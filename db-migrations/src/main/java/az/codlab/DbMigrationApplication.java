@@ -7,7 +7,8 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 public class DbMigrationApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(DbMigrationApplication.class, args);
+        var context = SpringApplication.run(DbMigrationApplication.class, args);
+        System.exit(SpringApplication.exit(context));
     }
 
 }

@@ -7,7 +7,7 @@ spring:
     name: order-service
 
   datasource:
-    url: ${ORDER_DB_URL:jdbc:postgresql://localhost:5432/tabler_order}
+    url: ${ORDER_DB_URL:jdbc:postgresql://localhost:5432/tabler?currentSchema=tabler_order}
     username: ${ORDER_DB_USERNAME:postgres}
     password: ${ORDER_DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
