@@ -3,8 +3,8 @@ spring:
     name: cloud-gateway
   data:
     redis:
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6379}
+      host: ${GW_REDIS_HOST:localhost}
+      port: ${GW_REDIS_PORT:6379}
   codec:
     max-in-memory-size: 50MB
   cloud:
@@ -88,12 +88,12 @@ spring:
 
 security:
   oauth2:
-    issuer-uri: ${KC_ISSUER_URI:http://localhost:8080/realms/tabler}
-    audience: ${KC_AUDIENCE:}
-    client-id: ${KC_CLIENT_ID:tabler-gateway}
+    issuer-uri: ${GW_KEYCLOAK_ISSUER_URI:http://localhost:8080/realms/tabler}
+    audience: ${GW_KEYCLOAK_AUDIENCE:}
+    client-id: ${GW_KEYCLOAK_CLIENT_ID:tabler-gateway}
 
 server:
-  port: 8001
+  port: ${GW_SERVER_PORT:8001}
 
 management:
   endpoints:

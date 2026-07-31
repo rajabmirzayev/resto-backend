@@ -14,14 +14,14 @@ spring:
           jwk-set-uri: ${keycloak.server-url}/realms/${keycloak.realm}/protocol/openid-connect/certs
 
 keycloak:
-  server-url: ${KC_URL:http://localhost:8080}
-  realm: ${KC_REALM:book}
-  client-id: ${KC_CLIENT_ID:book-auth}
-  client-secret: ${KC_CLIENT_SECRET:test}
+  server-url: ${AUTH_KEYCLOAK_URL:http://localhost:8080}
+  realm: ${AUTH_KEYCLOAK_REALM:tabler}
+  client-id: ${AUTH_KEYCLOAK_CLIENT_ID:tabler-auth}
+  client-secret: ${AUTH_KEYCLOAK_CLIENT_SECRET}
   token-uri: ${keycloak.server-url}/realms/${keycloak.realm}/protocol/openid-connect/token
   logout-uri: ${keycloak.server-url}/realms/${keycloak.realm}/protocol/openid-connect/logout
-  connect-timeout-ms: ${KC_CONNECT_TIMEOUT:5000}
-  read-timeout-ms: ${KC_READ_TIMEOUT:10000}
+  connect-timeout-ms: ${AUTH_KEYCLOAK_CONNECT_TIMEOUT:5000}
+  read-timeout-ms: ${AUTH_KEYCLOAK_READ_TIMEOUT:10000}
 
 auth:
   super-admin-role: SUPER_ADMIN

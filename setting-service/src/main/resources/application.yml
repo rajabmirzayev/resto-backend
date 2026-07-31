@@ -9,7 +9,7 @@ spring:
   datasource:
     url: ${SETTING_DB_URL:jdbc:postgresql://localhost:5432/tabler_setting}
     username: ${SETTING_DB_USERNAME:postgres}
-    password: ${SETTING_DB_PASSWORD:postgres}
+    password: ${SETTING_DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
 
   jpa:

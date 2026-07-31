@@ -9,7 +9,7 @@ spring:
   datasource:
     url: ${ORG_DB_URL:jdbc:postgresql://localhost:5432/tabler_organization}
     username: ${ORG_DB_USERNAME:postgres}
-    password: ${ORG_DB_PASSWORD:postgres}
+    password: ${ORG_DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
 
   jpa:
