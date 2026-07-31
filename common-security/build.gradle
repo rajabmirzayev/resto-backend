@@ -6,6 +6,7 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot'
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-security'
+    api 'org.springframework.boot:spring-boot-starter-oauth2-resource-server'
     implementation 'com.fasterxml.jackson.core:jackson-databind'
 
     compileOnly 'org.springframework.cloud:spring-cloud-starter-openfeign'

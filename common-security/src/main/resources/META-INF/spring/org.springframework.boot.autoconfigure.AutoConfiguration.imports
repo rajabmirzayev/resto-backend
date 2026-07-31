@@ -1,1 +1,2 @@
 az.codlab.common.security.config.SecurityFeignAutoConfiguration
+az.codlab.common.security.config.SecurityConfig
