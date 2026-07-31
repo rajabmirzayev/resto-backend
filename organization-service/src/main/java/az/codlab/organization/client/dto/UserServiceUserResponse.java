@@ -22,5 +22,5 @@ public class UserServiceUserResponse {
     String role;
     UUID roleId;
     UUID orgId;
-    boolean isActive;
+    Boolean isActive;
 }

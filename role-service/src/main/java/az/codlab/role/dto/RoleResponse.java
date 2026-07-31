@@ -20,7 +20,7 @@ public class RoleResponse {
     UUID id;
     String name;
     List<String> permissions;
-    boolean isSystem;
+    Boolean isSystem;
     UUID orgId;
 
 }

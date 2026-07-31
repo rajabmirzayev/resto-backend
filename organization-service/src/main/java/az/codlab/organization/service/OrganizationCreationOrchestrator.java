@@ -98,7 +98,7 @@ public class OrganizationCreationOrchestrator {
                 .id(adminRole.getId())
                 .name(adminRole.getName())
                 .permissions(adminRole.getPermissions())
-                .isSystem(adminRole.isSystem())
+                .isSystem(Boolean.TRUE.equals(adminRole.getIsSystem()))
                 .orgId(organization.getId())
                 .build();
 
