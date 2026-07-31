@@ -9,6 +9,12 @@ spring:
   messages:
     basename: messages
 
+service:
+  order:
+    url: ${ORDER_SERVICE_URL:http://localhost:8107}
+  table:
+    url: ${TABLE_SERVICE_URL:http://localhost:8106}
+
 server:
   port: ${WAITER_SERVER_PORT:8109}
   servlet:

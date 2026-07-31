@@ -15,6 +15,7 @@ import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,10 +27,12 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final UserMapper userMapper;
+    private final PasswordEncoder passwordEncoder;
 
-    public UserService(UserRepository userRepository, UserMapper userMapper) {
+    public UserService(UserRepository userRepository, UserMapper userMapper, PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
         this.userMapper = userMapper;
+        this.passwordEncoder = passwordEncoder;
     }
 
     public List<UserResponse> getAllUsers(UUID orgId, String role) {
@@ -51,7 +54,6 @@ public class UserService {
                 .orElseThrow(UserErrorCode.USER_NOT_FOUND::notFound);
     }
 
-    // TODO: role-service-den role melumatlarini cekib UserRole enum-nu avtomatik teyin et
     @Transactional
     public UserResponse createUser(CreateUserRequest request) {
         if (userRepository.existsByUsernameAndDeletedFalse(request.getUsername())) {
@@ -63,6 +65,7 @@ public class UserService {
                 .username(request.getUsername().trim())
                 .email(request.getEmail() != null ? request.getEmail().trim().toLowerCase() : null)
                 .phone(request.getPhone())
+                .password(passwordEncoder.encode(request.getPassword()))
                 .roleId(request.getRoleId())
                 .orgId(request.getOrgId())
                 .role(UserRole.WAITER)
@@ -70,12 +73,10 @@ public class UserService {
                 .build();
         user = userRepository.save(user);
 
-        // TODO: Keycloak-da da istifadecini yarat
         log.info("User created: {} ({})", user.getName(), user.getId());
         return userMapper.toDto(user);
     }
 
-    // TODO: role-service-den role melumatlarini cekib UserRole enum-nu avtomatik teyin et (roleId deyisilende)
     @Transactional
     public UserResponse updateUser(UUID id, UpdateUserRequest request) {
         var user = userRepository.findByIdAndDeletedFalse(id)
@@ -86,6 +87,9 @@ public class UserService {
         }
         if (request.getUsername() != null) {
             user.setUsername(request.getUsername().trim());
+        }
+        if (request.getPassword() != null) {
+            user.setPassword(passwordEncoder.encode(request.getPassword()));
         }
         if (request.getRoleId() != null) {
             user.setRoleId(request.getRoleId());
@@ -98,22 +102,29 @@ public class UserService {
         }
 
         user = userRepository.save(user);
-        // TODO: Keycloak-da melumatlari yenile
         log.info("User updated: {} ({})", user.getName(), user.getId());
         return userMapper.toDto(user);
+    }
+
+    @Transactional
+    public void clearRole(UUID roleId) {
+        var users = userRepository.findAllByRoleIdAndDeletedFalse(roleId);
+        for (var user : users) {
+            user.setRoleId(null);
+            userRepository.save(user);
+        }
+        log.info("Cleared roleId {} for {} users", roleId, users.size());
     }
 
     @Transactional
     public void deleteUser(UUID id) {
         var user = userRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(UserErrorCode.USER_NOT_FOUND::notFound);
-        // TODO: Keycloak-da istifadecini deaktiv et
         user.softDelete(null);
         userRepository.save(user);
         log.info("User soft-deleted: {}", id);
     }
 
-    // TODO: order-service hazir olanda real melumatlarla doldur
     public List<StaffPerformanceResponse> getStaffPerformance(UUID orgId) {
         var users = userRepository.findAllByOrgIdAndDeletedFalse(orgId);
         return users.stream()

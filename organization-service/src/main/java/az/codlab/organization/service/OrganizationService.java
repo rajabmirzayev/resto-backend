@@ -1,5 +1,7 @@
 package az.codlab.organization.service;
 
+import az.codlab.common.exception.handling.dto.ApiResponse;
+import az.codlab.organization.client.OrderServiceClient;
 import az.codlab.organization.dto.OrganizationDto;
 import az.codlab.organization.dto.QrCodeResponse;
 import az.codlab.organization.entity.Organization;
@@ -7,8 +9,18 @@ import az.codlab.organization.error.OrganizationErrorCode;
 import az.codlab.organization.mapper.OrganizationMapper;
 import az.codlab.organization.repository.OrganizationRepository;
 
+import com.google.zxing.BarcodeFormat;
+import com.google.zxing.WriterException;
+import com.google.zxing.client.j2se.MatrixToImageWriter;
+import com.google.zxing.qrcode.QRCodeWriter;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
+
+import javax.imageio.ImageIO;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,13 +33,18 @@ public class OrganizationService {
 
     private static final Logger log = LoggerFactory.getLogger(OrganizationService.class);
 
+    private static final int QR_SIZE = 512;
+
     private final OrganizationRepository organizationRepository;
     private final OrganizationMapper organizationMapper;
+    private final OrderServiceClient orderServiceClient;
 
     public OrganizationService(OrganizationRepository organizationRepository,
-                               OrganizationMapper organizationMapper) {
+                               OrganizationMapper organizationMapper,
+                               OrderServiceClient orderServiceClient) {
         this.organizationRepository = organizationRepository;
         this.organizationMapper = organizationMapper;
+        this.orderServiceClient = orderServiceClient;
     }
 
     public List<OrganizationDto> getAllOrganizations() {
@@ -47,22 +64,47 @@ public class OrganizationService {
                 .orElseThrow(OrganizationErrorCode.ORGANIZATION_NOT_FOUND::notFound);
     }
 
-    // TODO: oz QR generator library-i (QRGen/ZXing) ile evez et, external API-ye bagli qalmasin
     public QrCodeResponse getQrCode(UUID orgId) {
         var org = getOrganizationEntity(orgId);
         var menuUrl = "https://tabler.az/org/" + org.getId() + "/menu";
-        var encodedUrl = java.net.URLEncoder.encode(menuUrl, java.nio.charset.StandardCharsets.UTF_8);
-        var qrUrl = "https://api.qrserver.com/v1/create-qr-code/?size=512x512&data=" + encodedUrl;
-        return new QrCodeResponse(qrUrl);
+        return new QrCodeResponse(generateQrDataUrl(menuUrl));
+    }
+
+    private String generateQrDataUrl(String content) {
+        try {
+            var qrCodeWriter = new QRCodeWriter();
+            var bitMatrix = qrCodeWriter.encode(content, BarcodeFormat.QR_CODE, QR_SIZE, QR_SIZE);
+            var image = MatrixToImageWriter.toBufferedImage(bitMatrix);
+            var output = new ByteArrayOutputStream();
+            ImageIO.write(image, "png", output);
+            var base64 = Base64.getEncoder().encodeToString(output.toByteArray());
+            return "data:image/png;base64," + base64;
+        } catch (WriterException | IOException e) {
+            throw new RuntimeException("Failed to generate QR code", e);
+        }
     }
 
     @Transactional
     public void deleteOrganization(UUID id) {
         var org = getOrganizationEntity(id);
-        // TODO: active orders yoxlanisini elave et (order-service hazir olandan sonra)
+
+        var orders = unwrap(orderServiceClient.getOrders(id));
+        boolean hasActiveOrders = orders.stream()
+                .anyMatch(o -> !"COMPLETED".equals(o.getStatus()) && !"CANCELLED".equals(o.getStatus()));
+        if (hasActiveOrders) {
+            throw OrganizationErrorCode.ORGANIZATION_HAS_ACTIVE_ORDERS.conflict();
+        }
+
         org.softDelete(null);
         organizationRepository.save(org);
         log.info("Organization {} soft-deleted", id);
+    }
+
+    private <T> T unwrap(ApiResponse<T> response) {
+        if (response == null || !response.isSuccess() || response.getData() == null) {
+            throw new RuntimeException("External service returned unsuccessful response");
+        }
+        return response.getData();
     }
 
 }

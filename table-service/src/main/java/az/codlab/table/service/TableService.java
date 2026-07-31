@@ -159,8 +159,7 @@ public class TableService {
             table.setSectionId(request.getSectionId());
         }
         if (request.getStatus() != null) {
-            // TODO: invalid status-dan qaynaqlanan IllegalArgumentException-i handle et (400 qaytar)
-            table.setStatus(TableStatus.valueOf(request.getStatus().toUpperCase()));
+            table.setStatus(parseStatus(request.getStatus()));
         }
 
         table = restaurantTableRepository.save(table);
@@ -186,9 +185,15 @@ public class TableService {
     public TableResponse updateTableStatus(UUID id, StatusUpdateRequest request) {
         var table = restaurantTableRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(TableErrorCode.TABLE_NOT_FOUND::notFound);
-        table.setStatus(TableStatus.valueOf(request.getStatus().toUpperCase()));
-        // TODO: order-service hazir olanda status OCCUPIED olarsa currentOrderId set et,
-        //       AVAILABLE/CLEANING olarsa currentOrderId-ni null et
+        var newStatus = parseStatus(request.getStatus());
+        table.setStatus(newStatus);
+
+        if (newStatus == TableStatus.OCCUPIED && request.getCurrentOrderId() != null) {
+            table.setCurrentOrderId(request.getCurrentOrderId());
+        } else if (newStatus == TableStatus.AVAILABLE || newStatus == TableStatus.CLEANING) {
+            table.setCurrentOrderId(null);
+        }
+
         table = restaurantTableRepository.save(table);
         log.info("Table {} status changed to {}", id, request.getStatus());
         return tableMapper.toDto(table);
@@ -223,6 +228,14 @@ public class TableService {
         table = restaurantTableRepository.save(table);
         log.info("Table {} reservation cancelled", id);
         return tableMapper.toDto(table);
+    }
+
+    private TableStatus parseStatus(String status) {
+        try {
+            return TableStatus.valueOf(status.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw TableErrorCode.INVALID_STATUS.badRequest();
+        }
     }
 
 }

@@ -9,7 +9,8 @@ public enum TableErrorCode implements ErrorCode {
     TABLE_NOT_FOUND("3001", "error.table.table-not-found.title", "error.table.table-not-found.message"),
     SECTION_NOT_FOUND("3002", "error.table.section-not-found.title", "error.table.section-not-found.message"),
     TABLE_HAS_ACTIVE_ORDER("2001", "error.table.has-active-order.title", "error.table.has-active-order.message"),
-    SECTION_IS_LAST("2002", "error.table.section-is-last.title", "error.table.section-is-last.message");
+    SECTION_IS_LAST("2002", "error.table.section-is-last.title", "error.table.section-is-last.message"),
+    INVALID_STATUS("4001", "error.table.invalid-status.title", "error.table.invalid-status.message");
 
     private final String code;
     private final String titleKey;
@@ -52,6 +53,10 @@ public enum TableErrorCode implements ErrorCode {
 
     public BaseException conflict() {
         return exception(HttpStatus.CONFLICT);
+    }
+
+    public BaseException badRequest() {
+        return exception(HttpStatus.BAD_REQUEST);
     }
 
 }

@@ -29,6 +29,9 @@ public class User extends SoftDeletableCoreEntity {
     @Column(name = "keycloak_id", unique = true)
     String keycloakId;
 
+    @Column(name = "password")
+    String password;
+
     @Column(name = "name", nullable = false)
     String name;
 

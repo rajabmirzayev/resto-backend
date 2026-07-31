@@ -29,6 +29,10 @@ server:
   servlet:
     context-path: /api/role-ms
 
+service:
+  user:
+    url: ${USER_SERVICE_URL:http://localhost:8103}
+
 logging:
   level:
     az.codlab.role: DEBUG

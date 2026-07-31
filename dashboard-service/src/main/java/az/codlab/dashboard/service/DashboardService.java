@@ -1,12 +1,22 @@
 package az.codlab.dashboard.service;
 
+import az.codlab.common.exception.handling.dto.ApiResponse;
+import az.codlab.common.type.LocalizedString;
+import az.codlab.dashboard.client.MenuServiceClient;
+import az.codlab.dashboard.client.OrderServiceClient;
+import az.codlab.dashboard.client.TableServiceClient;
+import az.codlab.dashboard.client.UserServiceClient;
 import az.codlab.dashboard.dto.DashboardStatsResponse;
 import az.codlab.dashboard.dto.RecentOrderResponse;
 import az.codlab.dashboard.dto.StaffListResponse;
 import az.codlab.dashboard.dto.TopItemResponse;
 
+import java.math.BigDecimal;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,30 +26,116 @@ import org.springframework.stereotype.Service;
 public class DashboardService {
 
     private static final Logger log = LoggerFactory.getLogger(DashboardService.class);
-    // TODO: order-service, table-service ve menu-service-e HTTP call-lar
+
+    private static final List<String> ACTIVE_STATUSES = List.of("PENDING", "CONFIRMED", "PREPARING", "READY");
+    private static final List<String> COMPLETED_STATUSES = List.of("COMPLETED", "PAID");
+
+    private final OrderServiceClient orderServiceClient;
+    private final TableServiceClient tableServiceClient;
+    private final MenuServiceClient menuServiceClient;
+    private final UserServiceClient userServiceClient;
+
+    public DashboardService(OrderServiceClient orderServiceClient, TableServiceClient tableServiceClient,
+                            MenuServiceClient menuServiceClient, UserServiceClient userServiceClient) {
+        this.orderServiceClient = orderServiceClient;
+        this.tableServiceClient = tableServiceClient;
+        this.menuServiceClient = menuServiceClient;
+        this.userServiceClient = userServiceClient;
+    }
 
     public DashboardStatsResponse getStats(UUID orgId) {
         log.debug("Fetching dashboard stats for org: {}", orgId);
-        // TODO: order-service-den (completedOrders, activeOrders) + table-service-den (occupiedTables) + totalRevenue (completed order-lardan)
-        return new DashboardStatsResponse(null, 0, 0, 0);
+        var orders = unwrapList(orderServiceClient.getOrders(orgId));
+        var tables = unwrapList(tableServiceClient.getTables(orgId));
+
+        var completed = orders.stream()
+                .filter(o -> COMPLETED_STATUSES.contains(o.getStatus()))
+                .toList();
+        var active = orders.stream()
+                .filter(o -> ACTIVE_STATUSES.contains(o.getStatus()))
+                .toList();
+        var totalRevenue = completed.stream()
+                .map(o -> o.getTotalAmount() != null ? o.getTotalAmount() : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        var occupiedTables = (int) tables.stream()
+                .filter(t -> "OCCUPIED".equals(t.getStatus()))
+                .count();
+
+        return DashboardStatsResponse.builder()
+                .totalRevenue(totalRevenue)
+                .completedOrders(completed.size())
+                .activeOrders(active.size())
+                .occupiedTables(occupiedTables)
+                .build();
     }
 
     public List<TopItemResponse> getTopItems(UUID orgId) {
         log.debug("Fetching top items for org: {}", orgId);
-        // TODO: order-service + menu-service birlesdirerek en cox satilan 5 mehsulu qaytar
-        return List.of();
+        var orders = unwrapList(orderServiceClient.getOrders(orgId));
+        var items = unwrapList(menuServiceClient.getItems(orgId));
+        var itemNames = items.stream()
+                .collect(Collectors.toMap(
+                        i -> i.getId(),
+                        i -> i.getName() != null && i.getName().getEn() != null ? i.getName().getEn() : ""));
+
+        var itemCounts = orders.stream()
+                .flatMap(o -> o.getItems().stream())
+                .collect(Collectors.groupingBy(
+                        i -> i.getMenuItemId(),
+                        Collectors.summingInt(i -> i.getQuantity() != null ? i.getQuantity() : 0)));
+
+        return itemCounts.entrySet().stream()
+                .sorted(Map.Entry.<UUID, Integer>comparingByValue().reversed())
+                .limit(5)
+                .map(e -> TopItemResponse.builder()
+                        .menuItemId(e.getKey())
+                        .name(new LocalizedString(null, itemNames.getOrDefault(e.getKey(), ""), null))
+                        .count(e.getValue())
+                        .build())
+                .toList();
     }
 
     public List<RecentOrderResponse> getRecentOrders(UUID orgId) {
         log.debug("Fetching recent orders for org: {}", orgId);
-        // TODO: order-service-den son 6 sifarisi createdAt DESC gotur
-        return List.of();
+        return unwrapList(orderServiceClient.getOrders(orgId)).stream()
+                .sorted(Comparator.comparing(o -> o.getCreatedAt(), Comparator.nullsLast(Comparator.reverseOrder())))
+                .limit(6)
+                .map(o -> RecentOrderResponse.builder()
+                        .id(UUID.fromString(o.getId()))
+                        .tableNumber(o.getTableNumber())
+                        .waiterName(o.getWaiterName())
+                        .totalAmount(o.getTotalAmount())
+                        .status(o.getStatus())
+                        .createdAt(o.getCreatedAt())
+                        .build())
+                .toList();
     }
 
     public List<StaffListResponse> getStaffList(UUID orgId) {
         log.debug("Fetching staff list for org: {}", orgId);
-        // TODO: user-service-den (staff) + order-service-den (activeOrders count)
-        return List.of();
+        var users = unwrapList(userServiceClient.getUsers(orgId));
+        var orders = unwrapList(orderServiceClient.getOrders(orgId));
+
+        var activeOrdersByWaiter = orders.stream()
+                .filter(o -> o.getWaiterId() != null && ACTIVE_STATUSES.contains(o.getStatus()))
+                .collect(Collectors.groupingBy(
+                        o -> o.getWaiterId(),
+                        Collectors.counting()));
+
+        return users.stream()
+                .filter(u -> u.getRole() != null && !u.getRole().equals("ADMIN"))
+                .map(u -> StaffListResponse.builder()
+                        .id(u.getId())
+                        .name(u.getName())
+                        .role(u.getRole())
+                        .activeOrders(activeOrdersByWaiter.getOrDefault(u.getId(), 0L).intValue())
+                        .build())
+                .toList();
+    }
+
+    private static <T> List<T> unwrapList(ApiResponse<List<T>> response) {
+        return response != null && response.isSuccess() && response.getData() != null
+                ? response.getData() : List.of();
     }
 
 }

@@ -1,5 +1,6 @@
 package az.codlab.role.service;
 
+import az.codlab.role.client.UserServiceClient;
 import az.codlab.role.dto.CreateRoleRequest;
 import az.codlab.role.dto.RoleResponse;
 import az.codlab.role.dto.UpdateRoleRequest;
@@ -24,10 +25,14 @@ public class RoleService {
 
     private final RoleRepository roleRepository;
     private final RoleMapper roleMapper;
+    private final UserServiceClient userServiceClient;
 
-    public RoleService(RoleRepository roleRepository, RoleMapper roleMapper) {
+    public RoleService(RoleRepository roleRepository,
+                       RoleMapper roleMapper,
+                       UserServiceClient userServiceClient) {
         this.roleRepository = roleRepository;
         this.roleMapper = roleMapper;
+        this.userServiceClient = userServiceClient;
     }
 
     public List<RoleResponse> getAllRoles(UUID orgId) {
@@ -88,9 +93,11 @@ public class RoleService {
             throw RoleErrorCode.ROLE_IS_SYSTEM.forbidden();
         }
 
-        // TODO: user-service hazir olanda bu rola aid userlerin roleId-ni null set et (cascade set-null)
         role.softDelete(null);
         roleRepository.save(role);
+
+        userServiceClient.clearRole(id);
+
         log.info("Role soft-deleted: {}", id);
     }
 

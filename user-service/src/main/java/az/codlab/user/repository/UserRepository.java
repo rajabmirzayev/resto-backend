@@ -21,6 +21,8 @@ public interface UserRepository extends JpaRepository<User, UUID> {
 
     List<User> findAllByOrgIdAndRoleAndDeletedFalse(UUID orgId, UserRole role);
 
+    List<User> findAllByRoleIdAndDeletedFalse(UUID roleId);
+
     boolean existsByUsernameAndDeletedFalse(String username);
 
 }

@@ -24,6 +24,18 @@ spring:
   messages:
     basename: messages
 
+service:
+  role:
+    url: ${ROLE_SERVICE_URL:http://localhost:8104}
+  user:
+    url: ${USER_SERVICE_URL:http://localhost:8103}
+  setting:
+    url: ${SETTING_SERVICE_URL:http://localhost:8111}
+  table:
+    url: ${TABLE_SERVICE_URL:http://localhost:8106}
+  order:
+    url: ${ORDER_SERVICE_URL:http://localhost:8107}
+
 server:
   port: ${ORG_SERVER_PORT:8102}
   servlet:

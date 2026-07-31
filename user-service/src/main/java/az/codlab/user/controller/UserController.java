@@ -70,6 +70,12 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.success(null, "User deleted"));
     }
 
+    @PutMapping("/clear-role")
+    public ResponseEntity<ApiResponse<Void>> clearRole(@RequestParam UUID roleId) {
+        userService.clearRole(roleId);
+        return ResponseEntity.ok(ApiResponse.success(null, "Role cleared from users"));
+    }
+
     @GetMapping("/staff-performance")
     public ResponseEntity<ApiResponse<List<StaffPerformanceResponse>>> getStaffPerformance(
             @RequestParam UUID orgId) {

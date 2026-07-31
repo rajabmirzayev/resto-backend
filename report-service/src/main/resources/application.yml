@@ -6,6 +6,14 @@ spring:
     name: report-service
   messages:
     basename: messages
+service:
+  order:
+    url: ${ORDER_SERVICE_URL:http://localhost:8107}
+  menu:
+    url: ${MENU_SERVICE_URL:http://localhost:8105}
+  user:
+    url: ${USER_SERVICE_URL:http://localhost:8103}
+
 server:
   port: ${REPORT_SERVER_PORT:8113}
   servlet:

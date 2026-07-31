@@ -15,7 +15,11 @@ public enum OrderErrorCode implements ErrorCode {
     ITEM_NOT_FOUND("4006", "error.order.item-not-found.title", "error.order.item-not-found.message"),
     INVALID_ITEM_STATUS("4007", "error.order.invalid-item-status.title", "error.order.invalid-item-status.message"),
     PAYMENT_ALREADY_COMPLETED("4008", "error.order.payment-completed.title", "error.order.payment-completed.message"),
-    ORDER_NOT_CANCELLABLE("4009", "error.order.not-cancellable.title", "error.order.not-cancellable.message");
+    ORDER_NOT_CANCELLABLE("4009", "error.order.not-cancellable.title", "error.order.not-cancellable.message"),
+    TABLE_NOT_FOUND("4010", "error.order.table-not-found.title", "error.order.table-not-found.message"),
+    TABLE_NOT_AVAILABLE("4011", "error.order.table-not-available.title", "error.order.table-not-available.message"),
+    MENU_ITEM_NOT_FOUND("4012", "error.order.menu-item-not-found.title", "error.order.menu-item-not-found.message"),
+    MENU_ITEM_NOT_AVAILABLE("4013", "error.order.menu-item-not-available.title", "error.order.menu-item-not-available.message");
 
     private final String code;
     private final String titleKey;

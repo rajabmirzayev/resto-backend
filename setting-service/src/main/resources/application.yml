@@ -29,6 +29,10 @@ server:
   servlet:
     context-path: /api/setting-ms
 
+service:
+  organization:
+    url: ${ORGANIZATION_SERVICE_URL:http://localhost:8102}
+
 logging:
   level:
     az.codlab.setting: DEBUG

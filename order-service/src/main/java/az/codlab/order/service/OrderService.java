@@ -1,9 +1,16 @@
 package az.codlab.order.service;
 
+import az.codlab.common.enums.OrderMode;
 import az.codlab.common.enums.OrderSource;
 import az.codlab.common.enums.OrderStatus;
 import az.codlab.common.enums.PaymentMethod;
 import az.codlab.common.enums.PaymentStatus;
+import az.codlab.common.enums.PaymentTiming;
+import az.codlab.common.exception.handling.dto.ApiResponse;
+import az.codlab.order.client.MenuServiceClient;
+import az.codlab.order.client.SettingServiceClient;
+import az.codlab.order.client.TableServiceClient;
+import az.codlab.order.client.dto.ClientStatusUpdateRequest;
 import az.codlab.order.dto.AddItemsRequest;
 import az.codlab.order.dto.CancelRequest;
 import az.codlab.order.dto.OrderRequest;
@@ -35,7 +42,6 @@ import org.springframework.transaction.annotation.Transactional;
 public class OrderService {
 
     private static final Logger log = LoggerFactory.getLogger(OrderService.class);
-    // TODO: order-service hazir olanda real HTTP call-larla evez et
 
     private static final Set<String> CANCELLABLE_STATUSES = Set.of(
             OrderStatus.PENDING.name(),
@@ -47,13 +53,22 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
     private final OrderMapper orderMapper;
+    private final TableServiceClient tableServiceClient;
+    private final MenuServiceClient menuServiceClient;
+    private final SettingServiceClient settingServiceClient;
 
     public OrderService(OrderRepository orderRepository,
                         OrderItemRepository orderItemRepository,
-                        OrderMapper orderMapper) {
+                        OrderMapper orderMapper,
+                        TableServiceClient tableServiceClient,
+                        MenuServiceClient menuServiceClient,
+                        SettingServiceClient settingServiceClient) {
         this.orderRepository = orderRepository;
         this.orderItemRepository = orderItemRepository;
         this.orderMapper = orderMapper;
+        this.tableServiceClient = tableServiceClient;
+        this.menuServiceClient = menuServiceClient;
+        this.settingServiceClient = settingServiceClient;
     }
 
     public List<OrderResponse> getOrders(UUID orgId, String status, UUID tableId, UUID waiterId) {
@@ -82,9 +97,29 @@ public class OrderService {
     @Transactional
     public OrderResponse createOrder(OrderRequest request) {
         var source = OrderSource.valueOf(request.getOrderSource().toUpperCase());
-        // TODO: masanin movcudlugunu ve statusunu yoxla (table-service HTTP call)
-        // TODO: org settings-den orderMode ve paymentTiming cek (setting-service HTTP call)
-        // TODO: menu item-lerin movcudlugunu yoxla (menu-service HTTP call)
+
+        // 1. Validate table exists and is AVAILABLE
+        var tableResponse = unwrap(tableServiceClient.getTable(request.getTableId()));
+        if (!"AVAILABLE".equals(tableResponse.getStatus())) {
+            throw OrderErrorCode.TABLE_NOT_AVAILABLE.badRequest();
+        }
+
+        // 2. Validate all menu items exist and are available
+        var menuItems = unwrap(menuServiceClient.getItems(request.getOrgId()));
+        var menuItemMap = menuItems.stream()
+                .collect(Collectors.toMap(mi -> mi.getId(), mi -> mi));
+        for (var itemReq : request.getItems()) {
+            var menuItem = menuItemMap.get(itemReq.getMenuItemId());
+            if (menuItem == null) {
+                throw OrderErrorCode.MENU_ITEM_NOT_FOUND.badRequest();
+            }
+            if (!menuItem.isAvailable()) {
+                throw OrderErrorCode.MENU_ITEM_NOT_AVAILABLE.badRequest();
+            }
+        }
+
+        // 3. Fetch org settings
+        var settings = unwrap(settingServiceClient.getSettings(request.getOrgId()));
 
         boolean isWaiter = source == OrderSource.WAITER;
         OrderStatus initialStatus;
@@ -94,17 +129,25 @@ public class OrderService {
             initialStatus = OrderStatus.CONFIRMED;
             waiterConfirmed = true;
         } else {
-            // customer - hal-hazirda birbaşa CONFIRMED, gələcəkdə CUSTOMER_WAITER_CONFIRM mode-u
-            // TODO: setting-den orderMode-e gore status təyin et
-            initialStatus = OrderStatus.CONFIRMED;
-            waiterConfirmed = true;
+            var orderMode = OrderMode.valueOf(settings.getOrderMode().toUpperCase());
+            if (orderMode == OrderMode.CUSTOMER_WAITER_CONFIRM) {
+                initialStatus = OrderStatus.PENDING;
+                waiterConfirmed = false;
+            } else {
+                initialStatus = OrderStatus.CONFIRMED;
+                waiterConfirmed = true;
+            }
         }
+
+        var paymentTiming = PaymentTiming.valueOf(settings.getPaymentTiming().toUpperCase());
+        var initialPaymentStatus = paymentTiming == PaymentTiming.BEFORE
+                ? PaymentStatus.PAID : PaymentStatus.PENDING;
 
         var order = Order.builder()
                 .tableId(request.getTableId())
-                .tableNumber(null) // TODO: table-service-den tableNumber cek
+                .tableNumber(tableResponse.getTableNumber())
                 .status(initialStatus)
-                .paymentStatus(PaymentStatus.PENDING)
+                .paymentStatus(initialPaymentStatus)
                 .totalAmount(BigDecimal.ZERO)
                 .waiterId(request.getWaiterId())
                 .waiterName(request.getWaiterName())
@@ -123,7 +166,12 @@ public class OrderService {
         order.setTotalAmount(total);
         order = orderRepository.save(order);
 
-        // TODO: masanin statusunu OCCUPIED et, currentOrderId set et (table-service HTTP call)
+        // 4. Set table status to OCCUPIED with current order id
+        var statusUpdate = ClientStatusUpdateRequest.builder()
+                .status("OCCUPIED")
+                .currentOrderId(order.getId())
+                .build();
+        tableServiceClient.updateTableStatus(request.getTableId(), statusUpdate);
 
         log.info("Order created: {} for table {} (source: {})", order.getId(), request.getTableId(), source);
         return buildResponse(order);
@@ -134,10 +182,6 @@ public class OrderService {
         var order = findOrder(id);
         var newStatus = OrderStatus.valueOf(request.getStatus().toUpperCase());
         var oldStatus = order.getStatus();
-
-        // TODO: status kecid validasiyasini duzgun tetbiq et
-        // PENDING → CONFIRMED → PREPARING → READY → SERVED → COMPLETED
-        // CANCELLED her yerden
 
         if (newStatus == OrderStatus.CANCELLED) {
             throw OrderErrorCode.ORDER_NOT_CANCELLABLE.badRequest();
@@ -161,12 +205,12 @@ public class OrderService {
         }
 
         var newStatus = request.getStatus().toUpperCase();
-        // TODO: item status kecid validasiyasi
+        validateItemStatusTransition(item.getStatus(), newStatus);
+
         item.setStatus(newStatus);
         orderItemRepository.save(item);
 
-        // TODO: eger butun itemler READY ise order status-u READY et
-        // TODO: eger butun itemler SERVED ise order status-u SERVED et
+        updateOrderStatusFromItems(order);
 
         log.info("Order item {} status changed: {}", itemId, newStatus);
         return buildResponse(order);
@@ -200,7 +244,7 @@ public class OrderService {
         }
 
         if (order.getOrderSource() != OrderSource.CUSTOMER) {
-            // TODO: customer olmayan sifarislerde waiter confirm lazim deyil
+            throw OrderErrorCode.INVALID_STATUS_TRANSITION.badRequest();
         }
 
         order.setWaiterConfirmed(true);
@@ -226,7 +270,10 @@ public class OrderService {
         order.setCancelReason(request != null ? request.getReason() : null);
         order = orderRepository.save(order);
 
-        // TODO: masanin statusunu CLEANING et, currentOrderId temizle (table-service HTTP call)
+        var statusUpdate = ClientStatusUpdateRequest.builder()
+                .status("CLEANING")
+                .build();
+        tableServiceClient.updateTableStatus(order.getTableId(), statusUpdate);
 
         log.info("Order {} cancelled", orderId);
         return buildResponse(order);
@@ -252,14 +299,18 @@ public class OrderService {
             throw OrderErrorCode.PAYMENT_ALREADY_COMPLETED.conflict();
         }
 
-        // TODO: paymentStatus PAİD-dən əvvəl order status-u SERVED olmalidir?
-        // TODO: əgər paymentTiming BEFORE idisə, payment artıq alınıb
+        if (order.getStatus() != OrderStatus.SERVED) {
+            throw OrderErrorCode.INVALID_STATUS_TRANSITION.badRequest();
+        }
 
         order.setPaymentStatus(PaymentStatus.PAID);
         order.setStatus(OrderStatus.COMPLETED);
         order = orderRepository.save(order);
 
-        // TODO: masanin statusunu AVAILABLE et, currentOrderId temizle (table-service HTTP call)
+        var statusUpdate = ClientStatusUpdateRequest.builder()
+                .status("AVAILABLE")
+                .build();
+        tableServiceClient.updateTableStatus(order.getTableId(), statusUpdate);
 
         log.info("Payment completed for order {}", orderId);
         return buildResponse(order);
@@ -349,6 +400,51 @@ public class OrderService {
         if (!validNext.contains(next)) {
             throw OrderErrorCode.INVALID_STATUS_TRANSITION.badRequest();
         }
+    }
+
+    private static final Set<String> ITEM_STATUS_TRANSITIONS = Set.of(
+            "PENDING_PREPARING", "PENDING_CANCELLED",
+            "CONFIRMED_PREPARING", "CONFIRMED_CANCELLED",
+            "PREPARING_READY", "PREPARING_CANCELLED",
+            "READY_SERVED", "READY_CANCELLED"
+    );
+
+    private void validateItemStatusTransition(String current, String next) {
+        if (current.equals(next)) return;
+        if ("CANCELLED".equals(current) || "SERVED".equals(current)) {
+            throw OrderErrorCode.INVALID_ITEM_STATUS.badRequest();
+        }
+        if (!ITEM_STATUS_TRANSITIONS.contains(current + "_" + next)) {
+            throw OrderErrorCode.INVALID_ITEM_STATUS.badRequest();
+        }
+    }
+
+    private void updateOrderStatusFromItems(Order order) {
+        var allItems = orderItemRepository.findByOrderId(order.getId());
+        if (allItems.isEmpty()) return;
+
+        var nonCancelled = allItems.stream()
+                .filter(i -> !"CANCELLED".equals(i.getStatus()))
+                .collect(Collectors.toList());
+        if (nonCancelled.isEmpty()) return;
+
+        boolean allReady = nonCancelled.stream().allMatch(i -> "READY".equals(i.getStatus()) || "SERVED".equals(i.getStatus()));
+        boolean allServed = nonCancelled.stream().allMatch(i -> "SERVED".equals(i.getStatus()));
+
+        if (allServed && order.getStatus() == OrderStatus.READY) {
+            order.setStatus(OrderStatus.SERVED);
+            orderRepository.save(order);
+        } else if (allReady && order.getStatus() == OrderStatus.PREPARING) {
+            order.setStatus(OrderStatus.READY);
+            orderRepository.save(order);
+        }
+    }
+
+    private <T> T unwrap(ApiResponse<T> response) {
+        if (response == null || !response.isSuccess() || response.getData() == null) {
+            throw new RuntimeException("External service returned unsuccessful response");
+        }
+        return response.getData();
     }
 
     private OrderResponse buildResponse(Order order) {

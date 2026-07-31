@@ -3,6 +3,8 @@ package az.codlab.setting.service;
 import az.codlab.common.enums.CustomerTheme;
 import az.codlab.common.enums.OrderMode;
 import az.codlab.common.enums.PaymentTiming;
+import az.codlab.common.exception.handling.dto.ApiResponse;
+import az.codlab.setting.client.OrganizationServiceClient;
 import az.codlab.setting.dto.SettingRequest;
 import az.codlab.setting.dto.SettingResponse;
 import az.codlab.setting.entity.OrgSetting;
@@ -25,15 +27,18 @@ public class SettingService {
 
     private final OrgSettingRepository orgSettingRepository;
     private final SettingMapper settingMapper;
+    private final OrganizationServiceClient organizationServiceClient;
 
     public SettingService(OrgSettingRepository orgSettingRepository,
-                          SettingMapper settingMapper) {
+                          SettingMapper settingMapper,
+                          OrganizationServiceClient organizationServiceClient) {
         this.orgSettingRepository = orgSettingRepository;
         this.settingMapper = settingMapper;
+        this.organizationServiceClient = organizationServiceClient;
     }
 
     public SettingResponse getSettings(UUID orgId) {
-        // TODO: org-id-ni org-service-den yoxla (feilən org mövcuddursa)
+        validateOrganization(orgId);
         return orgSettingRepository.findByOrgId(orgId)
                 .map(settingMapper::toDto)
                 .orElseThrow(SettingErrorCode.SETTINGS_NOT_FOUND::notFound);
@@ -41,8 +46,7 @@ public class SettingService {
 
     @Transactional
     public SettingResponse updateSettings(SettingRequest request) {
-        // TODO: org-id-ni org-service-den yoxla
-        // TODO: enum-lari validate et (invalid value-dan 400 qaytar)
+        validateOrganization(request.getOrgId());
         var settings = orgSettingRepository.findByOrgId(request.getOrgId())
                 .orElseGet(() -> OrgSetting.builder()
                         .orgId(request.getOrgId())
@@ -56,6 +60,13 @@ public class SettingService {
         settings = orgSettingRepository.save(settings);
         log.info("Settings updated for org: {}", request.getOrgId());
         return settingMapper.toDto(settings);
+    }
+
+    private void validateOrganization(UUID orgId) {
+        var response = organizationServiceClient.getOrganization(orgId);
+        if (response == null || !response.isSuccess() || response.getData() == null) {
+            throw SettingErrorCode.ORGANIZATION_NOT_FOUND.notFound();
+        }
     }
 
 }

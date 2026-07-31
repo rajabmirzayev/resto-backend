@@ -29,6 +29,14 @@ server:
   servlet:
     context-path: /api/order-ms
 
+service:
+  table:
+    url: ${TABLE_SERVICE_URL:http://localhost:8106}
+  menu:
+    url: ${MENU_SERVICE_URL:http://localhost:8105}
+  setting:
+    url: ${SETTING_SERVICE_URL:http://localhost:8111}
+
 logging:
   level:
     az.codlab.order: DEBUG

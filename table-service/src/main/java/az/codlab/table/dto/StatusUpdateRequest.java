@@ -8,6 +8,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.experimental.FieldDefaults;
 
+import java.util.UUID;
+
 @Data
 @Builder
 @NoArgsConstructor
@@ -17,5 +19,7 @@ public class StatusUpdateRequest {
 
     @NotBlank
     String status;
+
+    UUID currentOrderId;
 
 }
