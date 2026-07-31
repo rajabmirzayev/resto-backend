@@ -15,6 +15,9 @@ import lombok.experimental.SuperBuilder;
 import java.util.List;
 import java.util.UUID;
 
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 @Entity
 @Table(name = "roles")
 @Getter
@@ -28,6 +31,7 @@ public class Role extends SoftDeletableCoreEntity {
     @Column(name = "name", nullable = false)
     String name;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "permissions", columnDefinition = "JSONB", nullable = false)
     List<String> permissions;
 
