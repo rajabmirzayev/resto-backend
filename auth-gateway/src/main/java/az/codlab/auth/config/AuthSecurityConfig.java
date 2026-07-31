@@ -40,7 +40,8 @@ public class AuthSecurityConfig {
                                 "/webjars/**"
                         ).permitAll()
                         .requestMatchers("/actuator/**").permitAll()
-                        .anyRequest().permitAll()
+                        .requestMatchers("/v1/auth/**").permitAll()
+                        .anyRequest().authenticated()
                 )
                 .addFilterBefore(headerAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 

@@ -8,6 +8,8 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'com.fasterxml.jackson.core:jackson-databind'
 
+    compileOnly 'org.springframework.cloud:spring-cloud-starter-openfeign'
+
     annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
 }
 
