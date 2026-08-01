@@ -1,0 +1,22 @@
+databaseChangeLog:
+  - changeSet:
+      id: 009-fix-organization-slug-uniqueness
+      author: rajabmirzayev
+      changes:
+        - dropUniqueConstraint:
+            schemaName: tabler_organization
+            tableName: organizations
+            constraintName: uq_organizations_slug
+        - dropIndex:
+            schemaName: tabler_organization
+            tableName: organizations
+            indexName: idx_org_slug
+        - createIndex:
+            schemaName: tabler_organization
+            tableName: organizations
+            indexName: idx_org_slug
+            unique: true
+            where: is_deleted = false
+            columns:
+              - column:
+                  name: slug

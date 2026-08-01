@@ -1,5 +1,6 @@
 package az.codlab.user.dto;
 
+import az.codlab.user.entity.UserRole;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.AccessLevel;
@@ -36,5 +37,7 @@ public class CreateUserRequest {
     String email;
 
     String phone;
+
+    UserRole role;
 
 }

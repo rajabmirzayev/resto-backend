@@ -6,28 +6,36 @@ import az.codlab.organization.client.SettingServiceClient;
 import az.codlab.organization.client.TableServiceClient;
 import az.codlab.organization.client.UserServiceClient;
 import az.codlab.organization.client.dto.RoleServiceCreateRoleRequest;
+import az.codlab.organization.client.dto.RoleServiceRoleResponse;
 import az.codlab.organization.client.dto.SettingServiceCreateSettingRequest;
 import az.codlab.organization.client.dto.TableServiceSectionRequest;
 import az.codlab.organization.client.dto.UserServiceCreateUserRequest;
+import az.codlab.organization.client.dto.UserServiceUserResponse;
 import az.codlab.organization.dto.CreateOrganizationRequest;
 import az.codlab.organization.dto.CreateOrganizationResponse;
-import az.codlab.organization.dto.OrganizationDto;
 import az.codlab.organization.entity.Organization;
 import az.codlab.organization.error.OrganizationErrorCode;
 import az.codlab.organization.mapper.OrganizationMapper;
-import az.codlab.organization.repository.OrganizationRepository;
 
-import java.text.Normalizer;
 import java.util.List;
-import java.util.Locale;
 import java.util.UUID;
-import java.util.regex.Pattern;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * Orchestrates organization provisioning across the bounded-context services.
+ *
+ * <p>The local organization row is persisted and committed first, so downstream
+ * services can safely read it (fixes the stale-transaction 404). All remote calls
+ * then run outside the DB transaction, and independent default-resource calls are
+ * fanned out on a dedicated executor. On failure the already-created resources are
+ * compensated (user, role, organization).
+ */
 @Service
 public class OrganizationCreationOrchestrator {
 
@@ -41,82 +49,65 @@ public class OrganizationCreationOrchestrator {
             "kitchen.view", "kitchen.manage"
     );
 
-    private final OrganizationRepository organizationRepository;
+    private final OrganizationService organizationService;
     private final OrganizationMapper organizationMapper;
     private final RoleServiceClient roleServiceClient;
     private final UserServiceClient userServiceClient;
     private final SettingServiceClient settingServiceClient;
     private final TableServiceClient tableServiceClient;
+    private final Executor provisioningExecutor;
 
-    public OrganizationCreationOrchestrator(OrganizationRepository organizationRepository,
+    public OrganizationCreationOrchestrator(OrganizationService organizationService,
                                             OrganizationMapper organizationMapper,
                                             RoleServiceClient roleServiceClient,
                                             UserServiceClient userServiceClient,
                                             SettingServiceClient settingServiceClient,
-                                            TableServiceClient tableServiceClient) {
-        this.organizationRepository = organizationRepository;
+                                            TableServiceClient tableServiceClient,
+                                            @Qualifier("organizationProvisioningExecutor")
+                                            Executor provisioningExecutor) {
+        this.organizationService = organizationService;
         this.organizationMapper = organizationMapper;
         this.roleServiceClient = roleServiceClient;
         this.userServiceClient = userServiceClient;
         this.settingServiceClient = settingServiceClient;
         this.tableServiceClient = tableServiceClient;
+        this.provisioningExecutor = provisioningExecutor;
     }
 
-    @Transactional
     public CreateOrganizationResponse createOrganization(CreateOrganizationRequest request) {
-        var slug = generateSlug(request.getName());
-        if (organizationRepository.existsBySlugAndDeletedFalse(slug)) {
-            throw OrganizationErrorCode.ORGANIZATION_SLUG_DUPLICATE.conflict();
+        var organization = organizationService.persistOrganization(request);
+
+        UUID roleId = null;
+        UUID userId = null;
+        try {
+            var adminRole = createAdminRole(organization);
+            roleId = adminRole.getId();
+
+            var adminUser = createAdminUser(request, organization, adminRole.getId());
+            userId = adminUser.getId();
+
+            createDefaultResources(organization.getId());
+
+            log.info("Organization creation complete: {}", organization.getId());
+            return buildResponse(organization, adminRole, adminUser);
+        } catch (Exception e) {
+            log.error("Organization creation failed for {}, compensating resources", organization.getId(), e);
+            compensate(userId, roleId, organization.getId());
+            throw OrganizationErrorCode.ORGANIZATION_CREATION_FAILED.internal();
         }
-
-        var organization = Organization.builder()
-                .name(request.getName().trim())
-                .slug(slug)
-                .adminName(request.getAdminName().trim())
-                .adminEmail(request.getAdminEmail().trim().toLowerCase())
-                .build();
-        organization = organizationRepository.save(organization);
-        log.info("Organization created: {} ({})", organization.getName(), organization.getId());
-
-        var adminRole = createAdminRole(organization.getId(), request.getName().trim());
-        var adminUser = createAdminUser(request, organization, adminRole.getId());
-
-        createDefaultSettings(organization.getId());
-        createDefaultSection(organization.getId());
-
-        var orgDto = organizationMapper.toDto(organization);
-        var userDto = CreateOrganizationResponse.UserDto.builder()
-                .id(adminUser.getId())
-                .name(adminUser.getName())
-                .username(adminUser.getUsername())
-                .email(adminUser.getEmail())
-                .role(adminUser.getRole())
-                .roleId(adminRole.getId())
-                .orgId(organization.getId())
-                .build();
-        var roleDto = CreateOrganizationResponse.RoleDto.builder()
-                .id(adminRole.getId())
-                .name(adminRole.getName())
-                .permissions(adminRole.getPermissions())
-                .isSystem(Boolean.TRUE.equals(adminRole.getIsSystem()))
-                .orgId(organization.getId())
-                .build();
-
-        log.info("Organization creation complete: {}", organization.getId());
-        return new CreateOrganizationResponse(orgDto, userDto, roleDto);
     }
 
-    private az.codlab.organization.client.dto.RoleServiceRoleResponse createAdminRole(UUID orgId, String orgName) {
+    private RoleServiceRoleResponse createAdminRole(Organization organization) {
         var request = RoleServiceCreateRoleRequest.builder()
-                .name(orgName + " Admin")
+                .name(organization.getName() + " Admin")
                 .permissions(ORG_ADMIN_PERMISSIONS)
-                .orgId(orgId)
+                .orgId(organization.getId())
                 .build();
         return unwrap(roleServiceClient.createRole(request));
     }
 
-    private az.codlab.organization.client.dto.UserServiceUserResponse createAdminUser(
-            CreateOrganizationRequest request, Organization organization, UUID roleId) {
+    private UserServiceUserResponse createAdminUser(CreateOrganizationRequest request,
+                                                    Organization organization, UUID roleId) {
         var userRequest = UserServiceCreateUserRequest.builder()
                 .name(request.getAdminName().trim())
                 .username(request.getAdminEmail().trim().toLowerCase())
@@ -124,8 +115,15 @@ public class OrganizationCreationOrchestrator {
                 .password(request.getAdminPassword())
                 .roleId(roleId)
                 .orgId(organization.getId())
+                .role("ORG_ADMIN")
                 .build();
         return unwrap(userServiceClient.createUser(userRequest));
+    }
+
+    private void createDefaultResources(UUID orgId) {
+        var settingsFuture = CompletableFuture.runAsync(() -> createDefaultSettings(orgId), provisioningExecutor);
+        var sectionFuture = CompletableFuture.runAsync(() -> createDefaultSection(orgId), provisioningExecutor);
+        CompletableFuture.allOf(settingsFuture, sectionFuture).join();
     }
 
     private void createDefaultSettings(UUID orgId) {
@@ -147,25 +145,58 @@ public class OrganizationCreationOrchestrator {
         tableServiceClient.createSection(request);
     }
 
+    private CreateOrganizationResponse buildResponse(Organization organization,
+                                                     RoleServiceRoleResponse adminRole,
+                                                     UserServiceUserResponse adminUser) {
+        var orgDto = organizationMapper.toDto(organization);
+        var userDto = CreateOrganizationResponse.UserDto.builder()
+                .id(adminUser.getId())
+                .name(adminUser.getName())
+                .username(adminUser.getUsername())
+                .email(adminUser.getEmail())
+                .role(adminUser.getRole())
+                .roleId(adminRole.getId())
+                .orgId(organization.getId())
+                .build();
+        var roleDto = CreateOrganizationResponse.RoleDto.builder()
+                .id(adminRole.getId())
+                .name(adminRole.getName())
+                .permissions(adminRole.getPermissions())
+                .isSystem(Boolean.TRUE.equals(adminRole.getIsSystem()))
+                .orgId(organization.getId())
+                .build();
+        return new CreateOrganizationResponse(orgDto, userDto, roleDto);
+    }
+
+    private void compensate(UUID userId, UUID roleId, UUID orgId) {
+        if (userId != null) {
+            try {
+                userServiceClient.deleteUser(userId);
+            } catch (Exception ex) {
+                log.warn("Failed to clean up user: {}", userId, ex);
+            }
+        }
+        if (roleId != null) {
+            try {
+                roleServiceClient.deleteRole(roleId);
+            } catch (Exception ex) {
+                log.warn("Failed to clean up role: {}", roleId, ex);
+            }
+        }
+        if (orgId != null) {
+            try {
+                organizationService.deleteOrganizationInternal(orgId);
+            } catch (Exception ex) {
+                log.warn("Failed to clean up organization: {}", orgId, ex);
+            }
+        }
+    }
+
     private static <T> T unwrap(ApiResponse<T> response) {
         if (response == null || !response.isSuccess() || response.getData() == null) {
             throw new RuntimeException("Failed to create resource via internal service call");
         }
         return response.getData();
-    }
-
-    private static String generateSlug(String name) {
-        var normalized = Normalizer.normalize(name.trim(), Normalizer.Form.NFD);
-        var pattern = Pattern.compile("[^a-zA-Z0-9\\s-]");
-        var cleaned = pattern.matcher(normalized).replaceAll("");
-        var slug = cleaned.toLowerCase(Locale.ROOT)
-                .replaceAll("\\s+", "-")
-                .replaceAll("-+", "-")
-                .replaceAll("^-|-$", "");
-        if (slug.isBlank()) {
-            slug = UUID.randomUUID().toString().substring(0, 8);
-        }
-        return slug;
     }
 
 }

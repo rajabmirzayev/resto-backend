@@ -56,5 +56,41 @@ output=$(/opt/keycloak/bin/kcadm.sh add-roles -r "$KC_REALM" --uusername "$PLATF
   && log_success "Role assigned" \
   || log_fail "Failed to assign role" "$output"
 
+echo "[STEP 6] Granting user-management to the service account..."
+output=$(/opt/keycloak/bin/kcadm.sh add-roles -r "$KC_REALM" --uusername "service-account-$KC_CLIENT_ID" --cclientid realm-management --rolename view-users --rolename manage-users --rolename view-clients --rolename manage-clients 2>&1) \
+  && log_success "Service account roles assigned" \
+  || log_fail "Failed to assign service account roles" "$output"
+
+echo "[STEP 7] Ensuring ORG_ADMIN client role exists..."
+ROLE_EXISTS=$(/opt/keycloak/bin/kcadm.sh get roles -r "$KC_REALM" --client "$KC_CLIENT_ID" --fields name --format csv --noquotes 2>/dev/null | grep -c '^ORG_ADMIN$' || true)
+if [ "$ROLE_EXISTS" -eq 0 ]; then
+  output=$(/opt/keycloak/bin/kcadm.sh create roles -r "$KC_REALM" --client "$KC_CLIENT_ID" -s name=ORG_ADMIN -s description="Organization administrator role" 2>&1) \
+    && log_success "ORG_ADMIN role created" \
+    || log_fail "Failed to create ORG_ADMIN role" "$output"
+else
+  echo "[SUCCESS] ORG_ADMIN role already exists, skipping."
+fi
+
+echo "[STEP 8] Ensuring last name is not required in user profile..."
+PROFILE_COMP=$(/opt/keycloak/bin/kcadm.sh get components -r "$KC_REALM" --fields id,providerId 2>/dev/null | grep -B1 'declarative-user-profile' | grep -oE '[0-9a-f-]{36}' | head -1)
+if [ -z "$PROFILE_COMP" ]; then
+  log_fail "Failed to locate user profile component" "Empty result"
+fi
+cat > /tmp/profile.json <<'PAYLOAD'
+{
+  "name": "declarative-user-profile",
+  "providerId": "declarative-user-profile",
+  "providerType": "org.keycloak.userprofile.UserProfileProvider",
+  "config": {
+    "kc.user.profile.config": [
+      "{\"attributes\":[{\"name\":\"username\",\"displayName\":\"${username}\",\"validations\":{\"length\":{\"min\":3,\"max\":255},\"username-prohibited-characters\":{},\"up-username-not-idn-homograph\":{}},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"firstName\",\"displayName\":\"${firstName}\",\"validations\":{\"length\":{\"max\":255},\"person-name-prohibited-characters\":{}},\"required\":{\"roles\":[\"user\"]},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"lastName\",\"displayName\":\"${lastName}\",\"validations\":{\"length\":{\"max\":255},\"person-name-prohibited-characters\":{}},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"email\",\"displayName\":\"${email}\",\"validations\":{\"email\":{},\"length\":{\"max\":255}},\"required\":{\"roles\":[\"user\"]},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\",\"user\"]},\"multivalued\":false},{\"name\":\"organizationId\",\"displayName\":\"${organizationId}\",\"validations\":{},\"annotations\":{},\"required\":{\"roles\":[\"admin\",\"user\"]},\"permissions\":{\"view\":[\"admin\",\"user\"],\"edit\":[\"admin\"]},\"multivalued\":false}],\"groups\":[{\"name\":\"user-metadata\",\"displayHeader\":\"User metadata\",\"displayDescription\":\"Attributes, which refer to user metadata\"}]}"
+    ]
+  }
+}
+PAYLOAD
+output=$(/opt/keycloak/bin/kcadm.sh update "components/$PROFILE_COMP" -r "$KC_REALM" -f /tmp/profile.json 2>&1) \
+  && log_success "User profile updated (last name optional)" \
+  || log_fail "Failed to update user profile" "$output"
+
 echo ""
 echo "✓ Bootstrap completed successfully"

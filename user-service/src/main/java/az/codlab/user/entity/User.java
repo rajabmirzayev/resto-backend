@@ -60,4 +60,8 @@ public class User extends SoftDeletableCoreEntity {
     @Column(name = "is_active", nullable = false)
     boolean isActive;
 
+    public boolean getActive() {
+        return isActive;
+    }
+
 }

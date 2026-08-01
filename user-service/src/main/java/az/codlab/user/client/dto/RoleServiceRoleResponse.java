@@ -1,4 +1,7 @@
-package az.codlab.organization.client.dto;
+package az.codlab.user.client.dto;
+
+import java.util.List;
+import java.util.UUID;
 
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -7,19 +10,15 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.experimental.FieldDefaults;
 
-import java.util.UUID;
-
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
-public class UserServiceCreateUserRequest {
+public class RoleServiceRoleResponse {
+    UUID id;
     String name;
-    String username;
-    String password;
-    UUID roleId;
+    List<String> permissions;
+    Boolean isSystem;
     UUID orgId;
-    String email;
-    String role;
 }

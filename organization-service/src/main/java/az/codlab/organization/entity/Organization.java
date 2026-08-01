@@ -25,7 +25,7 @@ public class Organization extends SoftDeletableCoreEntity {
     @Column(name = "name", nullable = false)
     String name;
 
-    @Column(name = "slug", nullable = false, unique = true)
+    @Column(name = "slug", nullable = false)
     String slug;
 
     @Column(name = "admin_name", nullable = false)
