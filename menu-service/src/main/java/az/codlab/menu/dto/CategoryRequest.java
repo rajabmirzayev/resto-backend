@@ -2,7 +2,11 @@ package az.codlab.menu.dto;
 
 import az.codlab.common.type.LocalizedString;
 import az.codlab.common.validation.ValidLocalizedString;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.PositiveOrZero;
+import jakarta.validation.constraints.Size;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -23,8 +27,12 @@ public class CategoryRequest {
     @ValidLocalizedString(maxLength = 100)
     LocalizedString name;
 
+    @Size(max = 50)
+    @Pattern(regexp = "^[^\\p{Cc}]*$", message = "icon must not contain control characters")
     String icon;
 
+    @PositiveOrZero
+    @Max(10000)
     Integer sortOrder;
 
     @NotNull

@@ -62,12 +62,12 @@ public class MenuService {
 
     @Transactional
     public CategoryResponse createCategory(CategoryRequest request, UserPrincipal principal) {
-        assertOrgAccess(request.getOrgId(), principal);
+        var orgId = resolveOrgForCreate(principal, request.getOrgId());
         var category = MenuCategory.builder()
                 .name(request.getName().normalized())
-                .icon(request.getIcon())
+                .icon(normalizeIcon(request.getIcon()))
                 .sortOrder(request.getSortOrder())
-                .orgId(request.getOrgId())
+                .orgId(orgId)
                 .build();
         category = menuCategoryRepository.save(category);
         log.info("Category created: {} ({})", category.getName(), category.getId());
@@ -84,7 +84,7 @@ public class MenuService {
             category.setName(request.getName().normalized());
         }
         if (request.getIcon() != null) {
-            category.setIcon(request.getIcon());
+            category.setIcon(normalizeIcon(request.getIcon()));
         }
         if (request.getSortOrder() != null) {
             category.setSortOrder(request.getSortOrder());
@@ -103,6 +103,9 @@ public class MenuService {
 
         var items = menuItemRepository.findAllByCategoryIdAndDeletedFalse(id);
         if (request != null && request.getMoveItemsTo() != null) {
+            if (request.getMoveItemsTo().equals(id)) {
+                throw MenuErrorCode.CATEGORY_SELF_MOVE.badRequest();
+            }
             var target = menuCategoryRepository.findByIdAndDeletedFalse(request.getMoveItemsTo())
                     .orElseThrow(MenuErrorCode.CATEGORY_NOT_FOUND::notFound);
             assertOrgAccess(target.getOrgId(), principal);
@@ -113,13 +116,13 @@ public class MenuService {
             log.info("Moved {} items to category {}", items.size(), request.getMoveItemsTo());
         } else {
             for (var item : items) {
-                item.softDelete(null);
+                item.softDelete(userId(principal));
                 menuItemRepository.save(item);
             }
             log.info("Deleted {} items in category {}", items.size(), id);
         }
 
-        category.softDelete(null);
+        category.softDelete(userId(principal));
         menuCategoryRepository.save(category);
         log.info("Category soft-deleted: {}", id);
     }
@@ -216,7 +219,7 @@ public class MenuService {
         var item = menuItemRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(MenuErrorCode.ITEM_NOT_FOUND::notFound);
         assertOrgAccess(item.getOrgId(), principal);
-        item.softDelete(null);
+        item.softDelete(userId(principal));
         menuItemRepository.save(item);
         log.info("Menu item soft-deleted: {}", id);
     }
@@ -248,6 +251,41 @@ public class MenuService {
             return;
         }
         throw MenuErrorCode.ACCESS_DENIED.forbidden();
+    }
+
+    private UUID resolveOrgForCreate(UserPrincipal principal, UUID requestedOrgId) {
+        if (principal == null || principal.getUserId() == null) {
+            throw MenuErrorCode.ACCESS_DENIED.forbidden();
+        }
+        if (principal.isPlatformAdmin()) {
+            if (requestedOrgId == null) {
+                throw MenuErrorCode.ACCESS_DENIED.forbidden();
+            }
+            return requestedOrgId;
+        }
+        if (principal.getOrgId() == null || !principal.getOrgId().equals(requestedOrgId.toString())) {
+            throw MenuErrorCode.ACCESS_DENIED.forbidden();
+        }
+        return UUID.fromString(principal.getOrgId());
+    }
+
+    private String normalizeIcon(String icon) {
+        if (icon == null) {
+            return null;
+        }
+        String trimmed = icon.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private UUID userId(UserPrincipal principal) {
+        if (principal == null || principal.getUserId() == null) {
+            return null;
+        }
+        try {
+            return UUID.fromString(principal.getUserId());
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     private void assertCanReadOrg(UUID orgId, UserPrincipal principal) {
