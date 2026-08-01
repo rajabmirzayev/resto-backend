@@ -1,10 +1,9 @@
-package az.codlab.menu.config;
+package az.codlab.customer.config;
 
 import az.codlab.common.security.converter.JwtUserPrincipalConverter;
 import az.codlab.common.security.filter.HeaderAuthenticationFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -42,10 +41,9 @@ public class SecurityConfig {
                                 "/swagger-ui.html",
                                 "/v3/api-docs/**",
                                 "/swagger-resources/**",
-                                "/webjars/**"
+                                "/webjars/**",
+                                "/v1/**"
                         ).permitAll()
-                        .requestMatchers(HttpMethod.GET, "/v1/categories", "/v1/categories/**",
-                                "/v1/items", "/v1/items/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2

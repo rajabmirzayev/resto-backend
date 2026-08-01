@@ -80,6 +80,7 @@ public class GatewaySecurityConfig {
                                 "/api/*/v3/api-docs/**",
                                 "/favicon.ico"
                         ).permitAll()
+                        .pathMatchers("/api/customer-ms/**").permitAll()
                         .anyExchange().authenticated()
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2

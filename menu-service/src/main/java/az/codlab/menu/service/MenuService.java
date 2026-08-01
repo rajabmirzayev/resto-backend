@@ -47,15 +47,17 @@ public class MenuService {
 
     // ======================== Categories ========================
 
-    public List<CategoryResponse> getAllCategories(UUID orgId) {
+    public List<CategoryResponse> getAllCategories(UUID orgId, UserPrincipal principal) {
+        assertCanReadOrg(orgId, principal);
         return menuCategoryMapper.toDtoList(
                 menuCategoryRepository.findAllByOrgIdAndDeletedFalseOrderBySortOrderAsc(orgId));
     }
 
-    public CategoryResponse getCategoryById(UUID id) {
-        return menuCategoryRepository.findByIdAndDeletedFalse(id)
-                .map(menuCategoryMapper::toDto)
+    public CategoryResponse getCategoryById(UUID id, UserPrincipal principal) {
+        var category = menuCategoryRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(MenuErrorCode.CATEGORY_NOT_FOUND::notFound);
+        assertCanReadOrg(category.getOrgId(), principal);
+        return menuCategoryMapper.toDto(category);
     }
 
     @Transactional
@@ -124,7 +126,9 @@ public class MenuService {
 
     // ======================== Menu Items ========================
 
-    public List<MenuItemResponse> getAllItems(UUID orgId, UUID categoryId, Boolean available) {
+    public List<MenuItemResponse> getAllItems(UUID orgId, UUID categoryId, Boolean available,
+                                              UserPrincipal principal) {
+        assertCanReadOrg(orgId, principal);
         if (orgId != null && categoryId != null && available != null) {
             return menuItemMapper.toDtoList(
                     menuItemRepository.findAllByOrgIdAndCategoryIdAndIsAvailableAndDeletedFalseOrderByCreatedAtDesc(
@@ -147,10 +151,11 @@ public class MenuService {
         return List.of();
     }
 
-    public MenuItemResponse getItemById(UUID id) {
-        return menuItemRepository.findByIdAndDeletedFalse(id)
-                .map(menuItemMapper::toDto)
+    public MenuItemResponse getItemById(UUID id, UserPrincipal principal) {
+        var item = menuItemRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(MenuErrorCode.ITEM_NOT_FOUND::notFound);
+        assertCanReadOrg(item.getOrgId(), principal);
+        return menuItemMapper.toDto(item);
     }
 
     @Transactional
@@ -243,6 +248,17 @@ public class MenuService {
             return;
         }
         throw MenuErrorCode.ACCESS_DENIED.forbidden();
+    }
+
+    private void assertCanReadOrg(UUID orgId, UserPrincipal principal) {
+        if (orgId == null || principal == null) {
+            return;
+        }
+        if (principal.getUserId() != null
+                && !principal.isPlatformAdmin()
+                && (principal.getOrgId() == null || !principal.getOrgId().equals(orgId.toString()))) {
+            throw MenuErrorCode.ACCESS_DENIED.forbidden();
+        }
     }
 
     private void assertCategoryOwnedByOrg(UUID categoryId, UUID orgId) {

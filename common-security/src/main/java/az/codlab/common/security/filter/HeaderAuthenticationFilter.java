@@ -64,6 +64,10 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
 
                 var auth = new UsernamePasswordAuthenticationToken(principal, null, authorities);
                 SecurityContextHolder.getContext().setAuthentication(auth);
+            } else {
+                var internalPrincipal = new UserPrincipal(null, null, Set.of(), false);
+                SecurityContextHolder.getContext().setAuthentication(
+                        new UsernamePasswordAuthenticationToken(internalPrincipal, null, Set.of()));
             }
         }
 

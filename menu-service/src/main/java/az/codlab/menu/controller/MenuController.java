@@ -51,14 +51,17 @@ public class MenuController {
 
     @GetMapping("/categories")
     public ResponseEntity<ApiResponse<List<CategoryResponse>>> getAllCategories(
-            @RequestParam UUID orgId) {
-        var categories = menuService.getAllCategories(orgId);
+            @RequestParam UUID orgId,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        var categories = menuService.getAllCategories(orgId, principal);
         return ResponseEntity.ok(ApiResponse.success(categories));
     }
 
     @GetMapping("/categories/{id}")
-    public ResponseEntity<ApiResponse<CategoryResponse>> getCategory(@PathVariable UUID id) {
-        var category = menuService.getCategoryById(id);
+    public ResponseEntity<ApiResponse<CategoryResponse>> getCategory(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        var category = menuService.getCategoryById(id, principal);
         return ResponseEntity.ok(ApiResponse.success(category));
     }
 
@@ -95,14 +98,17 @@ public class MenuController {
     public ResponseEntity<ApiResponse<List<MenuItemResponse>>> getAllItems(
             @RequestParam(required = false) UUID orgId,
             @RequestParam(required = false) UUID categoryId,
-            @RequestParam(required = false) Boolean available) {
-        var items = menuService.getAllItems(orgId, categoryId, available);
+            @RequestParam(required = false) Boolean available,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        var items = menuService.getAllItems(orgId, categoryId, available, principal);
         return ResponseEntity.ok(ApiResponse.success(items));
     }
 
     @GetMapping("/items/{id}")
-    public ResponseEntity<ApiResponse<MenuItemResponse>> getItem(@PathVariable UUID id) {
-        var item = menuService.getItemById(id);
+    public ResponseEntity<ApiResponse<MenuItemResponse>> getItem(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        var item = menuService.getItemById(id, principal);
         return ResponseEntity.ok(ApiResponse.success(item));
     }
 
@@ -147,7 +153,7 @@ public class MenuController {
     public ResponseEntity<ApiResponse<Void>> deleteImage(
             @PathVariable UUID id,
             @AuthenticationPrincipal UserPrincipal principal) {
-        var item = menuService.getItemById(id);
+        var item = menuService.getItemById(id, principal);
         if (item.getImageUrl() != null) {
             imageStorageService.deleteImage(item.getImageUrl());
         }
