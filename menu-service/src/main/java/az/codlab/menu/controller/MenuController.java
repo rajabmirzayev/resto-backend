@@ -156,7 +156,7 @@ public class MenuController {
             @AuthenticationPrincipal UserPrincipal principal) {
         var item = menuService.getItemById(id, principal);
         if (item.getImageUrl() != null) {
-            imageStorageService.deleteImage(item.getImageUrl());
+            imageStorageService.deleteItemImage(id);
         }
         menuService.deleteItemImage(id, principal);
         return ResponseEntity.ok(ApiResponse.success(null, "Image deleted"));

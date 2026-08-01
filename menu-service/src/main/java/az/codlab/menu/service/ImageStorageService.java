@@ -75,13 +75,12 @@ public class ImageStorageService {
         return publicBaseUrl + "/api/menu-ms/v1/images/" + filename;
     }
 
-    public void deleteImage(String imageUrl) {
-        var filename = Path.of(imageUrl).getFileName().toString();
+    public void deleteItemImage(UUID itemId) {
         try {
-            Files.deleteIfExists(baseDir.resolve(filename));
-            log.info("Image deleted: {}", filename);
+            removeExistingImages(itemId);
+            log.info("Image deleted for item {}", itemId);
         } catch (IOException e) {
-            log.warn("Failed to delete image {}: {}", filename, e.getMessage());
+            log.warn("Failed to delete image for item {}: {}", itemId, e.getMessage());
         }
     }
 
