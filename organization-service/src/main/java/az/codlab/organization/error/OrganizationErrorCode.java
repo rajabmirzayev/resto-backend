@@ -9,7 +9,8 @@ public enum OrganizationErrorCode implements ErrorCode {
     ORGANIZATION_NOT_FOUND("3001", "error.org.not-found.title", "error.org.not-found.message"),
     ORGANIZATION_SLUG_DUPLICATE("3002", "error.org.slug-duplicate.title", "error.org.slug-duplicate.message"),
     ORGANIZATION_CREATION_FAILED("3003", "error.org.creation-failed.title", "error.org.creation-failed.message"),
-    ORGANIZATION_HAS_ACTIVE_ORDERS("3004", "error.org.has-active-orders.title", "error.org.has-active-orders.message");
+    ORGANIZATION_HAS_ACTIVE_ORDERS("3004", "error.org.has-active-orders.title", "error.org.has-active-orders.message"),
+    ORGANIZATION_ACCESS_DENIED("3005", "error.org.access-denied.title", "error.org.access-denied.message");
 
     private final String code;
     private final String titleKey;
@@ -60,6 +61,10 @@ public enum OrganizationErrorCode implements ErrorCode {
 
     public BaseException internal() {
         return exception(HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    public BaseException forbidden() {
+        return exception(HttpStatus.FORBIDDEN);
     }
 
 }

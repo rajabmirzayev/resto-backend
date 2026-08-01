@@ -1,6 +1,7 @@
 package az.codlab.organization.service;
 
 import az.codlab.common.exception.handling.dto.ApiResponse;
+import az.codlab.common.security.model.UserPrincipal;
 import az.codlab.organization.client.OrderServiceClient;
 import az.codlab.organization.dto.CreateOrganizationRequest;
 import az.codlab.organization.dto.OrganizationDto;
@@ -58,10 +59,10 @@ public class OrganizationService {
         );
     }
 
-    public OrganizationDto getOrganizationById(UUID id) {
-        return organizationRepository.findByIdAndDeletedFalse(id)
-                .map(organizationMapper::toDto)
-                .orElseThrow(OrganizationErrorCode.ORGANIZATION_NOT_FOUND::notFound);
+    public OrganizationDto getOrganizationById(UUID id, UserPrincipal principal) {
+        var org = getOrganizationEntity(id);
+        assertOrgAccess(org, principal);
+        return organizationMapper.toDto(org);
     }
 
     public Organization getOrganizationEntity(UUID id) {
@@ -69,10 +70,20 @@ public class OrganizationService {
                 .orElseThrow(OrganizationErrorCode.ORGANIZATION_NOT_FOUND::notFound);
     }
 
-    public QrCodeResponse getQrCode(UUID orgId) {
+    public QrCodeResponse getQrCode(UUID orgId, UserPrincipal principal) {
         var org = getOrganizationEntity(orgId);
+        assertOrgAccess(org, principal);
         var menuUrl = "https://tabler.az/org/" + org.getId() + "/menu";
         return new QrCodeResponse(generateQrDataUrl(menuUrl));
+    }
+
+    private void assertOrgAccess(Organization org, UserPrincipal principal) {
+        if (principal != null
+                && (principal.isPlatformAdmin()
+                    || (principal.getOrgId() != null && principal.getOrgId().equals(org.getId().toString())))) {
+            return;
+        }
+        throw OrganizationErrorCode.ORGANIZATION_ACCESS_DENIED.forbidden();
     }
 
     private String generateQrDataUrl(String content) {

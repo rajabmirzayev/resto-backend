@@ -56,7 +56,10 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
-                                "/actuator/**",
+                                "/actuator/health",
+                                "/actuator/health/**",
+                                "/actuator/info",
+                                "/actuator/prometheus",
                                 "/error",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html",
@@ -95,8 +98,9 @@ public class SecurityConfig {
 
     @Bean
     @ConditionalOnMissingBean(HeaderAuthenticationFilter.class)
-    public HeaderAuthenticationFilter headerAuthenticationFilter() {
-        return new HeaderAuthenticationFilter();
+    public HeaderAuthenticationFilter headerAuthenticationFilter(
+            @Value("${security.internal-auth.secret:}") String internalAuthSecret) {
+        return new HeaderAuthenticationFilter(internalAuthSecret);
     }
 
     @Bean

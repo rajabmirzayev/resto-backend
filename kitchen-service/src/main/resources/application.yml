@@ -21,3 +21,8 @@ server:
 logging:
   level:
     az.codlab.kitchen: DEBUG
+
+
+security:
+  internal-auth:
+    secret: ${INTERNAL_AUTH_SECRET:}

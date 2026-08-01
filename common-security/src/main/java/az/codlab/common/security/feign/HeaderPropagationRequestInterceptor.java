@@ -30,8 +30,22 @@ public class HeaderPropagationRequestInterceptor implements RequestInterceptor {
             HeaderAuthenticationFilter.HEADER_PLATFORM_ADMIN
     };
 
+    private final String internalAuthSecret;
+
+    public HeaderPropagationRequestInterceptor() {
+        this(null);
+    }
+
+    public HeaderPropagationRequestInterceptor(String internalAuthSecret) {
+        this.internalAuthSecret = internalAuthSecret;
+    }
+
     @Override
     public void apply(RequestTemplate requestTemplate) {
+        if (internalAuthSecret != null && !internalAuthSecret.isBlank()) {
+            requestTemplate.header(HeaderAuthenticationFilter.HEADER_INTERNAL_AUTH, internalAuthSecret);
+        }
+
         UserPrincipal principal = currentPrincipal();
 
         for (var header : PROPAGATED_HEADERS) {

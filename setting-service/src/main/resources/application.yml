@@ -36,3 +36,8 @@ service:
 logging:
   level:
     az.codlab.setting: DEBUG
+
+
+security:
+  internal-auth:
+    secret: ${INTERNAL_AUTH_SECRET:}

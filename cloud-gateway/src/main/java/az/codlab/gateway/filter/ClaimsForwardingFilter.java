@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.StringJoiner;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
@@ -22,6 +23,10 @@ public class ClaimsForwardingFilter implements GlobalFilter, Ordered {
     public static final String HEADER_ORG_ID = "X-Org-Id";
     public static final String HEADER_ROLES = "X-Roles";
     public static final String HEADER_PLATFORM_ADMIN = "X-Platform-Admin";
+    public static final String HEADER_INTERNAL_AUTH = "X-Internal-Auth";
+
+    @Value("${security.internal-auth.secret:}")
+    private String internalAuthSecret;
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
@@ -39,11 +44,19 @@ public class ClaimsForwardingFilter implements GlobalFilter, Ordered {
                         var mutatedRequest = exchange.getRequest().mutate()
                                 .headers(headers -> {
                                     headers.remove(HttpHeaders.AUTHORIZATION);
+                                    headers.remove(HEADER_USER_ID);
+                                    headers.remove(HEADER_ORG_ID);
+                                    headers.remove(HEADER_ROLES);
+                                    headers.remove(HEADER_PLATFORM_ADMIN);
+                                    headers.remove(HEADER_INTERNAL_AUTH);
 
                                     setIfNotBlank(headers, HEADER_USER_ID, userId);
                                     setIfNotBlank(headers, HEADER_ORG_ID, organizationId);
                                     setIfNotBlank(headers, HEADER_ROLES, toCsv(roles));
                                     headers.set(HEADER_PLATFORM_ADMIN, String.valueOf(platformAdmin));
+                                    if (internalAuthSecret != null && !internalAuthSecret.isBlank()) {
+                                        headers.set(HEADER_INTERNAL_AUTH, internalAuthSecret);
+                                    }
                                 })
                                 .build();
 

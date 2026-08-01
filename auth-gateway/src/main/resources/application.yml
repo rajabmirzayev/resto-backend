@@ -45,3 +45,8 @@ server:
 logging:
   level:
     az.birim.auth: DEBUG
+
+
+security:
+  internal-auth:
+    secret: ${INTERNAL_AUTH_SECRET:}

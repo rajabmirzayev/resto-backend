@@ -1,6 +1,7 @@
 package az.codlab.organization.controller;
 
 import az.codlab.common.exception.handling.dto.ApiResponse;
+import az.codlab.common.security.model.UserPrincipal;
 import az.codlab.organization.dto.CreateOrganizationRequest;
 import az.codlab.organization.dto.CreateOrganizationResponse;
 import az.codlab.organization.dto.OrganizationDto;
@@ -14,6 +15,8 @@ import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -35,12 +38,14 @@ public class OrganizationController {
     }
 
     @GetMapping
+    @PreAuthorize("hasAuthority('SUPER_ADMIN')")
     public ResponseEntity<ApiResponse<List<OrganizationDto>>> getAllOrganizations() {
         var organizations = organizationService.getAllOrganizations();
         return ResponseEntity.ok(ApiResponse.success(organizations));
     }
 
     @PostMapping
+    @PreAuthorize("hasAuthority('SUPER_ADMIN')")
     public ResponseEntity<ApiResponse<CreateOrganizationResponse>> createOrganization(
             @Valid @RequestBody CreateOrganizationRequest request) {
         var response = creationOrchestrator.createOrganization(request);
@@ -49,14 +54,16 @@ public class OrganizationController {
     }
 
     @GetMapping("/{orgId}")
-    public ResponseEntity<ApiResponse<OrganizationDto>> getOrganization(@PathVariable UUID orgId) {
-        var organization = organizationService.getOrganizationById(orgId);
+    public ResponseEntity<ApiResponse<OrganizationDto>> getOrganization(@PathVariable UUID orgId,
+                                                                        @AuthenticationPrincipal UserPrincipal principal) {
+        var organization = organizationService.getOrganizationById(orgId, principal);
         return ResponseEntity.ok(ApiResponse.success(organization));
     }
 
     @GetMapping("/{orgId}/qr-code")
-    public ResponseEntity<ApiResponse<QrCodeResponse>> getQrCode(@PathVariable UUID orgId) {
-        var qrCode = organizationService.getQrCode(orgId);
+    public ResponseEntity<ApiResponse<QrCodeResponse>> getQrCode(@PathVariable UUID orgId,
+                                                                 @AuthenticationPrincipal UserPrincipal principal) {
+        var qrCode = organizationService.getQrCode(orgId, principal);
         return ResponseEntity.ok(ApiResponse.success(qrCode));
     }
 

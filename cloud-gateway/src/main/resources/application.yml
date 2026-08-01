@@ -100,6 +100,8 @@ security:
     issuer-uri: ${GW_KEYCLOAK_ISSUER_URI:http://localhost:8080/realms/tabler}
     audience: ${GW_KEYCLOAK_AUDIENCE:}
     client-id: ${GW_KEYCLOAK_CLIENT_ID:tabler-gateway}
+  internal-auth:
+    secret: ${INTERNAL_AUTH_SECRET:}
 
 server:
   port: ${GW_SERVER_PORT:8001}

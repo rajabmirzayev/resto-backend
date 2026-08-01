@@ -40,3 +40,8 @@ service:
 logging:
   level:
     az.codlab.order: DEBUG
+
+
+security:
+  internal-auth:
+    secret: ${INTERNAL_AUTH_SECRET:}

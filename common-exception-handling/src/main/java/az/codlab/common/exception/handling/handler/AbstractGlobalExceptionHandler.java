@@ -150,10 +150,6 @@ public abstract class AbstractGlobalExceptionHandler {
 
         String detail = messageSource.getMessage(CommonErrorCode.JSON_PARSE_ERROR.messageKey(), null,
                 CommonErrorCode.JSON_PARSE_ERROR.messageKey(), locale);
-        Throwable cause = ex.getMostSpecificCause();
-        if (cause.getMessage() != null) {
-            detail = cause.getMessage();
-        }
 
         ProblemDetail pd = ProblemDetail.forStatus(400);
         pd.setType(URI.create("about:blank"));
@@ -218,7 +214,8 @@ public abstract class AbstractGlobalExceptionHandler {
         pd.setType(URI.create("about:blank"));
         pd.setTitle(messageSource.getMessage(CommonErrorCode.VALIDATION_ERROR.titleKey(), null,
                 CommonErrorCode.VALIDATION_ERROR.titleKey(), locale));
-        pd.setDetail(ex.getMessage());
+        pd.setDetail(messageSource.getMessage(CommonErrorCode.VALIDATION_ERROR.messageKey(), null,
+                CommonErrorCode.VALIDATION_ERROR.messageKey(), locale));
         pd.setInstance(resolveInstance(request));
         pd.setProperty("key", buildErrorKey(CommonErrorCode.VALIDATION_ERROR.code()));
         pd.setProperty("path", request.getRequestURI());
