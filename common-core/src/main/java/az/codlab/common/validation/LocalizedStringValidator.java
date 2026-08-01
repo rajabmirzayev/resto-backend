@@ -44,6 +44,13 @@ public class LocalizedStringValidator implements ConstraintValidator<ValidLocali
                         .addConstraintViolation();
                 valid = false;
             }
+            if (v != null && v.indexOf('\u0000') >= 0) {
+                context.disableDefaultConstraintViolation();
+                context.buildConstraintViolationWithTemplate(
+                                "Value for locale '" + locale + "' must not contain null characters")
+                        .addConstraintViolation();
+                valid = false;
+            }
         }
         return valid;
     }

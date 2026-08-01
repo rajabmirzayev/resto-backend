@@ -2,7 +2,13 @@ package az.codlab.menu.dto;
 
 import az.codlab.common.type.LocalizedString;
 import az.codlab.common.validation.ValidLocalizedString;
+import jakarta.validation.constraints.Digits;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.PositiveOrZero;
+import jakarta.validation.constraints.Size;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -28,15 +34,22 @@ public class MenuItemRequest {
     LocalizedString description;
 
     @NotNull
+    @Positive
+    @Digits(integer = 8, fraction = 2)
     BigDecimal price;
 
     @NotNull
     UUID categoryId;
 
+    @PositiveOrZero
+    @Max(10080)
     Integer preparationTime;
 
     Boolean isAvailable;
 
+    @Size(max = 512)
+    @Pattern(regexp = "^(https?://|/)[^\\p{Cc}]*$",
+            message = "imageUrl must be a valid http(s) URL or a relative path")
     String imageUrl;
 
     @NotNull

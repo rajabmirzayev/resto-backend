@@ -163,8 +163,8 @@ public class MenuService {
 
     @Transactional
     public MenuItemResponse createItem(MenuItemRequest request, UserPrincipal principal) {
-        assertOrgAccess(request.getOrgId(), principal);
-        assertCategoryOwnedByOrg(request.getCategoryId(), request.getOrgId());
+        var orgId = resolveOrgForCreate(principal, request.getOrgId());
+        assertCategoryOwnedByOrg(request.getCategoryId(), orgId);
         var item = MenuItem.builder()
                 .name(request.getName().normalized())
                 .description(request.getDescription() != null ? request.getDescription().normalized() : null)
@@ -172,8 +172,8 @@ public class MenuService {
                 .categoryId(request.getCategoryId())
                 .preparationTime(request.getPreparationTime())
                 .isAvailable(request.getIsAvailable() != null ? request.getIsAvailable() : true)
-                .imageUrl(request.getImageUrl())
-                .orgId(request.getOrgId())
+                .imageUrl(normalizeImageUrl(request.getImageUrl()))
+                .orgId(orgId)
                 .build();
         item = menuItemRepository.save(item);
         log.info("Menu item created: {} ({})", item.getName(), item.getId());
@@ -206,7 +206,7 @@ public class MenuService {
             item.setAvailable(request.getIsAvailable());
         }
         if (request.getImageUrl() != null) {
-            item.setImageUrl(request.getImageUrl());
+            item.setImageUrl(normalizeImageUrl(request.getImageUrl()));
         }
 
         item = menuItemRepository.save(item);
@@ -274,6 +274,14 @@ public class MenuService {
             return null;
         }
         String trimmed = icon.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private String normalizeImageUrl(String imageUrl) {
+        if (imageUrl == null) {
+            return null;
+        }
+        String trimmed = imageUrl.trim();
         return trimmed.isEmpty() ? null : trimmed;
     }
 
