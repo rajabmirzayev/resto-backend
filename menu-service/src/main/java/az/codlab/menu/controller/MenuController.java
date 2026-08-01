@@ -143,6 +143,7 @@ public class MenuController {
             @PathVariable UUID id,
             @RequestPart("file") MultipartFile file,
             @AuthenticationPrincipal UserPrincipal principal) {
+        menuService.getItemById(id, principal);
         var imageUrl = imageStorageService.storeImage(id, file);
         menuService.updateItemImage(id, imageUrl, principal);
         return ResponseEntity.ok(ApiResponse.success(

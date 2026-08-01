@@ -17,6 +17,6 @@ public class StorageProperties {
 
     String baseDir = "./data/menu-images";
 
-    String publicBaseUrl = "http://localhost:8105";
+    String publicBaseUrl = "http://localhost:8001";
 
 }

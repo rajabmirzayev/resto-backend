@@ -14,6 +14,7 @@ import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.server.reactive.ServerHttpResponse;
@@ -80,6 +81,7 @@ public class GatewaySecurityConfig {
                                 "/api/*/v3/api-docs/**",
                                 "/favicon.ico"
                         ).permitAll()
+                        .pathMatchers(HttpMethod.GET, "/api/menu-ms/v1/images/**").permitAll()
                         .pathMatchers("/api/customer-ms/**").permitAll()
                         .anyExchange().authenticated()
                 )
