@@ -1,6 +1,7 @@
 package az.codlab.customer.dto;
 
 import az.codlab.common.type.LocalizedString;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -45,7 +46,10 @@ public class CustomerMenuResponse {
         BigDecimal price;
         UUID categoryId;
         String imageUrl;
+
+        @JsonProperty("isAvailable")
         boolean isAvailable;
+
         Integer preparationTime;
     }
 

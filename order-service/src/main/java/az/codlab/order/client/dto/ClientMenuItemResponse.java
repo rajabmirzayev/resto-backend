@@ -1,5 +1,7 @@
 package az.codlab.order.client.dto;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -19,7 +21,11 @@ public class ClientMenuItemResponse {
     private BigDecimal price;
     private UUID categoryId;
     private String imageUrl;
+
+    @JsonProperty("isAvailable")
+    @JsonAlias("available")
     private boolean isAvailable;
+
     private Integer preparationTime;
     private UUID orgId;
 }
