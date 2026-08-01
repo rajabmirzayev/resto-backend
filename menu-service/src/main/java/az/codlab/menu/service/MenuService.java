@@ -1,5 +1,6 @@
 package az.codlab.menu.service;
 
+import az.codlab.common.security.model.UserPrincipal;
 import az.codlab.menu.dto.CategoryDeleteRequest;
 import az.codlab.menu.dto.CategoryRequest;
 import az.codlab.menu.dto.CategoryResponse;
@@ -58,9 +59,10 @@ public class MenuService {
     }
 
     @Transactional
-    public CategoryResponse createCategory(CategoryRequest request) {
+    public CategoryResponse createCategory(CategoryRequest request, UserPrincipal principal) {
+        assertOrgAccess(request.getOrgId(), principal);
         var category = MenuCategory.builder()
-                .name(request.getName())
+                .name(request.getName().normalized())
                 .icon(request.getIcon())
                 .sortOrder(request.getSortOrder())
                 .orgId(request.getOrgId())
@@ -71,12 +73,13 @@ public class MenuService {
     }
 
     @Transactional
-    public CategoryResponse updateCategory(UUID id, CategoryUpdateRequest request) {
+    public CategoryResponse updateCategory(UUID id, CategoryUpdateRequest request, UserPrincipal principal) {
         var category = menuCategoryRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(MenuErrorCode.CATEGORY_NOT_FOUND::notFound);
+        assertOrgAccess(category.getOrgId(), principal);
 
         if (request.getName() != null) {
-            category.setName(request.getName());
+            category.setName(request.getName().normalized());
         }
         if (request.getIcon() != null) {
             category.setIcon(request.getIcon());
@@ -91,12 +94,16 @@ public class MenuService {
     }
 
     @Transactional
-    public void deleteCategory(UUID id, CategoryDeleteRequest request) {
+    public void deleteCategory(UUID id, CategoryDeleteRequest request, UserPrincipal principal) {
         var category = menuCategoryRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(MenuErrorCode.CATEGORY_NOT_FOUND::notFound);
+        assertOrgAccess(category.getOrgId(), principal);
 
         var items = menuItemRepository.findAllByCategoryIdAndDeletedFalse(id);
         if (request != null && request.getMoveItemsTo() != null) {
+            var target = menuCategoryRepository.findByIdAndDeletedFalse(request.getMoveItemsTo())
+                    .orElseThrow(MenuErrorCode.CATEGORY_NOT_FOUND::notFound);
+            assertOrgAccess(target.getOrgId(), principal);
             for (var item : items) {
                 item.setCategoryId(request.getMoveItemsTo());
                 menuItemRepository.save(item);
@@ -147,10 +154,12 @@ public class MenuService {
     }
 
     @Transactional
-    public MenuItemResponse createItem(MenuItemRequest request) {
+    public MenuItemResponse createItem(MenuItemRequest request, UserPrincipal principal) {
+        assertOrgAccess(request.getOrgId(), principal);
+        assertCategoryOwnedByOrg(request.getCategoryId(), request.getOrgId());
         var item = MenuItem.builder()
-                .name(request.getName())
-                .description(request.getDescription())
+                .name(request.getName().normalized())
+                .description(request.getDescription() != null ? request.getDescription().normalized() : null)
                 .price(request.getPrice())
                 .categoryId(request.getCategoryId())
                 .preparationTime(request.getPreparationTime())
@@ -164,20 +173,22 @@ public class MenuService {
     }
 
     @Transactional
-    public MenuItemResponse updateItem(UUID id, MenuItemUpdateRequest request) {
+    public MenuItemResponse updateItem(UUID id, MenuItemUpdateRequest request, UserPrincipal principal) {
         var item = menuItemRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(MenuErrorCode.ITEM_NOT_FOUND::notFound);
+        assertOrgAccess(item.getOrgId(), principal);
 
         if (request.getName() != null) {
-            item.setName(request.getName());
+            item.setName(request.getName().normalized());
         }
         if (request.getDescription() != null) {
-            item.setDescription(request.getDescription());
+            item.setDescription(request.getDescription().normalized());
         }
         if (request.getPrice() != null) {
             item.setPrice(request.getPrice());
         }
         if (request.getCategoryId() != null) {
+            assertCategoryOwnedByOrg(request.getCategoryId(), item.getOrgId());
             item.setCategoryId(request.getCategoryId());
         }
         if (request.getPreparationTime() != null) {
@@ -196,30 +207,50 @@ public class MenuService {
     }
 
     @Transactional
-    public void deleteItem(UUID id) {
+    public void deleteItem(UUID id, UserPrincipal principal) {
         var item = menuItemRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(MenuErrorCode.ITEM_NOT_FOUND::notFound);
+        assertOrgAccess(item.getOrgId(), principal);
         item.softDelete(null);
         menuItemRepository.save(item);
         log.info("Menu item soft-deleted: {}", id);
     }
 
     @Transactional
-    public void updateItemImage(UUID id, String imageUrl) {
+    public void updateItemImage(UUID id, String imageUrl, UserPrincipal principal) {
         var item = menuItemRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(MenuErrorCode.ITEM_NOT_FOUND::notFound);
+        assertOrgAccess(item.getOrgId(), principal);
         item.setImageUrl(imageUrl);
         menuItemRepository.save(item);
         log.info("Menu item image updated: {}", id);
     }
 
     @Transactional
-    public void deleteItemImage(UUID id) {
+    public void deleteItemImage(UUID id, UserPrincipal principal) {
         var item = menuItemRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(MenuErrorCode.ITEM_NOT_FOUND::notFound);
+        assertOrgAccess(item.getOrgId(), principal);
         item.setImageUrl(null);
         menuItemRepository.save(item);
         log.info("Menu item image deleted: {}", id);
+    }
+
+    private void assertOrgAccess(UUID orgId, UserPrincipal principal) {
+        if (principal != null
+                && (principal.isPlatformAdmin()
+                    || (principal.getOrgId() != null && principal.getOrgId().equals(orgId.toString())))) {
+            return;
+        }
+        throw MenuErrorCode.ACCESS_DENIED.forbidden();
+    }
+
+    private void assertCategoryOwnedByOrg(UUID categoryId, UUID orgId) {
+        var category = menuCategoryRepository.findByIdAndDeletedFalse(categoryId)
+                .orElseThrow(MenuErrorCode.CATEGORY_NOT_FOUND::notFound);
+        if (!category.getOrgId().equals(orgId)) {
+            throw MenuErrorCode.ACCESS_DENIED.forbidden();
+        }
     }
 
 }

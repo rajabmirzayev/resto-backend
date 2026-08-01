@@ -1,6 +1,7 @@
 package az.codlab.menu.dto;
 
 import az.codlab.common.type.LocalizedString;
+import az.codlab.common.validation.ValidLocalizedString;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -15,6 +16,7 @@ import lombok.experimental.FieldDefaults;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class CategoryUpdateRequest {
 
+    @ValidLocalizedString(maxLength = 100)
     LocalizedString name;
 
     String icon;

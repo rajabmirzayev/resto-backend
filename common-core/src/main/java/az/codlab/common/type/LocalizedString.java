@@ -18,4 +18,20 @@ public class LocalizedString {
     String en;
     String ru;
 
+    public LocalizedString normalized() {
+        return LocalizedString.builder()
+                .az(normalize(az))
+                .en(normalize(en))
+                .ru(normalize(ru))
+                .build();
+    }
+
+    private static String normalize(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
 }

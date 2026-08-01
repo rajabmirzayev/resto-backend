@@ -1,6 +1,7 @@
 package az.codlab.menu.controller;
 
 import az.codlab.common.exception.handling.dto.ApiResponse;
+import az.codlab.common.security.model.UserPrincipal;
 import az.codlab.menu.dto.CategoryDeleteRequest;
 import az.codlab.menu.dto.CategoryRequest;
 import az.codlab.menu.dto.CategoryResponse;
@@ -20,6 +21,7 @@ import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -62,8 +64,9 @@ public class MenuController {
 
     @PostMapping("/categories")
     public ResponseEntity<ApiResponse<CategoryResponse>> createCategory(
-            @Valid @RequestBody CategoryRequest request) {
-        var category = menuService.createCategory(request);
+            @Valid @RequestBody CategoryRequest request,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        var category = menuService.createCategory(request, principal);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(category, "Category created"));
     }
@@ -71,16 +74,18 @@ public class MenuController {
     @PutMapping("/categories/{id}")
     public ResponseEntity<ApiResponse<CategoryResponse>> updateCategory(
             @PathVariable UUID id,
-            @Valid @RequestBody CategoryUpdateRequest request) {
-        var category = menuService.updateCategory(id, request);
+            @Valid @RequestBody CategoryUpdateRequest request,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        var category = menuService.updateCategory(id, request, principal);
         return ResponseEntity.ok(ApiResponse.success(category, "Category updated"));
     }
 
     @DeleteMapping("/categories/{id}")
     public ResponseEntity<ApiResponse<Void>> deleteCategory(
             @PathVariable UUID id,
-            @RequestBody(required = false) CategoryDeleteRequest request) {
-        menuService.deleteCategory(id, request);
+            @RequestBody(required = false) CategoryDeleteRequest request,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        menuService.deleteCategory(id, request, principal);
         return ResponseEntity.ok(ApiResponse.success(null, "Category deleted"));
     }
 
@@ -103,8 +108,9 @@ public class MenuController {
 
     @PostMapping("/items")
     public ResponseEntity<ApiResponse<MenuItemResponse>> createItem(
-            @Valid @RequestBody MenuItemRequest request) {
-        var item = menuService.createItem(request);
+            @Valid @RequestBody MenuItemRequest request,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        var item = menuService.createItem(request, principal);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(item, "Menu item created"));
     }
@@ -112,34 +118,40 @@ public class MenuController {
     @PutMapping("/items/{id}")
     public ResponseEntity<ApiResponse<MenuItemResponse>> updateItem(
             @PathVariable UUID id,
-            @Valid @RequestBody MenuItemUpdateRequest request) {
-        var item = menuService.updateItem(id, request);
+            @Valid @RequestBody MenuItemUpdateRequest request,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        var item = menuService.updateItem(id, request, principal);
         return ResponseEntity.ok(ApiResponse.success(item, "Menu item updated"));
     }
 
     @DeleteMapping("/items/{id}")
-    public ResponseEntity<ApiResponse<Void>> deleteItem(@PathVariable UUID id) {
-        menuService.deleteItem(id);
+    public ResponseEntity<ApiResponse<Void>> deleteItem(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        menuService.deleteItem(id, principal);
         return ResponseEntity.ok(ApiResponse.success(null, "Menu item deleted"));
     }
 
     @PostMapping(value = "/items/{id}/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<ImageUploadResponse>> uploadImage(
             @PathVariable UUID id,
-            @RequestPart("file") MultipartFile file) {
+            @RequestPart("file") MultipartFile file,
+            @AuthenticationPrincipal UserPrincipal principal) {
         var imageUrl = imageStorageService.storeImage(id, file);
-        menuService.updateItemImage(id, imageUrl);
+        menuService.updateItemImage(id, imageUrl, principal);
         return ResponseEntity.ok(ApiResponse.success(
                 new ImageUploadResponse(imageUrl), "Image uploaded"));
     }
 
     @DeleteMapping("/items/{id}/image")
-    public ResponseEntity<ApiResponse<Void>> deleteImage(@PathVariable UUID id) {
+    public ResponseEntity<ApiResponse<Void>> deleteImage(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal UserPrincipal principal) {
         var item = menuService.getItemById(id);
         if (item.getImageUrl() != null) {
             imageStorageService.deleteImage(item.getImageUrl());
         }
-        menuService.deleteItemImage(id);
+        menuService.deleteItemImage(id, principal);
         return ResponseEntity.ok(ApiResponse.success(null, "Image deleted"));
     }
 

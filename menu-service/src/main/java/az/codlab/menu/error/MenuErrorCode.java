@@ -7,7 +7,8 @@ import org.springframework.http.HttpStatus;
 public enum MenuErrorCode implements ErrorCode {
 
     CATEGORY_NOT_FOUND("3001", "error.menu.category-not-found.title", "error.menu.category-not-found.message"),
-    ITEM_NOT_FOUND("3002", "error.menu.item-not-found.title", "error.menu.item-not-found.message");
+    ITEM_NOT_FOUND("3002", "error.menu.item-not-found.title", "error.menu.item-not-found.message"),
+    ACCESS_DENIED("3003", "error.menu.access-denied.title", "error.menu.access-denied.message");
 
     private final String code;
     private final String titleKey;
@@ -46,6 +47,10 @@ public enum MenuErrorCode implements ErrorCode {
 
     public BaseException notFound() {
         return exception(HttpStatus.NOT_FOUND);
+    }
+
+    public BaseException forbidden() {
+        return exception(HttpStatus.FORBIDDEN);
     }
 
 }

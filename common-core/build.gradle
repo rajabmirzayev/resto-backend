@@ -1,6 +1,7 @@
 description = 'common-core'
 
 dependencies {
+    implementation 'jakarta.validation:jakarta.validation-api'
     compileOnly 'org.projectlombok:lombok:1.18.42'
     annotationProcessor 'org.projectlombok:lombok:1.18.42'
 }

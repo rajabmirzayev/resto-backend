@@ -1,6 +1,7 @@
 package az.codlab.menu.dto;
 
 import az.codlab.common.type.LocalizedString;
+import az.codlab.common.validation.ValidLocalizedString;
 import jakarta.validation.constraints.NotNull;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -19,6 +20,7 @@ import java.util.UUID;
 public class CategoryRequest {
 
     @NotNull
+    @ValidLocalizedString(maxLength = 100)
     LocalizedString name;
 
     String icon;
