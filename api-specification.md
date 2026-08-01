@@ -883,21 +883,107 @@ Success (200):
 ## 5. Menu — `menu-service` (port 8105)
 
 > API prefix: `/api/menu-ms/v1/...`
-> Response: `ApiResponse<T>` wrapper
-> Error: Spring `ProblemDetail`
+> Gateway: `http://localhost:8001` → `/api/menu-ms/...` (bütün sorğular gateway-dən keçir)
+> Auth: bütün endpoint-lər `Authorization: Bearer {token}` tələb edir (yalnız statik şəkil GET-i publicdir)
+> Response: `ApiResponse<T>` wrapper → `{ success, message, errorCode, data }`
+> Error: Spring `ProblemDetail` (RFC 9457) → `key`, `path`, `timestamp`, bəzi hallarda `fieldErrors`
+
+### Tenant & Giriş Qaydaları
+
+- Hər kateqoriya və menu maddəsi bir `orgId`-yə aiddir.
+- Adi istifadəçi yalnız öz `organizationId`-nə aid data oxuya/yaza bilər:
+  - **Read** (GET): sorğudakı `orgId` principal-in org-u ilə uyğun olmalıdır, əks halda `403 MENU_MS_3003`.
+  - **Write** (POST/PUT/DELETE): hədəf entity-nin `orgId`-si principal-in org-u ilə uyğun olmalıdır.
+  - Create zamanı `orgId` client tərəfindən "seçilə" bilməz — adi user üçün token-dəki org ilə uyğun gəlməzsə 403 qayıdır (servis həmişə token-dəki org-u əsas götürür).
+- **SUPER_ADMIN** (platform admin) bütün org-lara tam girişə malikdir; create zamanı istədiyi `orgId`-ni verə bilər.
+- Internal microservice çağrıları (`X-Internal-Auth` header-i ilə) bütün data-ya oxuya bilər.
+
+### Lokalizasiya (`LocalizedString`)
+
+`name` və `description` sahələri JSON obyektidir, 3 dil açarı var:
+```json
+{
+  "az": "Pomidor Şorbası",
+  "en": "Tomato Soup",
+  "ru": "Томатный суп"
+}
+```
+
+| Açar | Məcburi | İzah |
+|---|---|---|
+| `az` | Bəli (name üçün) | Boş ola bilməz |
+| `en` | X | Opsional, boş ola bilər |
+| `ru` | X | Opsional, boş ola bilər |
+
+Ümumi qaydalar:
+- Null character (`\u0000`) qəti qadağandır.
+- Uzunluq limiti aşılırsa 400 + `fieldErrors` qayıdır.
+- Dəyərlər servis tərəfində trim olunur.
+
+### Menu-servis Error Kodları
+
+| HTTP | `key` | Səbəb |
+|---|---|---|
+| 400 | `MENU_MS_1000` | Validation failed (DTO/field) |
+| 400 | `MENU_MS_1001` | JSON parse error |
+| 400 | `MENU_MS_3004` | Kateqoriya silərkən `moveItemsTo` özü ilə eyni id-dir |
+| 401 | `COMMON_4001` | Token yoxdur / etibarsız |
+| 403 | `COMMON_4003` | Security layer tərəfindən qadağan |
+| 403 | `MENU_MS_3003` | Başqa org-un datasına giriş cəhdi / icazəsiz əməliyyat |
+| 404 | `MENU_MS_3001` | Kateqoriya tapılmadı (silinib və ya mövcud deyil) |
+| 404 | `MENU_MS_3002` | Menu maddəsi tapılmadı (silinib və ya mövcud deyil) |
+| 500 | `MENU_MS_9999` | Daxili xəta |
+
+> Qeyd: `MENU_MS_3002` kodu "menu item not found" üçündür. (Common `METHOD_NOT_ALLOWED` kodu da `3002`-dir, amma menu-servis 405 qaytarmır.)
+
+> **Soft-delete:** silinən entity `deleted` bayrağı ilə işarələnir və GET-lərdə geri qayıtmır.
+
+---
+
+### Data Modelləri
+
+**MenuItem**
+
+| Field | Tip | Qeyd |
+|---|---|---|
+| `id` | UUID | |
+| `name` | LocalizedString | |
+| `description` | LocalizedString \| null | |
+| `price` | BigDecimal | |
+| `categoryId` | UUID | |
+| `imageUrl` | String \| null | Şəklin tam URL-i (public) |
+| `isAvailable` | Boolean | |
+| `preparationTime` | Integer \| null | dəqiqə ilə |
+| `orgId` | UUID | |
+| `createdAt` | String (ISO-8601) | məs. `2026-07-25T12:00:00.000Z` |
+
+**MenuCategory**
+
+| Field | Tip | Qeyd |
+|---|---|---|
+| `id` | UUID | |
+| `name` | LocalizedString | |
+| `icon` | String \| null | Lucide React ikon adı (məs. `soup`, `beef`, `salad`, `pizza`, `hamburger`, `cup-soda`, `cake`, `cookie`) |
+| `sortOrder` | Integer \| null | Menyuda sıralama |
+| `orgId` | UUID | |
+
+---
 
 ### `GET /api/menu-ms/v1/items`
 
-**Bütün menu maddələri.**
+**Menu maddələrinin siyahısı** (filterlərlə).
 
 Headers: `Authorization: Bearer {token}`
 
 Query:
-| Parameter | Tip | Məcburi | İzah |
+
+| Parametr | Tip | Məcburi | İzah |
 |---|---|---|---|
-| `orgId` | UUID | Bəli | Org filter |
+| `orgId` | UUID | Bəli (real user) | Org filter; verilməsə boş list qayıdır |
 | `categoryId` | UUID | X | Kateqoriya filter |
-| `available` | Boolean | X | `true` = yalnız aktiv |
+| `available` | Boolean | X | `true` = yalnız aktiv, `false` = yalnız qeyri-aktiv |
+
+> Real istifadəçi üçün `orgId` öz org-u ilə uyğun olmalıdır (əks halda 403). SUPER_ADMIN istənilən `orgId` verə bilər.
 
 Success (200):
 ```json
@@ -908,25 +994,31 @@ Success (200):
   "data": [
     {
       "id": "550e8400-e29b-41d4-a716-446655440040",
-      "name": {
-        "az": "Pomidor Şorbası",
-        "en": "Tomato Soup",
-        "ru": "Томатный суп"
-      },
-      "description": {
-        "az": "Klassik pomidor şorbası, krem ilə",
-        "en": "Classic tomato soup with cream",
-        "ru": "Классический томатный суп со сливками"
-      },
+      "name": { "az": "Pomidor Şorbası", "en": "Tomato Soup", "ru": "Томатный суп" },
+      "description": { "az": "Klassik pomidor şorbası, krem ilə", "en": "Classic tomato soup with cream", "ru": "Классический томатный суп со сливками" },
       "price": 8.00,
       "categoryId": "550e8400-e29b-41d4-a716-446655440050",
-      "imageUrl": null,
+      "imageUrl": "http://localhost:8001/api/menu-ms/v1/images/550e8400-e29b-41d4-a716-446655440040.jpg",
       "isAvailable": true,
       "preparationTime": 10,
       "orgId": "550e8400-e29b-41d4-a716-446655440001",
       "createdAt": "2026-07-25T12:00:00.000Z"
     }
   ]
+}
+```
+
+Error (403) — başqa org-a giriş cəhdi:
+```json
+{
+  "type": "about:blank",
+  "title": "Access Denied",
+  "status": 403,
+  "detail": "Access is denied",
+  "instance": "trace:xxx",
+  "key": "MENU_MS_3003",
+  "path": "/api/menu-ms/v1/items",
+  "timestamp": "2026-07-30T12:00:00.000Z"
 }
 ```
 
@@ -946,13 +1038,15 @@ Error (404):
   "type": "about:blank",
   "title": "Not Found",
   "status": 404,
-  "detail": "Menu item with id m99 not found",
+  "detail": "Menu item not found",
   "instance": "trace:xxx",
-  "key": "MENU_MS_3001",
-  "path": "/api/menu-ms/v1/items/m99",
+  "key": "MENU_MS_3002",
+  "path": "/api/menu-ms/v1/items/550e8400-e29b-41d4-a716-446655440040",
   "timestamp": "2026-07-30T12:00:00.000Z"
 }
 ```
+
+Error (403): item başqa org-a aiddirsə → `MENU_MS_3003`
 
 ---
 
@@ -962,29 +1056,32 @@ Error (404):
 
 Headers: `Authorization: Bearer {token}`
 
-Request:
+Request body:
 ```json
 {
-  "name": {
-    "az": "Pomidor Şorbası",
-    "en": "Tomato Soup",
-    "ru": "Томатный суп"
-  },
-  "description": {
-    "az": "Klassik pomidor şorbası, krem ilə",
-    "en": "Classic tomato soup with cream",
-    "ru": "Классический томатный суп со сливками"
-  },
+  "name": { "az": "Pomidor Şorbası", "en": "Tomato Soup", "ru": "Томатный суп" },
+  "description": { "az": "Klassik pomidor şorbası, krem ilə", "en": "Classic tomato soup with cream", "ru": "Классический томатный суп со сливками" },
   "price": 8.00,
   "categoryId": "550e8400-e29b-41d4-a716-446655440050",
   "preparationTime": 10,
   "isAvailable": true,
-  "imageUrl": "data:image/png;base64,...",
+  "imageUrl": "https://cdn.example.com/images/soup.jpg",
   "orgId": "550e8400-e29b-41d4-a716-446655440001"
 }
 ```
 
-> `imageUrl` base64 data URL və ya boş string ola bilər. Böyük fayllar üçün ayrıca `/items/{id}/image` endpoint-i var.
+| Field | Məcburi | Validasiya |
+|---|---|---|
+| `name` | ✅ | `LocalizedString`; `az` mütləq, hər dil maks 100 simvol; null char qadağan |
+| `description` | ✗ | `LocalizedString`; hər dil maks 500 simvol |
+| `price` | ✅ | `> 0`; maks 8 tam + 2 kəsr rəqəm (maks `99999999.99`) |
+| `categoryId` | ✅ | UUID; kateqoriya **eyni org-da** olmalıdır (yoxdursa 404 `MENU_MS_3001`, başqa org-dadırsa 403 `MENU_MS_3003`) |
+| `preparationTime` | ✗ | `0..10080` (dəqiqə) |
+| `isAvailable` | ✗ | Boolean; default `true` |
+| `imageUrl` | ✗ | Maks 512 simvol; **`http(s)://...` və ya `/` ilə başlayan relative path** olmalıdır; control char qadağan. **Base64 `data:` URL qəbul OLUNMUR.** Boş string `""` → `null` saxlanılır |
+| `orgId` | ✅ | UUID; adi user üçün token-dəki org ilə uyğun olmalıdır (403); SUPER_ADMIN istədiyini verə bilər |
+
+> **imageUrl qaydası:** şəkil ya bu modulun upload endpoint-i ilə yüklənir (cavabda tam URL), ya da istənilən xarici `http(s)` link verilir (Google Drive, CDN və s.). `data:` base64 URL-lər rədd edilir.
 
 Success (201):
 ```json
@@ -992,7 +1089,26 @@ Success (201):
   "success": true,
   "message": "Menu item created",
   "errorCode": null,
-  "data": { "...MenuItem..." }
+  "data": { "id": "...", "name": { ... }, "price": 8.00, "...": "..." }
+}
+```
+
+Error (400) — validation:
+```json
+{
+  "type": "about:blank",
+  "title": "Validation Failed",
+  "status": 400,
+  "detail": "Validation failed for one or more fields",
+  "instance": "trace:xxx",
+  "key": "MENU_MS_1000",
+  "path": "/api/menu-ms/v1/items",
+  "timestamp": "2026-07-30T12:00:00.000Z",
+  "fieldErrors": [
+    { "field": "name", "message": "Value must be provided for locale 'az'" },
+    { "field": "price", "message": "must be greater than 0" },
+    { "field": "imageUrl", "message": "imageUrl must be a valid http(s) URL or a relative path" }
+  ]
 }
 ```
 
@@ -1000,24 +1116,28 @@ Success (201):
 
 ### `PUT /api/menu-ms/v1/items/{id}`
 
-**Menu maddəsini redaktə et.**
+**Menu maddəsini redaktə et (partial update).**
 
 Headers: `Authorization: Bearer {token}`
 
-Request:
+Request body:
 ```json
 {
-  "name": { "az": "...", "en": "...", "ru": "..." },
+  "name": { "az": "Pomidor Şorbası", "en": "Tomato Soup", "ru": "Томатный суп" },
   "description": { "az": "...", "en": "...", "ru": "..." },
   "price": 9.00,
   "categoryId": "550e8400-e29b-41d4-a716-446655440051",
   "preparationTime": 12,
   "isAvailable": false,
-  "imageUrl": "https://cdn.tabler.az/images/m1.jpg"
+  "imageUrl": "https://cdn.example.com/images/soup2.jpg"
 }
 ```
 
-> Bütün field-lar optionaldır (partial update).
+- **Bütün field-lar optionaldır** — göndərilməyən (və ya `null`) field dəyişmir.
+- `name`/`description` `null` ilə **silinə bilməz** (`null` = "dəyişmə").
+- **Şəkli təmizləmək üçün** `imageUrl: ""` göndər → DB-də `null` olur.
+- `categoryId` dəyişərsə, yeni kateqoriya eyni org-da olmalıdır.
+- Validasiyalar `POST /items` ilə eynidir (yalnız göndərilən field-lar üçün).
 
 Success (200):
 ```json
@@ -1033,7 +1153,7 @@ Success (200):
 
 ### `DELETE /api/menu-ms/v1/items/{id}`
 
-**Menu maddəsini sil.**
+**Menu maddəsini sil (soft delete).**
 
 Headers: `Authorization: Bearer {token}`
 
@@ -1051,15 +1171,16 @@ Success (200):
 
 ### `POST /api/menu-ms/v1/items/{id}/image`
 
-**Şəkil yüklə (multipart).**
+**Şəkil yüklə (multipart).** Köhnə şəkil avtomatik silinir, yenisi əvəz edir.
 
 Headers: `Authorization: Bearer {token}`
 
-Request: `multipart/form-data`, field: `file`
+Request: `Content-Type: multipart/form-data`, field adı: `file`
 
-Constraints:
-- Max 2MB
-- MIME types: `image/jpeg`, `image/png`, `image/webp`
+Validasiyalar:
+- Maks fayl ölçüsü: **2MB**
+- Yalnız **JPEG / PNG / WebP** — tip **faylın faktiki başlanğıc baytlarından (magic bytes)** təyin olunur, `Content-Type` header-i nəzərə alınmır. Başqa format (o cümlədən SVG) → 400.
+- Fayl adı server tərəfindən `{itemId}.{ext}` kimi qurulur (user input yoxdur).
 
 Success (200):
 ```json
@@ -1068,8 +1189,24 @@ Success (200):
   "message": "Image uploaded",
   "errorCode": null,
   "data": {
-    "imageUrl": "https://cdn.tabler.az/images/550e8400-e29b-41d4-a716-446655440040.jpg"
+    "imageUrl": "http://localhost:8001/api/menu-ms/v1/images/550e8400-e29b-41d4-a716-446655440040.jpg"
   }
+}
+```
+
+> Qaytarılan `imageUrl` birbaşa `<img src>` kimi istifadə oluna bilər — **public GET, auth tələb etmir** (həm gateway, həm menu-service səviyyəsində). Şəkli silmək üçün `DELETE /items/{id}/image`, yalnız URL-i təmizləmək üçün isə `PUT /items/{id}` ilə `imageUrl: ""` göndərilir.
+
+Error (400) — yanlış tip / boş fayl / 2MB-dan böyük:
+```json
+{
+  "type": "about:blank",
+  "title": "Validation Failed",
+  "status": 400,
+  "detail": "Validation failed for one or more fields",
+  "instance": "trace:xxx",
+  "key": "MENU_MS_1000",
+  "path": "/api/menu-ms/v1/items/550e8400-e29b-41d4-a716-446655440040/image",
+  "timestamp": "2026-07-30T12:00:00.000Z"
 }
 ```
 
@@ -1077,7 +1214,7 @@ Success (200):
 
 ### `DELETE /api/menu-ms/v1/items/{id}/image`
 
-**Şəkli sil.**
+**Item-ın şəklini sil.** Fayl diskdən silinir və `imageUrl` `null` olur.
 
 Headers: `Authorization: Bearer {token}`
 
@@ -1095,11 +1232,15 @@ Success (200):
 
 ### `GET /api/menu-ms/v1/categories`
 
-**Bütün kateqoriyalar.**
+**Bütün kateqoriyalar (`sortOrder`-a görə artan sırada).**
 
 Headers: `Authorization: Bearer {token}`
 
-Query: `?orgId=550e8400-e29b-41d4-a716-446655440001`
+Query:
+
+| Parametr | Tip | Məcburi | İzah |
+|---|---|---|---|
+| `orgId` | UUID | ✅ | Org filter; başqa org-a baxış → 403 `MENU_MS_3003` |
 
 Success (200):
 ```json
@@ -1119,7 +1260,7 @@ Success (200):
 }
 ```
 
-> `icon` field-ı Lucide React ikon adıdır: `soup`, `beef`, `salad`, `pizza`, `hamburger`, `cup-soda`, `cake`, `cookie`.
+> `icon` field-ı Lucide React ikon adıdır (bu siyahı ilə məhdud deyil): `soup`, `beef`, `salad`, `pizza`, `hamburger`, `cup-soda`, `cake`, `cookie`.
 
 ---
 
@@ -1145,19 +1286,8 @@ Success (200):
 }
 ```
 
-Error (404):
-```json
-{
-  "type": "about:blank",
-  "title": "Not Found",
-  "status": 404,
-  "detail": "Category not found",
-  "instance": "trace:xxx",
-  "key": "MENU_MS_3001",
-  "path": "/api/menu-ms/v1/categories/c99",
-  "timestamp": "2026-07-30T12:00:00.000Z"
-}
-```
+Error (404): `MENU_MS_3001` (yuxarıdakı format ilə, `title: "Not Found"`)
+Error (403): başqa org-a aiddirsə → `MENU_MS_3003`
 
 ---
 
@@ -1167,7 +1297,7 @@ Error (404):
 
 Headers: `Authorization: Bearer {token}`
 
-Request:
+Request body:
 ```json
 {
   "name": { "az": "Şorbalar", "en": "Soups", "ru": "Супы" },
@@ -1176,6 +1306,13 @@ Request:
   "orgId": "550e8400-e29b-41d4-a716-446655440001"
 }
 ```
+
+| Field | Məcburi | Validasiya |
+|---|---|---|
+| `name` | ✅ | `LocalizedString`; `az` mütləq, maks 100 simvol |
+| `icon` | ✗ | Maks 50 simvol; control char qadağan; boş string `""` → `null` |
+| `sortOrder` | ✗ | `0..10000` |
+| `orgId` | ✅ | UUID; adi user üçün token-dəki org ilə uyğun (403); SUPER_ADMIN istədiyini verə bilər |
 
 Success (201):
 ```json
@@ -1191,11 +1328,11 @@ Success (201):
 
 ### `PUT /api/menu-ms/v1/categories/{id}`
 
-**Kateqoriyanı redaktə et.**
+**Kateqoriyanı redaktə et (partial update).**
 
 Headers: `Authorization: Bearer {token}`
 
-Request:
+Request body (bütün field-lar optional):
 ```json
 {
   "name": { "az": "Soyuq Şorbalar", "en": "Cold Soups", "ru": "Холодные супы" },
@@ -1230,8 +1367,10 @@ Request body (opsional):
 ```
 
 **Business rules:**
-- `moveItemsTo` göndərilsə, həmin kateqoriyadakı bütün maddələr ora köçürülür
-- Göndərilməsə, kateqoriyadakı bütün maddələr də silinir
+- `moveItemsTo` verilərsə → kateqoriyadakı **bütün maddələr** həmin kateqoriyaya köçürülür, sonra kateqoriya silinir.
+  - `moveItemsTo == {id}` (özünə köçürmə) → **400 `MENU_MS_3004`**
+  - Hədəf kateqoriya mövcud olmalıdır (404 `MENU_MS_3001`) və **eyni org-da** olmalıdır (403 `MENU_MS_3003`)
+- `moveItemsTo` verilmirsə → kateqoriyadakı **bütün maddələr də silinir** (soft delete).
 
 Success (200):
 ```json
