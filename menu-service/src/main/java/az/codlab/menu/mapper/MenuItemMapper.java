@@ -11,7 +11,7 @@ import org.mapstruct.Mapping;
 @Mapper(componentModel = "spring")
 public interface MenuItemMapper {
 
-    @Mapping(target = "isAvailable", source = "available")
+    @Mapping(target = "available", source = "available")
     MenuItemResponse toDto(MenuItem entity);
 
     List<MenuItemResponse> toDtoList(List<MenuItem> entities);

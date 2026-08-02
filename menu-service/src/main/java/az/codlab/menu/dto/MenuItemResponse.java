@@ -26,10 +26,14 @@ public class MenuItemResponse {
     BigDecimal price;
     UUID categoryId;
     String imageUrl;
-    @JsonProperty("isAvailable")
-    boolean isAvailable;
+    boolean available;
     Integer preparationTime;
     UUID orgId;
     Instant createdAt;
+
+    @JsonProperty("isAvailable")
+    public boolean isAvailable() {
+        return available;
+    }
 
 }
