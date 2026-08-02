@@ -1,5 +1,7 @@
 package az.codlab.table.dto;
 
+import az.codlab.common.validation.ValidPhone;
+
 import jakarta.validation.constraints.Future;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.NotBlank;
@@ -30,9 +32,7 @@ public class ReservationRequest {
     String guestName;
 
     @NotBlank
-    @Size(max = 30)
-    @Pattern(regexp = "^[0-9+\\-(). ]+$",
-            message = "phone must contain only digits and the characters + - ( ) . space")
+    @ValidPhone
     String phone;
 
     @NotNull

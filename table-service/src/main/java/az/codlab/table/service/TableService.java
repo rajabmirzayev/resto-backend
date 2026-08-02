@@ -3,6 +3,7 @@ package az.codlab.table.service;
 import az.codlab.common.enums.TableStatus;
 import az.codlab.common.security.model.UserPrincipal;
 import az.codlab.common.type.TableReservation;
+import az.codlab.common.util.PhoneUtils;
 import az.codlab.table.dto.ReservationRequest;
 import az.codlab.table.dto.SectionRequest;
 import az.codlab.table.dto.SectionResponse;
@@ -252,7 +253,7 @@ public class TableService {
 
         var reservation = TableReservation.builder()
                 .guestName(normalizeName(request.getGuestName()))
-                .phone(normalizeString(request.getPhone()))
+                .phone(PhoneUtils.normalize(request.getPhone()))
                 .time(request.getTime())
                 .guestCount(request.getGuestCount())
                 .notes(normalizeString(request.getNotes()))

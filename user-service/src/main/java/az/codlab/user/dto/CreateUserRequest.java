@@ -1,5 +1,6 @@
 package az.codlab.user.dto;
 
+import az.codlab.common.validation.ValidPhone;
 import az.codlab.user.entity.UserRole;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -36,6 +37,7 @@ public class CreateUserRequest {
 
     String email;
 
+    @ValidPhone
     String phone;
 
     UserRole role;

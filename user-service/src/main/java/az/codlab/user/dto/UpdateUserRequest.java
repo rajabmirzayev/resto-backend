@@ -1,5 +1,7 @@
 package az.codlab.user.dto;
 
+import az.codlab.common.validation.ValidPhone;
+
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -24,6 +26,7 @@ public class UpdateUserRequest {
 
     UUID roleId;
 
+    @ValidPhone
     String phone;
 
     Boolean isActive;

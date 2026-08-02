@@ -541,6 +541,8 @@ Request:
 }
 ```
 
+> `phone` **Qlobal telefon formatına** tabedir (bütün servislərdə ortaq `@ValidPhone`): yalnız `0-9`, `+ - ( ) .` və boşluq; 7–15 rəqəm olmalıdır; maks 30 simvol. Saxlanarkən yalnız rəqəmlərə normalizasiya olunur (`+994 50 123 45 67` → `994501234567`). Field optionaldır.
+
 Success (201):
 ```json
 {
@@ -1541,7 +1543,7 @@ Success (200):
       "currentOrderId": null,
       "reservation": {
         "guestName": "Əli Həsənov",
-        "phone": "+994501234567",
+        "phone": "994501234567",
         "time": "2026-07-30T19:00:00.000Z",
         "guestCount": 4,
         "notes": "Ad gününə həsr olunub"
@@ -1798,7 +1800,7 @@ Request body:
 | Field | Məcburi | Validasiya |
 |---|---|---|
 | `guestName` | ✅ | Maks 100 simvol; control char (`\u0000` və s.) qadağan; trim olunur |
-| `phone` | ✅ | Maks 30 simvol; yalnız `0-9`, `+ - ( ) .` və boşluq |
+| `phone` | ✅ | **Qlobal telefon formatı** (bütün servislərdə ortaq `@ValidPhone`): yalnız `0-9`, `+ - ( ) .` və boşluq; 7–15 rəqəm olmalıdır; maks 30 simvol. Saxlanarkən yalnız rəqəmlərə normalizasiya olunur (`+994 50 123 45 67` → `994501234567`) |
 | `time` | ✅ | ISO-8601; **gələcək zaman** olmalıdır (keçmiş → 400 `TABLE_MS_1000`) |
 | `guestCount` | ✅ | `1..100`; masanın tutumundan böyük ola bilməz → 409 `TABLE_MS_4002` |
 | `notes` | ✗ | Maks 500 simvol; control char qadağan; trim olunur |

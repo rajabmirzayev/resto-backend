@@ -1,6 +1,7 @@
 package az.codlab.user.service;
 
 import az.codlab.common.exception.handling.dto.ApiResponse;
+import az.codlab.common.util.PhoneUtils;
 import az.codlab.user.client.KeycloakAdminClient;
 import az.codlab.user.client.RoleServiceClient;
 import az.codlab.user.dto.CreateUserRequest;
@@ -79,7 +80,7 @@ public class UserService {
                 .name(request.getName().trim())
                 .username(request.getUsername().trim())
                 .email(email)
-                .phone(request.getPhone())
+                .phone(PhoneUtils.normalize(request.getPhone()))
                 .password(passwordEncoder.encode(request.getPassword()))
                 .roleId(request.getRoleId())
                 .orgId(request.getOrgId())
@@ -134,7 +135,7 @@ public class UserService {
             }
         }
         if (request.getPhone() != null) {
-            user.setPhone(request.getPhone());
+            user.setPhone(PhoneUtils.normalize(request.getPhone()));
         }
         if (request.getIsActive() != null) {
             user.setActive(request.getIsActive());
