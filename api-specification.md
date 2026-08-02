@@ -1387,21 +1387,123 @@ Success (200):
 ## 6. Table — `table-service` (port 8106)
 
 > API prefix: `/api/table-ms/v1/...`
-> Response: `ApiResponse<T>` wrapper
-> Error: Spring `ProblemDetail`
+> Gateway: `http://localhost:8001` → `/api/table-ms/...` (bütün sorğular gateway-dən keçir)
+> Auth: bütün endpoint-lər `Authorization: Bearer {token}` tələb edir (public endpoint yoxdur)
+> Response: `ApiResponse<T>` wrapper → `{ success, message, errorCode, data }`
+> Error: Spring `ProblemDetail` (RFC 9457) → `key`, `path`, `timestamp`, bəzi hallarda `fieldErrors`
+
+### Tenant & Giriş Qaydaları
+
+- Hər masa (`restaurant_tables`) və bölmə (`sections`) bir `orgId`-yə aiddir.
+- Adi istifadəçi yalnız öz `organizationId`-nə aid data oxuya/yaza bilər:
+  - **Read** (GET): sorğudakı `orgId` principal-in org-u ilə uyğun olmalıdır, əks halda `403 TABLE_MS_3003`.
+  - **Write** (POST/PUT/DELETE): hədəf entity-nin `orgId`-si principal-in org-u ilə uyğun olmalıdır.
+  - Create zamanı `orgId` client tərəfindən "seçilə" bilməz — adi user üçün token-dəki org ilə uyğun gəlməzsə 403 qayıdır (servis həmişə token-dəki org-u əsas götürür).
+- **SUPER_ADMIN** (platform admin) bütün org-lara tam girişə malikdir; create zamanı istədiyi `orgId`-ni verə bilər.
+- Internal microservice çağrıları (`X-Internal-Auth` header-i ilə) bütün data-ya oxuya bilər.
+- `{id}` ilə işləyən endpoint-lər (GET/PUT/DELETE) entity-ni əvvəlcə tapır, sonra org-u yoxlayır. Başqa org-un entity `id`-si göndərsən → `404` yox, `403 TABLE_MS_3003` qayıdır (məlumatın mövcudluğu belə "sızdırılmır").
+
+### Status Maşını
+
+Masalar `AVAILABLE | OCCUPIED | RESERVED | CLEANING` statuslarından birindədir. Status keçidləri yalnız aşağıdakı qaydada mümkündür:
+
+| Cari \\ Hədəf | `AVAILABLE` | `OCCUPIED` | `RESERVED` | `CLEANING` |
+|---|---|---|---|---|
+| `AVAILABLE` | ✓ | ✓ | ✗ | ✓ |
+| `OCCUPIED` | ✓ | ✓ | ✗ | ✓ |
+| `RESERVED` | ✗* | ✓ | ✗ | ✗ |
+| `CLEANING` | ✓ | ✗ | ✗ | ✓ |
+
+> `✗*` — status endpoint-i ilə qadağandır; `RESERVED` → `AVAILABLE` yalnız `DELETE /tables/{id}/reservation` vasitəsilə baş verir.
+
+Qaydalar:
+- **`RESERVED` statusu yalnız rezervasiya endpoint-ləri ilə idarə olunur** — `PUT /tables/{id}/reservation` (qoyur) və `DELETE /tables/{id}/reservation` (sıfırlayır). Status endpoint-i ilə `status: RESERVED` göndərmək → `409 TABLE_MS_2003`.
+- **`OCCUPIED`-ə keçid üçün `currentOrderId` mütləqdir** — göndərilməzsə → `400 TABLE_MS_4003`. Masa artıq `OCCUPIED`-dirsə və yeni `currentOrderId` verilməyibsə, mövcud order qorunur.
+- **`OCCUPIED`-dan çıxanda** (→ `AVAILABLE`/`CLEANING`) `currentOrderId` avtomatik `null` olur.
+- **`RESERVED` → `OCCUPIED`** keçidində rezervasiya avtomatik təmizlənir (qonaq gəlib oturdu).
+- `OCCUPIED` masaya rezervasiya qoymaq/rezervasiyanı silmək olmaz → `409 TABLE_MS_2004`.
+- Yeni masa yaradılanda status həmişə `AVAILABLE` olur.
+
+### Table-servis Error Kodları
+
+| HTTP | `key` | Səbəb |
+|---|---|---|
+| 400 | `TABLE_MS_1000` | Validation failed (DTO/field) |
+| 400 | `TABLE_MS_1001` | JSON parse error |
+| 400 | `TABLE_MS_4001` | `status` query param-i yanlışdır (filter-də) |
+| 400 | `TABLE_MS_4003` | `OCCUPIED`-ə keçiddə `currentOrderId` verilməyib |
+| 401 | `COMMON_4001` | Token yoxdur / etibarsız |
+| 403 | `COMMON_4003` | Security layer tərəfindən qadağan |
+| 403 | `TABLE_MS_3003` | Başqa org-un datasına giriş cəhdi / icazəsiz əməliyyat |
+| 404 | `TABLE_MS_3001` | Masa tapılmadı (silinib və ya mövcud deyil) |
+| 404 | `TABLE_MS_3002` | Bölmə tapılmadı (silinib və ya mövcud deyil) |
+| 409 | `TABLE_MS_2001` | Masada aktiv sifariş var → silmək olmaz |
+| 409 | `TABLE_MS_2002` | Tək qalan bölmə → silmək olmaz |
+| 409 | `TABLE_MS_2003` | Status keçidi qadağandır (RESERVED üçün rezerv endpoint-i istifadə edin) |
+| 409 | `TABLE_MS_2004` | Masa OCCUPIED-dir → rezervasiya əməliyyatı qadağandır |
+| 409 | `TABLE_MS_2005` | Masanın gələcəkdə rezervasiyası var → silmək olmaz |
+| 409 | `TABLE_MS_3004` | Bu stol nömrəsi artıq org-da mövcuddur |
+| 409 | `TABLE_MS_3005` | Bu bölmə adı artıq org-da mövcuddur |
+| 409 | `TABLE_MS_4002` | Qonaq sayı masanın tutumundan çoxdur |
+| 409 | `TABLE_MS_2006` | DB səviyyəsində başqa uyğunsuzluq (unikallıq indeksi və s.) |
+| 500 | `TABLE_MS_9999` | Daxili xəta |
+
+> **Soft-delete:** silinən entity `deleted` bayrağı ilə işarələnir və GET-lərdə geri qayıtmır. Silinmiş masanın stol nömrəsi və silinmiş bölmənin adı yenidən istifadə oluna bilər.
+
+> **Unikallıq DB səviyyəsində də qorunur:** `(org_id, LOWER(name))` və `(org_id, table_number)` üçün partial unique indekslər mövcuddur. Eyni anda göndərilən iki eyni sorğudan biri də `409` alır.
+
+---
+
+### Data Modelləri
+
+**RestaurantTable** (masa cavabı)
+
+| Field | Tip | Qeyd |
+|---|---|---|
+| `id` | UUID | |
+| `tableNumber` | Integer | Org daxilində unikal |
+| `capacity` | Integer | Qonaq sayı |
+| `status` | String | `AVAILABLE` \| `OCCUPIED` \| `RESERVED` \| `CLEANING` |
+| `sectionId` | UUID \| null | Aid olduğu bölmə |
+| `currentOrderId` | UUID \| null | Aktiv sifariş (yalnız `OCCUPIED`-də olur) |
+| `reservation` | TableReservation \| null | Aktiv rezervasiya |
+| `orgId` | UUID | |
+
+**Section** (bölmə)
+
+| Field | Tip | Qeyd |
+|---|---|---|
+| `id` | UUID | |
+| `name` | String | Org daxilində unikal (case-insensitive) |
+| `orgId` | UUID | |
+
+**TableReservation** (`reservation` obyekti)
+
+| Field | Tip | Qeyd |
+|---|---|---|
+| `guestName` | String | |
+| `phone` | String | |
+| `time` | String (ISO-8601) | məs. `2026-07-30T19:00:00.000Z` |
+| `guestCount` | Integer | Masanın tutumundan böyük ola bilməz |
+| `notes` | String \| null | |
+
+---
 
 ### `GET /api/table-ms/v1/tables`
 
-**Bütün masalar.**
+**Masaların siyahısı** (filterlərlə).
 
 Headers: `Authorization: Bearer {token}`
 
 Query:
-| Parameter | Tip | Məcburi | İzah |
+
+| Parametr | Tip | Məcburi | İzah |
 |---|---|---|---|
-| `orgId` | UUID | Bəli | Org filter |
-| `sectionId` | UUID | X | Bölmə filter |
-| `status` | String | X | Status filter (`available`, `occupied`, `reserved`, `cleaning`) |
+| `orgId` | UUID | ✅ | Org filter; başqa org-a baxış → 403 `TABLE_MS_3003` |
+| `sectionId` | UUID | ✗ | Bölmə filter |
+| `status` | String | ✗ | Status filter; dəyərlər case-insensitive-dir (`available` də olar): `AVAILABLE`, `OCCUPIED`, `RESERVED`, `CLEANING`. Yanlış dəyər → 400 `TABLE_MS_4001` |
+
+> Filterlər birlikdə də işləyir (`orgId`+`sectionId`+`status`).
 
 Success (200):
 ```json
@@ -1450,7 +1552,19 @@ Success (200):
 }
 ```
 
-**`status` enum:** `AVAILABLE` | `OCCUPIED` | `RESERVED` | `CLEANING`
+Error (403) — başqa org-a giriş cəhdi:
+```json
+{
+  "type": "about:blank",
+  "title": "Forbidden",
+  "status": 403,
+  "detail": "You do not have permission to access this resource",
+  "instance": "trace:xxx",
+  "key": "TABLE_MS_3003",
+  "path": "/api/table-ms/v1/tables",
+  "timestamp": "2026-07-30T12:00:00.000Z"
+}
+```
 
 ---
 
@@ -1462,6 +1576,22 @@ Headers: `Authorization: Bearer {token}`
 
 Success (200): *yuxarıdakı kimi tək element*
 
+Error (404):
+```json
+{
+  "type": "about:blank",
+  "title": "Not Found",
+  "status": 404,
+  "detail": "Table not found",
+  "instance": "trace:xxx",
+  "key": "TABLE_MS_3001",
+  "path": "/api/table-ms/v1/tables/550e8400-e29b-41d4-a716-446655440060",
+  "timestamp": "2026-07-30T12:00:00.000Z"
+}
+```
+
+Error (403): masa başqa org-a aiddirsə → `TABLE_MS_3003`
+
 ---
 
 ### `POST /api/table-ms/v1/tables`
@@ -1470,7 +1600,7 @@ Success (200): *yuxarıdakı kimi tək element*
 
 Headers: `Authorization: Bearer {token}`
 
-Request:
+Request body:
 ```json
 {
   "tableNumber": 11,
@@ -1480,7 +1610,14 @@ Request:
 }
 ```
 
-> `status` avtomatik `AVAILABLE` təyin olunur.
+| Field | Məcburi | Validasiya |
+|---|---|---|
+| `tableNumber` | ✅ | `1..9999`; **org daxilində unikal** → təkrarda 409 `TABLE_MS_3004` |
+| `capacity` | ✅ | `1..500` |
+| `sectionId` | ✗ | UUID; bölmə **eyni org-da** olmalıdır (yoxdursa 404 `TABLE_MS_3002`, başqa org-dadırsa 403 `TABLE_MS_3003`) |
+| `orgId` | ✅ | UUID; adi user üçün token-dəki org ilə uyğun olmalıdır (403); SUPER_ADMIN istədiyini verə bilər |
+
+> `status` həmişə `AVAILABLE` olaraq yaradılır (request-dən qəbul edilmir).
 
 Success (201):
 ```json
@@ -1492,15 +1629,29 @@ Success (201):
 }
 ```
 
+Error (409) — stol nömrəsi təkrardır:
+```json
+{
+  "type": "about:blank",
+  "title": "Conflict",
+  "status": 409,
+  "detail": "A table with this number already exists in this organization",
+  "instance": "trace:xxx",
+  "key": "TABLE_MS_3004",
+  "path": "/api/table-ms/v1/tables",
+  "timestamp": "2026-07-30T12:00:00.000Z"
+}
+```
+
 ---
 
 ### `PUT /api/table-ms/v1/tables/{id}`
 
-**Masanı redaktə et.**
+**Masanı redaktə et (partial update).**
 
 Headers: `Authorization: Bearer {token}`
 
-Request:
+Request body (bütün field-lar optional):
 ```json
 {
   "tableNumber": 11,
@@ -1509,6 +1660,13 @@ Request:
   "status": "AVAILABLE"
 }
 ```
+
+| Field | Məcburi | Validasiya |
+|---|---|---|
+| `tableNumber` | ✗ | `1..9999`; unikal → təkrarda 409 `TABLE_MS_3004` |
+| `capacity` | ✗ | `1..500`; masanın **aktiv rezervasiyasının qonaq sayından aşağı** endirilə bilməz → 409 `TABLE_MS_4002` |
+| `sectionId` | ✗ | UUID; yeni bölmə eyni org-da olmalıdır |
+| `status` | ✗ | Status maşınına tabedir (yuxarıdakı cədvəl). `OCCUPIED` yalnız masanın artıq `currentOrderId`-si varsa mümkündür — yeni order ilə masanı tutmaq üçün `PUT /tables/{id}/status` istifadə edin (400 `TABLE_MS_4003` istisnası) |
 
 Success (200):
 ```json
@@ -1524,13 +1682,16 @@ Success (200):
 
 ### `DELETE /api/table-ms/v1/tables/{id}`
 
-**Masanı sil.**
+**Masanı sil (soft delete).**
 
 Headers: `Authorization: Bearer {token}`
 
-**Business rule:** Aktiv sifarişi olan masa silinə bilməz → 409 Conflict.
+**Business rules:**
+- Aktiv sifarişi olan masa silinə bilməz → `409 TABLE_MS_2001`.
+- **Gələcəkdə rezervasiyası olan masa silinə bilməz** → `409 TABLE_MS_2005` (rezervasiya vaxtı keçibsə silmək olar).
+- Silinmiş masanın stol nömrəsi yenidən istifadə oluna bilər.
 
-Error (409):
+Error (409) — aktiv sifariş:
 ```json
 {
   "type": "about:blank",
@@ -1539,7 +1700,21 @@ Error (409):
   "detail": "Table has an active order and cannot be deleted",
   "instance": "trace:xxx",
   "key": "TABLE_MS_2001",
-  "path": "/api/table-ms/v1/tables/t2",
+  "path": "/api/table-ms/v1/tables/550e8400-e29b-41d4-a716-446655440060",
+  "timestamp": "2026-07-30T12:00:00.000Z"
+}
+```
+
+Error (409) — gələcəkdə rezervasiya:
+```json
+{
+  "type": "about:blank",
+  "title": "Conflict",
+  "status": 409,
+  "detail": "Table has an upcoming reservation and cannot be deleted",
+  "instance": "trace:xxx",
+  "key": "TABLE_MS_2005",
+  "path": "/api/table-ms/v1/tables/550e8400-e29b-41d4-a716-446655440060",
   "timestamp": "2026-07-30T12:00:00.000Z"
 }
 ```
@@ -1558,25 +1733,24 @@ Success (200):
 
 ### `PUT /api/table-ms/v1/tables/{id}/status`
 
-**Status dəyiş.**
+**Masasının statusunu dəyiş** (rezervasiya xaric).
 
 Headers: `Authorization: Bearer {token}`
 
-Request:
+Request body:
 ```json
 {
-  "status": "CLEANING"
+  "status": "CLEANING",
+  "currentOrderId": "550e8400-e29b-41d4-a716-446655440080"
 }
 ```
 
-**Frontend-in istifadə etdiyi status dəyişiklikləri:**
+| Field | Məcburi | Validasiya |
+|---|---|---|
+| `status` | ✅ | `AVAILABLE` \| `OCCUPIED` \| `RESERVED` \| `CLEANING` (case-insensitive). `RESERVED` bu endpoint ilə QƏBUL EDİLMİR → 409 `TABLE_MS_2003`. Yanlış dəyər → 400 `TABLE_MS_1000` |
+| `currentOrderId` | ✗ | **`OCCUPIED`-ə keçid üçün mütləqdir** (yoxdursa və masanın mövcud order-i də yoxdursa → 400 `TABLE_MS_4003`). Masa artıq `OCCUPIED`-dirsə və verilməyibsə, mövcud order qorunur |
 
-| Hadisə | Yeni status |
-|---|---|
-| Sifariş yaradıldı | `OCCUPIED` |
-| Sifariş ləğv edildi | `CLEANING` |
-| Təmizlik bitdi | `AVAILABLE` |
-| Admin əl ilə dəyişdi | İstənilən |
+**Status maşını** yuxarıdakı cədvələ tabedir. Keçid qadağandırsa → `409 TABLE_MS_2003`.
 
 Success (200):
 ```json
@@ -1588,15 +1762,29 @@ Success (200):
 }
 ```
 
+Error (409) — qadağan keçid (masa AVAILABLE, hədəf RESERVED):
+```json
+{
+  "type": "about:blank",
+  "title": "Conflict",
+  "status": 409,
+  "detail": "Invalid table status transition. To manage reservations use the reservation endpoints",
+  "instance": "trace:xxx",
+  "key": "TABLE_MS_2003",
+  "path": "/api/table-ms/v1/tables/550e8400-e29b-41d4-a716-446655440060/status",
+  "timestamp": "2026-07-30T12:00:00.000Z"
+}
+```
+
 ---
 
 ### `PUT /api/table-ms/v1/tables/{id}/reservation`
 
-**Rezervasiya əlavə et / yenilə.**
+**Rezervasiya əlavə et / yenilə.** Status avtomatik `RESERVED` olur.
 
 Headers: `Authorization: Bearer {token}`
 
-Request:
+Request body:
 ```json
 {
   "guestName": "Əli Həsənov",
@@ -1607,7 +1795,17 @@ Request:
 }
 ```
 
-> `status` avtomatik `RESERVED` olur.
+| Field | Məcburi | Validasiya |
+|---|---|---|
+| `guestName` | ✅ | Maks 100 simvol; control char (`\u0000` və s.) qadağan; trim olunur |
+| `phone` | ✅ | Maks 30 simvol; yalnız `0-9`, `+ - ( ) .` və boşluq |
+| `time` | ✅ | ISO-8601; **gələcək zaman** olmalıdır (keçmiş → 400 `TABLE_MS_1000`) |
+| `guestCount` | ✅ | `1..100`; masanın tutumundan böyük ola bilməz → 409 `TABLE_MS_4002` |
+| `notes` | ✗ | Maks 500 simvol; control char qadağan; trim olunur |
+
+**Business rules:**
+- `OCCUPIED` masaya rezervasiya qoymaq olmaz → `409 TABLE_MS_2004`.
+- `AVAILABLE`, `CLEANING` və ya artıq `RESERVED` masada rezervasiya qoyula/yenilənə bilər.
 
 Success (200):
 ```json
@@ -1615,7 +1813,21 @@ Success (200):
   "success": true,
   "message": "Reservation updated",
   "errorCode": null,
-  "data": { "...RestaurantTable..." }
+  "data": { "...RestaurantTable (status: RESERVED)..." }
+}
+```
+
+Error (409) — qonaq sayı tutumdan çox:
+```json
+{
+  "type": "about:blank",
+  "title": "Conflict",
+  "status": 409,
+  "detail": "Number of guests exceeds the table capacity",
+  "instance": "trace:xxx",
+  "key": "TABLE_MS_4002",
+  "path": "/api/table-ms/v1/tables/550e8400-e29b-41d4-a716-446655440060/reservation",
+  "timestamp": "2026-07-30T12:00:00.000Z"
 }
 ```
 
@@ -1623,9 +1835,13 @@ Success (200):
 
 ### `DELETE /api/table-ms/v1/tables/{id}/reservation`
 
-**Rezervasiyanı sil + status-u `AVAILABLE` et.**
+**Rezervasiyanı sil.**
 
 Headers: `Authorization: Bearer {token}`
+
+**Business rules:**
+- `OCCUPIED` masada rezervasiya silmək olmaz → `409 TABLE_MS_2004`.
+- Rezervasiya `null` olur. Masa `RESERVED` idisə status `AVAILABLE` olur; başqa statusda (məs. `CLEANING`) status dəyişmir.
 
 Success (200):
 ```json
@@ -1633,7 +1849,7 @@ Success (200):
   "success": true,
   "message": "Reservation cancelled",
   "errorCode": null,
-  "data": { "...RestaurantTable..." }
+  "data": { "...RestaurantTable (reservation: null)..." }
 }
 ```
 
@@ -1641,11 +1857,15 @@ Success (200):
 
 ### `GET /api/table-ms/v1/sections`
 
-**Bölmə adları siyahısı.**
+**Bölmələrin siyahısı** (yaradılma tarixinə görə).
 
 Headers: `Authorization: Bearer {token}`
 
-Query: `?orgId=550e8400-e29b-41d4-a716-446655440001`
+Query:
+
+| Parametr | Tip | Məcburi | İzah |
+|---|---|---|---|
+| `orgId` | UUID | ✅ | Org filter; başqa org-a baxış → 403 `TABLE_MS_3003` |
 
 Success (200):
 ```json
@@ -1676,13 +1896,18 @@ Success (200):
 
 Headers: `Authorization: Bearer {token}`
 
-Request:
+Request body:
 ```json
 {
   "name": "Bağ evi",
   "orgId": "550e8400-e29b-41d4-a716-446655440001"
 }
 ```
+
+| Field | Məcburi | Validasiya |
+|---|---|---|
+| `name` | ✅ | Boş ola bilməz; maks 100 simvol; control char qadağan; trim olunur; **org daxilində unikal (case-insensitive)** → təkrarda 409 `TABLE_MS_3005` |
+| `orgId` | ✅ | UUID; adi user üçün token-dəki org ilə uyğun olmalıdır (403); SUPER_ADMIN istədiyini verə bilər |
 
 Success (201):
 ```json
@@ -1694,20 +1919,38 @@ Success (201):
 }
 ```
 
+Error (409) — eyni adlı bölmə:
+```json
+{
+  "type": "about:blank",
+  "title": "Conflict",
+  "status": 409,
+  "detail": "A section with this name already exists in this organization",
+  "instance": "trace:xxx",
+  "key": "TABLE_MS_3005",
+  "path": "/api/table-ms/v1/sections",
+  "timestamp": "2026-07-30T12:00:00.000Z"
+}
+```
+
 ---
 
 ### `PUT /api/table-ms/v1/sections/{id}`
 
-**Bölmə adını dəyiş.**
+**Bölmənin adını dəyiş.**
 
 Headers: `Authorization: Bearer {token}`
 
-Request:
+Request body:
 ```json
 {
   "name": "Bağ Evi"
 }
 ```
+
+| Field | Məcburi | Validasiya |
+|---|---|---|
+| `name` | ✅ | Boş ola bilməz; maks 100 simvol; control char qadağan; trim olunur; **org daxilində unikal (case-insensitive)** → təkrarda 409 `TABLE_MS_3005` |
 
 Success (200):
 ```json
@@ -1723,11 +1966,28 @@ Success (200):
 
 ### `DELETE /api/table-ms/v1/sections/{id}`
 
-**Bölməni sil.**
+**Bölməni sil (soft delete).**
 
 Headers: `Authorization: Bearer {token}`
 
-**Business rule:** Bölmədəki masalar avtomatik qalan ilk bölməyə köçürülür. Tək bölmə qalıbsa silinə bilməz → 409.
+**Business rules:**
+- Bölmədəki bütün masalar avtomatik **qalan ilk bölməyə** köçürülür.
+- Org-da **tək bölmə qalıbsa silmək olmaz** → `409 TABLE_MS_2002`.
+- Silinmiş bölmənin adı yenidən istifadə oluna bilər.
+
+Error (409) — son bölmə:
+```json
+{
+  "type": "about:blank",
+  "title": "Conflict",
+  "status": 409,
+  "detail": "Cannot delete the last section",
+  "instance": "trace:xxx",
+  "key": "TABLE_MS_2002",
+  "path": "/api/table-ms/v1/sections/550e8400-e29b-41d4-a716-446655440070",
+  "timestamp": "2026-07-30T12:00:00.000Z"
+}
+```
 
 Success (200):
 ```json

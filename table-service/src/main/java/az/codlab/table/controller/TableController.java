@@ -1,6 +1,7 @@
 package az.codlab.table.controller;
 
 import az.codlab.common.exception.handling.dto.ApiResponse;
+import az.codlab.common.security.model.UserPrincipal;
 import az.codlab.table.dto.ReservationRequest;
 import az.codlab.table.dto.SectionRequest;
 import az.codlab.table.dto.SectionResponse;
@@ -18,6 +19,7 @@ import jakarta.validation.Valid;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -42,15 +44,17 @@ public class TableController {
 
     @GetMapping("/sections")
     public ResponseEntity<ApiResponse<List<SectionResponse>>> getAllSections(
-            @RequestParam UUID orgId) {
-        var sections = tableService.getAllSections(orgId);
+            @RequestParam UUID orgId,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        var sections = tableService.getAllSections(orgId, principal);
         return ResponseEntity.ok(ApiResponse.success(sections));
     }
 
     @PostMapping("/sections")
     public ResponseEntity<ApiResponse<SectionResponse>> createSection(
-            @Valid @RequestBody SectionRequest request) {
-        var section = tableService.createSection(request);
+            @Valid @RequestBody SectionRequest request,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        var section = tableService.createSection(request, principal);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(section, "Section created"));
     }
@@ -58,14 +62,17 @@ public class TableController {
     @PutMapping("/sections/{id}")
     public ResponseEntity<ApiResponse<SectionResponse>> updateSection(
             @PathVariable UUID id,
-            @Valid @RequestBody SectionUpdateRequest request) {
-        var section = tableService.updateSection(id, request);
+            @Valid @RequestBody SectionUpdateRequest request,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        var section = tableService.updateSection(id, request, principal);
         return ResponseEntity.ok(ApiResponse.success(section, "Section renamed"));
     }
 
     @DeleteMapping("/sections/{id}")
-    public ResponseEntity<ApiResponse<Void>> deleteSection(@PathVariable UUID id) {
-        tableService.deleteSection(id);
+    public ResponseEntity<ApiResponse<Void>> deleteSection(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        tableService.deleteSection(id, principal);
         return ResponseEntity.ok(ApiResponse.success(null, "Section deleted"));
     }
 
@@ -73,23 +80,27 @@ public class TableController {
 
     @GetMapping("/tables")
     public ResponseEntity<ApiResponse<List<TableResponse>>> getAllTables(
-            @RequestParam(required = false) UUID orgId,
+            @RequestParam UUID orgId,
             @RequestParam(required = false) UUID sectionId,
-            @RequestParam(required = false) String status) {
-        var tables = tableService.getAllTables(orgId, sectionId, status);
+            @RequestParam(required = false) String status,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        var tables = tableService.getAllTables(orgId, sectionId, status, principal);
         return ResponseEntity.ok(ApiResponse.success(tables));
     }
 
     @GetMapping("/tables/{id}")
-    public ResponseEntity<ApiResponse<TableResponse>> getTable(@PathVariable UUID id) {
-        var table = tableService.getTableById(id);
+    public ResponseEntity<ApiResponse<TableResponse>> getTable(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        var table = tableService.getTableById(id, principal);
         return ResponseEntity.ok(ApiResponse.success(table));
     }
 
     @PostMapping("/tables")
     public ResponseEntity<ApiResponse<TableResponse>> createTable(
-            @Valid @RequestBody TableRequest request) {
-        var table = tableService.createTable(request);
+            @Valid @RequestBody TableRequest request,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        var table = tableService.createTable(request, principal);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(table, "Table created"));
     }
@@ -97,37 +108,43 @@ public class TableController {
     @PutMapping("/tables/{id}")
     public ResponseEntity<ApiResponse<TableResponse>> updateTable(
             @PathVariable UUID id,
-            @Valid @RequestBody TableUpdateRequest request) {
-        var table = tableService.updateTable(id, request);
+            @Valid @RequestBody TableUpdateRequest request,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        var table = tableService.updateTable(id, request, principal);
         return ResponseEntity.ok(ApiResponse.success(table, "Table updated"));
     }
 
     @DeleteMapping("/tables/{id}")
-    public ResponseEntity<ApiResponse<Void>> deleteTable(@PathVariable UUID id) {
-        tableService.deleteTable(id);
+    public ResponseEntity<ApiResponse<Void>> deleteTable(
+            @PathVariable UUID id,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        tableService.deleteTable(id, principal);
         return ResponseEntity.ok(ApiResponse.success(null, "Table deleted"));
     }
 
     @PutMapping("/tables/{id}/status")
     public ResponseEntity<ApiResponse<TableResponse>> updateTableStatus(
             @PathVariable UUID id,
-            @Valid @RequestBody StatusUpdateRequest request) {
-        var table = tableService.updateTableStatus(id, request);
+            @Valid @RequestBody StatusUpdateRequest request,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        var table = tableService.updateTableStatus(id, request, principal);
         return ResponseEntity.ok(ApiResponse.success(table, "Table status updated"));
     }
 
     @PutMapping("/tables/{id}/reservation")
     public ResponseEntity<ApiResponse<TableResponse>> updateReservation(
             @PathVariable UUID id,
-            @Valid @RequestBody ReservationRequest request) {
-        var table = tableService.updateReservation(id, request);
+            @Valid @RequestBody ReservationRequest request,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        var table = tableService.updateReservation(id, request, principal);
         return ResponseEntity.ok(ApiResponse.success(table, "Reservation updated"));
     }
 
     @DeleteMapping("/tables/{id}/reservation")
     public ResponseEntity<ApiResponse<TableResponse>> deleteReservation(
-            @PathVariable UUID id) {
-        var table = tableService.deleteReservation(id);
+            @PathVariable UUID id,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        var table = tableService.deleteReservation(id, principal);
         return ResponseEntity.ok(ApiResponse.success(table, "Reservation cancelled"));
     }
 

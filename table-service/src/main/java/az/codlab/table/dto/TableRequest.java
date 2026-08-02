@@ -1,6 +1,8 @@
 package az.codlab.table.dto;
 
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -18,9 +20,13 @@ import java.util.UUID;
 public class TableRequest {
 
     @NotNull
+    @Positive
+    @Max(9999)
     Integer tableNumber;
 
     @NotNull
+    @Positive
+    @Max(500)
     Integer capacity;
 
     UUID sectionId;

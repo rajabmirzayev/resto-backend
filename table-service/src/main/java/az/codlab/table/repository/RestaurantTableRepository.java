@@ -21,7 +21,15 @@ public interface RestaurantTableRepository extends JpaRepository<RestaurantTable
     List<RestaurantTable> findAllByOrgIdAndStatusAndDeletedFalseOrderByTableNumberAsc(
             UUID orgId, TableStatus status);
 
+    List<RestaurantTable> findAllByOrgIdAndSectionIdAndStatusAndDeletedFalseOrderByTableNumberAsc(
+            UUID orgId, UUID sectionId, TableStatus status);
+
     Optional<RestaurantTable> findByIdAndDeletedFalse(UUID id);
+
+    boolean existsByOrgIdAndTableNumberAndDeletedFalse(UUID orgId, Integer tableNumber);
+
+    boolean existsByOrgIdAndTableNumberAndIdNotAndDeletedFalse(
+            UUID orgId, Integer tableNumber, UUID id);
 
     List<RestaurantTable> findAllBySectionIdAndDeletedFalse(UUID sectionId);
 

@@ -1,7 +1,12 @@
 package az.codlab.table.dto;
 
+import jakarta.validation.constraints.Future;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -19,17 +24,29 @@ import java.time.Instant;
 public class ReservationRequest {
 
     @NotBlank
+    @Size(max = 100)
+    @Pattern(regexp = "^[^\\p{Cc}]*$",
+            message = "guestName must not contain control characters")
     String guestName;
 
     @NotBlank
+    @Size(max = 30)
+    @Pattern(regexp = "^[0-9+\\-(). ]+$",
+            message = "phone must contain only digits and the characters + - ( ) . space")
     String phone;
 
     @NotNull
+    @Future
     Instant time;
 
     @NotNull
+    @Positive
+    @Max(100)
     Integer guestCount;
 
+    @Size(max = 500)
+    @Pattern(regexp = "^[^\\p{Cc}]*$",
+            message = "notes must not contain control characters")
     String notes;
 
 }

@@ -1,5 +1,8 @@
 package az.codlab.table.dto;
 
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Positive;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -16,12 +19,18 @@ import java.util.UUID;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class TableUpdateRequest {
 
+    @Positive
+    @Max(9999)
     Integer tableNumber;
 
+    @Positive
+    @Max(500)
     Integer capacity;
 
     UUID sectionId;
 
+    @Pattern(regexp = "(?i)^(AVAILABLE|OCCUPIED|RESERVED|CLEANING)$",
+            message = "status must be one of AVAILABLE, OCCUPIED, RESERVED, CLEANING")
     String status;
 
 }

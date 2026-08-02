@@ -1,6 +1,7 @@
 package az.codlab.table.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -18,6 +19,8 @@ import java.util.UUID;
 public class StatusUpdateRequest {
 
     @NotBlank
+    @Pattern(regexp = "(?i)^(AVAILABLE|OCCUPIED|RESERVED|CLEANING)$",
+            message = "status must be one of AVAILABLE, OCCUPIED, RESERVED, CLEANING")
     String status;
 
     UUID currentOrderId;

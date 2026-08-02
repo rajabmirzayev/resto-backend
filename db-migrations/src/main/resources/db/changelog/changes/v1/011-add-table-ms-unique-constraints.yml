@@ -1,0 +1,69 @@
+databaseChangeLog:
+  - changeSet:
+      id: 011-add-table-ms-unique-constraints
+      author: rajabmirzayev
+      changes:
+        # Move any tables that reference a duplicate section to the kept section
+        - sql:
+            dbms: postgresql
+            sql: |
+              UPDATE tabler_table.restaurant_tables t
+              SET section_id = keep.id
+              FROM tabler_table.sections dup
+              JOIN tabler_table.sections keep
+                ON keep.org_id = dup.org_id
+               AND keep.is_deleted = false
+               AND lower(keep.name) = lower(dup.name)
+               AND keep.id = (
+                     SELECT s2.id FROM tabler_table.sections s2
+                     WHERE s2.org_id = dup.org_id
+                       AND lower(s2.name) = lower(dup.name)
+                       AND s2.is_deleted = false
+                     ORDER BY s2.created_at ASC, s2.id ASC
+                     LIMIT 1
+                   )
+              WHERE t.section_id = dup.id
+                AND dup.id <> keep.id
+                AND dup.is_deleted = false;
+        # Soft-delete duplicate section names keeping the earliest created one
+        - sql:
+            dbms: postgresql
+            sql: |
+              UPDATE tabler_table.sections s
+              SET is_deleted = true, deleted_at = now()
+              WHERE s.is_deleted = false
+                AND s.id <> (
+                      SELECT s2.id FROM tabler_table.sections s2
+                      WHERE s2.org_id = s.org_id
+                        AND lower(s2.name) = lower(s.name)
+                        AND s2.is_deleted = false
+                      ORDER BY s2.created_at ASC, s2.id ASC
+                      LIMIT 1
+                    );
+        # Soft-delete duplicate table numbers keeping the earliest created one
+        - sql:
+            dbms: postgresql
+            sql: |
+              UPDATE tabler_table.restaurant_tables t
+              SET is_deleted = true, deleted_at = now()
+              WHERE t.is_deleted = false
+                AND t.id <> (
+                      SELECT t2.id FROM tabler_table.restaurant_tables t2
+                      WHERE t2.org_id = t.org_id
+                        AND t2.table_number = t.table_number
+                        AND t2.is_deleted = false
+                      ORDER BY t2.created_at ASC, t2.id ASC
+                      LIMIT 1
+                    );
+        - sql:
+            dbms: postgresql
+            sql: |
+              CREATE UNIQUE INDEX IF NOT EXISTS uq_sections_org_name
+              ON tabler_table.sections (org_id, LOWER(name))
+              WHERE is_deleted = false;
+        - sql:
+            dbms: postgresql
+            sql: |
+              CREATE UNIQUE INDEX IF NOT EXISTS uq_tables_org_number
+              ON tabler_table.restaurant_tables (org_id, table_number)
+              WHERE is_deleted = false;
