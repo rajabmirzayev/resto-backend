@@ -1,0 +1,1359 @@
+databaseChangeLog:
+  - changeSet:
+      id: 010-insert-test-data
+      author: rajabmirzayev
+      comment: Demo restaurant seed data (1 org, roles, staff, tables, menu, orders)
+      changes:
+
+        # ==================== Organization ====================
+        - insert:
+            schemaName: tabler_organization
+            tableName: organizations
+            columns:
+              - column:
+                  name: id
+                  value: "01234567-89ab-cdef-0123-456789abcdef"
+              - column:
+                  name: created_at
+                  value: "2026-08-01T10:00:00Z"
+              - column:
+                  name: updated_at
+                  value: "2026-08-01T10:00:00Z"
+              - column:
+                  name: is_deleted
+                  valueBoolean: false
+              - column:
+                  name: name
+                  value: "Tabler Demo Restoranı"
+              - column:
+                  name: slug
+                  value: "tabler-demo"
+              - column:
+                  name: admin_name
+                  value: "Demo Admin"
+              - column:
+                  name: admin_email
+                  value: "admin@tabler-demo.az"
+              - column:
+                  name: phone
+                  value: "+994 50 123 45 67"
+              - column:
+                  name: address
+                  value: "Bakı şəhəri, Nizami küçəsi 45"
+
+        # ==================== Roles (tabler_role) ====================
+        - insert:
+            schemaName: tabler_role
+            tableName: roles
+            columns:
+              - column:
+                  name: id
+                  value: "aaaaaaaa-0000-4000-8000-000000000001"
+              - column:
+                  name: created_at
+                  value: "2026-08-01T10:00:00Z"
+              - column:
+                  name: updated_at
+                  value: "2026-08-01T10:00:00Z"
+              - column:
+                  name: is_deleted
+                  valueBoolean: false
+              - column:
+                  name: name
+                  value: "Admin"
+              - column:
+                  name: permissions
+                  value: '["dashboard.view","menu.view","menu.create","menu.edit","menu.delete","tables.view","tables.manage","tables.status","orders.view","orders.manage","orders.cancel","reports.view","staff.view","staff.create","staff.edit","staff.delete","roles.view","roles.create","roles.edit","roles.delete","kitchen.view","kitchen.manage","settings.view","settings.edit"]'
+                  type: jsonb
+              - column:
+                  name: is_system
+                  valueBoolean: true
+              - column:
+                  name: org_id
+                  value: "01234567-89ab-cdef-0123-456789abcdef"
+        - insert:
+            schemaName: tabler_role
+            tableName: roles
+            columns:
+              - column:
+                  name: id
+                  value: "aaaaaaaa-0000-4000-8000-000000000002"
+              - column:
+                  name: created_at
+                  value: "2026-08-01T10:00:00Z"
+              - column:
+                  name: updated_at
+                  value: "2026-08-01T10:00:00Z"
+              - column:
+                  name: is_deleted
+                  valueBoolean: false
+              - column:
+                  name: name
+                  value: "Ofisiant"
+              - column:
+                  name: permissions
+                  value: '["dashboard.view","menu.view","tables.view","tables.status","orders.view","orders.manage"]'
+                  type: jsonb
+              - column:
+                  name: is_system
+                  valueBoolean: false
+              - column:
+                  name: org_id
+                  value: "01234567-89ab-cdef-0123-456789abcdef"
+        - insert:
+            schemaName: tabler_role
+            tableName: roles
+            columns:
+              - column:
+                  name: id
+                  value: "aaaaaaaa-0000-4000-8000-000000000003"
+              - column:
+                  name: created_at
+                  value: "2026-08-01T10:00:00Z"
+              - column:
+                  name: updated_at
+                  value: "2026-08-01T10:00:00Z"
+              - column:
+                  name: is_deleted
+                  valueBoolean: false
+              - column:
+                  name: name
+                  value: "Mətbəx"
+              - column:
+                  name: permissions
+                  value: '["menu.view","kitchen.view","kitchen.manage","orders.view"]'
+                  type: jsonb
+              - column:
+                  name: is_system
+                  valueBoolean: false
+              - column:
+                  name: org_id
+                  value: "01234567-89ab-cdef-0123-456789abcdef"
+
+        # ==================== Users (tabler_user) ====================
+        - insert:
+            schemaName: tabler_user
+            tableName: users
+            columns:
+              - column:
+                  name: id
+                  value: "bbbbbbbb-0000-4000-8000-000000000001"
+              - column:
+                  name: created_at
+                  value: "2026-08-01T10:00:00Z"
+              - column:
+                  name: updated_at
+                  value: "2026-08-01T10:00:00Z"
+              - column:
+                  name: is_deleted
+                  valueBoolean: false
+              - column:
+                  name: name
+                  value: "Demo Admin"
+              - column:
+                  name: username
+                  value: "demo.admin"
+              - column:
+                  name: email
+                  value: "admin@tabler-demo.az"
+              - column:
+                  name: phone
+                  value: "+994 50 123 45 67"
+              - column:
+                  name: password
+                  value: "$2a$10$dXJ3SW6G7P50lGmMkkmwe.20cQQubK3.HZWzG3YB1tlRy.fqvM/BG"
+              - column:
+                  name: role
+                  value: "ORG_ADMIN"
+              - column:
+                  name: role_id
+                  value: "aaaaaaaa-0000-4000-8000-000000000001"
+              - column:
+                  name: org_id
+                  value: "01234567-89ab-cdef-0123-456789abcdef"
+              - column:
+                  name: is_active
+                  valueBoolean: true
+        - insert:
+            schemaName: tabler_user
+            tableName: users
+            columns:
+              - column:
+                  name: id
+                  value: "bbbbbbbb-0000-4000-8000-000000000002"
+              - column:
+                  name: created_at
+                  value: "2026-08-01T10:00:00Z"
+              - column:
+                  name: updated_at
+                  value: "2026-08-01T10:00:00Z"
+              - column:
+                  name: is_deleted
+                  valueBoolean: false
+              - column:
+                  name: name
+                  value: "Aysel Məmmədova"
+              - column:
+                  name: username
+                  value: "aysel"
+              - column:
+                  name: email
+                  value: "aysel@tabler-demo.az"
+              - column:
+                  name: phone
+                  value: "+994 51 234 56 78"
+              - column:
+                  name: password
+                  value: "$2a$10$dXJ3SW6G7P50lGmMkkmwe.20cQQubK3.HZWzG3YB1tlRy.fqvM/BG"
+              - column:
+                  name: role
+                  value: "WAITER"
+              - column:
+                  name: role_id
+                  value: "aaaaaaaa-0000-4000-8000-000000000002"
+              - column:
+                  name: org_id
+                  value: "01234567-89ab-cdef-0123-456789abcdef"
+              - column:
+                  name: is_active
+                  valueBoolean: true
+        - insert:
+            schemaName: tabler_user
+            tableName: users
+            columns:
+              - column:
+                  name: id
+                  value: "bbbbbbbb-0000-4000-8000-000000000003"
+              - column:
+                  name: created_at
+                  value: "2026-08-01T10:00:00Z"
+              - column:
+                  name: updated_at
+                  value: "2026-08-01T10:00:00Z"
+              - column:
+                  name: is_deleted
+                  valueBoolean: false
+              - column:
+                  name: name
+                  value: "Elvin Qasımov"
+              - column:
+                  name: username
+                  value: "elvin"
+              - column:
+                  name: email
+                  value: "elvin@tabler-demo.az"
+              - column:
+                  name: phone
+                  value: "+994 55 345 67 89"
+              - column:
+                  name: password
+                  value: "$2a$10$dXJ3SW6G7P50lGmMkkmwe.20cQQubK3.HZWzG3YB1tlRy.fqvM/BG"
+              - column:
+                  name: role
+                  value: "CHEF"
+              - column:
+                  name: role_id
+                  value: "aaaaaaaa-0000-4000-8000-000000000003"
+              - column:
+                  name: org_id
+                  value: "01234567-89ab-cdef-0123-456789abcdef"
+              - column:
+                  name: is_active
+                  valueBoolean: true
+
+        # ==================== Sections (tabler_table) ====================
+        - insert:
+            schemaName: tabler_table
+            tableName: sections
+            columns:
+              - column:
+                  name: id
+                  value: "cccccccc-0000-4000-8000-000000000001"
+              - column:
+                  name: created_at
+                  value: "2026-08-01T10:00:00Z"
+              - column:
+                  name: updated_at
+                  value: "2026-08-01T10:00:00Z"
+              - column:
+                  name: is_deleted
+                  valueBoolean: false
+              - column:
+                  name: name
+                  value: "Zal"
+              - column:
+                  name: org_id
+                  value: "01234567-89ab-cdef-0123-456789abcdef"
+        - insert:
+            schemaName: tabler_table
+            tableName: sections
+            columns:
+              - column:
+                  name: id
+                  value: "cccccccc-0000-4000-8000-000000000002"
+              - column:
+                  name: created_at
+                  value: "2026-08-01T10:00:00Z"
+              - column:
+                  name: updated_at
+                  value: "2026-08-01T10:00:00Z"
+              - column:
+                  name: is_deleted
+                  valueBoolean: false
+              - column:
+                  name: name
+                  value: "Teras"
+              - column:
+                  name: org_id
+                  value: "01234567-89ab-cdef-0123-456789abcdef"
+        - insert:
+            schemaName: tabler_table
+            tableName: sections
+            columns:
+              - column:
+                  name: id
+                  value: "cccccccc-0000-4000-8000-000000000003"
+              - column:
+                  name: created_at
+                  value: "2026-08-01T10:00:00Z"
+              - column:
+                  name: updated_at
+                  value: "2026-08-01T10:00:00Z"
+              - column:
+                  name: is_deleted
+                  valueBoolean: false
+              - column:
+                  name: name
+                  value: "VIP"
+              - column:
+                  name: org_id
+                  value: "01234567-89ab-cdef-0123-456789abcdef"
+
+        # ==================== Restaurant tables (tabler_table) ====================
+        - insert:
+            schemaName: tabler_table
+            tableName: restaurant_tables
+            columns:
+              - column: { name: id, value: "dddddddd-0000-4000-8000-000000000001" }
+              - column: { name: created_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: is_deleted, valueBoolean: false }
+              - column: { name: table_number, valueNumeric: 1 }
+              - column: { name: capacity, valueNumeric: 2 }
+              - column: { name: status, value: "AVAILABLE" }
+              - column: { name: section_id, value: "cccccccc-0000-4000-8000-000000000001" }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+        - insert:
+            schemaName: tabler_table
+            tableName: restaurant_tables
+            columns:
+              - column: { name: id, value: "dddddddd-0000-4000-8000-000000000002" }
+              - column: { name: created_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: is_deleted, valueBoolean: false }
+              - column: { name: table_number, valueNumeric: 2 }
+              - column: { name: capacity, valueNumeric: 4 }
+              - column: { name: status, value: "OCCUPIED" }
+              - column: { name: section_id, value: "cccccccc-0000-4000-8000-000000000001" }
+              - column: { name: current_order_id, value: "33333333-0000-4000-8000-000000000002" }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+        - insert:
+            schemaName: tabler_table
+            tableName: restaurant_tables
+            columns:
+              - column: { name: id, value: "dddddddd-0000-4000-8000-000000000003" }
+              - column: { name: created_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: is_deleted, valueBoolean: false }
+              - column: { name: table_number, valueNumeric: 3 }
+              - column: { name: capacity, valueNumeric: 4 }
+              - column: { name: status, value: "OCCUPIED" }
+              - column: { name: section_id, value: "cccccccc-0000-4000-8000-000000000001" }
+              - column: { name: current_order_id, value: "33333333-0000-4000-8000-000000000001" }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+        - insert:
+            schemaName: tabler_table
+            tableName: restaurant_tables
+            columns:
+              - column: { name: id, value: "dddddddd-0000-4000-8000-000000000004" }
+              - column: { name: created_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: is_deleted, valueBoolean: false }
+              - column: { name: table_number, valueNumeric: 4 }
+              - column: { name: capacity, valueNumeric: 6 }
+              - column: { name: status, value: "AVAILABLE" }
+              - column: { name: section_id, value: "cccccccc-0000-4000-8000-000000000001" }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+        - insert:
+            schemaName: tabler_table
+            tableName: restaurant_tables
+            columns:
+              - column: { name: id, value: "dddddddd-0000-4000-8000-000000000005" }
+              - column: { name: created_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: is_deleted, valueBoolean: false }
+              - column: { name: table_number, valueNumeric: 5 }
+              - column: { name: capacity, valueNumeric: 2 }
+              - column: { name: status, value: "AVAILABLE" }
+              - column: { name: section_id, value: "cccccccc-0000-4000-8000-000000000002" }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+        - insert:
+            schemaName: tabler_table
+            tableName: restaurant_tables
+            columns:
+              - column: { name: id, value: "dddddddd-0000-4000-8000-000000000006" }
+              - column: { name: created_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: is_deleted, valueBoolean: false }
+              - column: { name: table_number, valueNumeric: 6 }
+              - column: { name: capacity, valueNumeric: 4 }
+              - column: { name: status, value: "AVAILABLE" }
+              - column: { name: section_id, value: "cccccccc-0000-4000-8000-000000000002" }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+        - insert:
+            schemaName: tabler_table
+            tableName: restaurant_tables
+            columns:
+              - column: { name: id, value: "dddddddd-0000-4000-8000-000000000007" }
+              - column: { name: created_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: is_deleted, valueBoolean: false }
+              - column: { name: table_number, valueNumeric: 7 }
+              - column: { name: capacity, valueNumeric: 4 }
+              - column: { name: status, value: "RESERVED" }
+              - column: { name: section_id, value: "cccccccc-0000-4000-8000-000000000002" }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+        - insert:
+            schemaName: tabler_table
+            tableName: restaurant_tables
+            columns:
+              - column: { name: id, value: "dddddddd-0000-4000-8000-000000000008" }
+              - column: { name: created_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: is_deleted, valueBoolean: false }
+              - column: { name: table_number, valueNumeric: 8 }
+              - column: { name: capacity, valueNumeric: 8 }
+              - column: { name: status, value: "AVAILABLE" }
+              - column: { name: section_id, value: "cccccccc-0000-4000-8000-000000000002" }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+        - insert:
+            schemaName: tabler_table
+            tableName: restaurant_tables
+            columns:
+              - column: { name: id, value: "dddddddd-0000-4000-8000-000000000009" }
+              - column: { name: created_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: is_deleted, valueBoolean: false }
+              - column: { name: table_number, valueNumeric: 9 }
+              - column: { name: capacity, valueNumeric: 6 }
+              - column: { name: status, value: "CLEANING" }
+              - column: { name: section_id, value: "cccccccc-0000-4000-8000-000000000003" }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+        - insert:
+            schemaName: tabler_table
+            tableName: restaurant_tables
+            columns:
+              - column: { name: id, value: "dddddddd-0000-4000-8000-000000000010" }
+              - column: { name: created_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: is_deleted, valueBoolean: false }
+              - column: { name: table_number, valueNumeric: 10 }
+              - column: { name: capacity, valueNumeric: 10 }
+              - column: { name: status, value: "AVAILABLE" }
+              - column: { name: section_id, value: "cccccccc-0000-4000-8000-000000000003" }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+
+        # ==================== Org settings (tabler_setting) ====================
+        - insert:
+            schemaName: tabler_setting
+            tableName: org_settings
+            columns:
+              - column:
+                  name: id
+                  value: "eeeeeeee-0000-4000-8000-000000000001"
+              - column:
+                  name: created_at
+                  value: "2026-08-01T10:00:00Z"
+              - column:
+                  name: updated_at
+                  value: "2026-08-01T10:00:00Z"
+              - column:
+                  name: org_id
+                  value: "01234567-89ab-cdef-0123-456789abcdef"
+              - column:
+                  name: order_mode
+                  value: "CUSTOMER_WAITER_CONFIRM"
+              - column:
+                  name: customer_photo_required
+                  valueBoolean: false
+              - column:
+                  name: payment_timing
+                  value: "AFTER"
+              - column:
+                  name: customer_theme
+                  value: "EMERALD"
+
+        # ==================== Menu categories (tabler_menu) ====================
+        - insert:
+            schemaName: tabler_menu
+            tableName: menu_categories
+            columns:
+              - column: { name: id, value: "11111111-0000-4000-8000-000000000001" }
+              - column: { name: created_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: is_deleted, valueBoolean: false }
+              - column:
+                  name: name
+                  value: '{"az": "Başlanğıclar", "en": "Starters", "ru": "Закуски"}'
+                  type: jsonb
+              - column: { name: icon, value: "soup" }
+              - column: { name: sort_order, valueNumeric: 1 }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+        - insert:
+            schemaName: tabler_menu
+            tableName: menu_categories
+            columns:
+              - column: { name: id, value: "11111111-0000-4000-8000-000000000002" }
+              - column: { name: created_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: is_deleted, valueBoolean: false }
+              - column:
+                  name: name
+                  value: '{"az": "Salatlar", "en": "Salads", "ru": "Салаты"}'
+                  type: jsonb
+              - column: { name: icon, value: "salad" }
+              - column: { name: sort_order, valueNumeric: 2 }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+        - insert:
+            schemaName: tabler_menu
+            tableName: menu_categories
+            columns:
+              - column: { name: id, value: "11111111-0000-4000-8000-000000000003" }
+              - column: { name: created_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: is_deleted, valueBoolean: false }
+              - column:
+                  name: name
+                  value: '{"az": "Pizza", "en": "Pizza", "ru": "Пицца"}'
+                  type: jsonb
+              - column: { name: icon, value: "pizza" }
+              - column: { name: sort_order, valueNumeric: 3 }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+        - insert:
+            schemaName: tabler_menu
+            tableName: menu_categories
+            columns:
+              - column: { name: id, value: "11111111-0000-4000-8000-000000000004" }
+              - column: { name: created_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: is_deleted, valueBoolean: false }
+              - column:
+                  name: name
+                  value: '{"az": "Burgerlər", "en": "Burgers", "ru": "Бургеры"}'
+                  type: jsonb
+              - column: { name: icon, value: "hamburger" }
+              - column: { name: sort_order, valueNumeric: 4 }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+        - insert:
+            schemaName: tabler_menu
+            tableName: menu_categories
+            columns:
+              - column: { name: id, value: "11111111-0000-4000-8000-000000000005" }
+              - column: { name: created_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: is_deleted, valueBoolean: false }
+              - column:
+                  name: name
+                  value: '{"az": "İsti yeməklər", "en": "Main courses", "ru": "Горячие блюда"}'
+                  type: jsonb
+              - column: { name: icon, value: "beef" }
+              - column: { name: sort_order, valueNumeric: 5 }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+        - insert:
+            schemaName: tabler_menu
+            tableName: menu_categories
+            columns:
+              - column: { name: id, value: "11111111-0000-4000-8000-000000000006" }
+              - column: { name: created_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: is_deleted, valueBoolean: false }
+              - column:
+                  name: name
+                  value: '{"az": "İçkilər", "en": "Drinks", "ru": "Напитки"}'
+                  type: jsonb
+              - column: { name: icon, value: "cup-soda" }
+              - column: { name: sort_order, valueNumeric: 6 }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+        - insert:
+            schemaName: tabler_menu
+            tableName: menu_categories
+            columns:
+              - column: { name: id, value: "11111111-0000-4000-8000-000000000007" }
+              - column: { name: created_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: is_deleted, valueBoolean: false }
+              - column:
+                  name: name
+                  value: '{"az": "Desertlər", "en": "Desserts", "ru": "Десерты"}'
+                  type: jsonb
+              - column: { name: icon, value: "cake" }
+              - column: { name: sort_order, valueNumeric: 7 }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+
+        # ==================== Menu items (tabler_menu) ====================
+        - insert:
+            schemaName: tabler_menu
+            tableName: menu_items
+            columns:
+              - column: { name: id, value: "22222222-0000-4000-8000-000000000001" }
+              - column: { name: image_url, value: "https://azcookbook.com/azeri/wp-content/uploads/2014/05/pomidor-shorbasi6.jpg" }
+              - column: { name: created_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: is_deleted, valueBoolean: false }
+              - column:
+                  name: name
+                  value: '{"az": "Pomidor şorbası", "en": "Tomato soup", "ru": "Томатный суп"}'
+                  type: jsonb
+              - column:
+                  name: description
+                  value: '{"az": "Klassik pomidor şorbası, krem ilə", "en": "Classic tomato soup with cream", "ru": "Классический томатный суп со сливками"}'
+                  type: jsonb
+              - column: { name: price, valueNumeric: 8.00 }
+              - column: { name: category_id, value: "11111111-0000-4000-8000-000000000001" }
+              - column: { name: is_available, valueBoolean: true }
+              - column: { name: preparation_time, valueNumeric: 10 }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+        - insert:
+            schemaName: tabler_menu
+            tableName: menu_items
+            columns:
+              - column: { name: id, value: "22222222-0000-4000-8000-000000000002" }
+              - column: { name: image_url, value: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSEqQIt3UQAHihlBg5-s0sgFyqs0JI0boAPzNVRI1M6uFqjFo1TFm4JL_A&s=10" }
+              - column: { name: created_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: is_deleted, valueBoolean: false }
+              - column:
+                  name: name
+                  value: '{"az": "Toyuq əriştə şorbası", "en": "Chicken noodle soup", "ru": "Куриный суп с лапшой"}'
+                  type: jsonb
+              - column:
+                  name: description
+                  value: '{"az": "Ev üsulu toyuq əriştə şorbası", "en": "Homemade chicken noodle soup", "ru": "Домашний куриный суп с лапшой"}'
+                  type: jsonb
+              - column: { name: price, valueNumeric: 7.50 }
+              - column: { name: category_id, value: "11111111-0000-4000-8000-000000000001" }
+              - column: { name: is_available, valueBoolean: true }
+              - column: { name: preparation_time, valueNumeric: 12 }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+        - insert:
+            schemaName: tabler_menu
+            tableName: menu_items
+            columns:
+              - column: { name: id, value: "22222222-0000-4000-8000-000000000003" }
+              - column: { name: image_url, value: "https://easyweeknightrecipes.com/wp-content/uploads/2024/04/Mozzarella-Sticks_0013.jpg" }
+              - column: { name: created_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: is_deleted, valueBoolean: false }
+              - column:
+                  name: name
+                  value: '{"az": "Mozzarella stickləri", "en": "Mozzarella sticks", "ru": "Сырные палочки"}'
+                  type: jsonb
+              - column:
+                  name: description
+                  value: '{"az": "Xırtıldayan mozzarella, pomidor sousu ilə", "en": "Crispy mozzarella with tomato dip", "ru": "Хрустящие сырные палочки с томатным соусом"}'
+                  type: jsonb
+              - column: { name: price, valueNumeric: 6.90 }
+              - column: { name: category_id, value: "11111111-0000-4000-8000-000000000001" }
+              - column: { name: is_available, valueBoolean: true }
+              - column: { name: preparation_time, valueNumeric: 8 }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+        - insert:
+            schemaName: tabler_menu
+            tableName: menu_items
+            columns:
+              - column: { name: id, value: "22222222-0000-4000-8000-000000000004" }
+              - column: { name: image_url, value: "https://www.mzexclusive.az/wp-content/uploads/2019/04/30411-1.jpg" }
+              - column: { name: created_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: is_deleted, valueBoolean: false }
+              - column:
+                  name: name
+                  value: '{"az": "Çıtır soğan halqaları", "en": "Crispy onion rings", "ru": "Хрустящие кольца лука"}'
+                  type: jsonb
+              - column:
+                  name: description
+                  value: '{"az": "Pivə sousu ilə", "en": "Served with beer dip", "ru": "Подаются с пивным соусом"}'
+                  type: jsonb
+              - column: { name: price, valueNumeric: 5.50 }
+              - column: { name: category_id, value: "11111111-0000-4000-8000-000000000001" }
+              - column: { name: is_available, valueBoolean: false }
+              - column: { name: preparation_time, valueNumeric: 8 }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+        - insert:
+            schemaName: tabler_menu
+            tableName: menu_items
+            columns:
+              - column: { name: id, value: "22222222-0000-4000-8000-000000000005" }
+              - column: { name: image_url, value: "http://localhost:8001/api/menu-ms/v1/images/22222222-0000-4000-8000-000000000005.jpg" }
+              - column: { name: created_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: is_deleted, valueBoolean: false }
+              - column:
+                  name: name
+                  value: '{"az": "Sezar salatı", "en": "Caesar salad", "ru": "Салат Цезарь"}'
+                  type: jsonb
+              - column:
+                  name: description
+                  value: '{"az": "Toyuq əti, parmezan və sezar sousu ilə", "en": "With grilled chicken, parmesan and caesar dressing", "ru": "С курицей гриль, пармезаном и соусом цезарь"}'
+                  type: jsonb
+              - column: { name: price, valueNumeric: 9.50 }
+              - column: { name: category_id, value: "11111111-0000-4000-8000-000000000002" }
+              - column: { name: is_available, valueBoolean: true }
+              - column: { name: preparation_time, valueNumeric: 10 }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+        - insert:
+            schemaName: tabler_menu
+            tableName: menu_items
+            columns:
+              - column: { name: id, value: "22222222-0000-4000-8000-000000000006" }
+              - column: { name: image_url, value: "https://upload.wikimedia.org/wikipedia/commons/5/54/Flickr_-_cyclonebill_-_Græsk_salat.jpg" }
+              - column: { name: created_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: is_deleted, valueBoolean: false }
+              - column:
+                  name: name
+                  value: '{"az": "Yunan salatı", "en": "Greek salad", "ru": "Греческий салат"}'
+                  type: jsonb
+              - column:
+                  name: description
+                  value: '{"az": "Feta, zeytun və təzə tərəvəzlər", "en": "Feta, olives and fresh vegetables", "ru": "Фета, оливки и свежие овощи"}'
+                  type: jsonb
+              - column: { name: price, valueNumeric: 8.00 }
+              - column: { name: category_id, value: "11111111-0000-4000-8000-000000000002" }
+              - column: { name: is_available, valueBoolean: true }
+              - column: { name: preparation_time, valueNumeric: 8 }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+        - insert:
+            schemaName: tabler_menu
+            tableName: menu_items
+            columns:
+              - column: { name: id, value: "22222222-0000-4000-8000-000000000007" }
+              - column: { name: image_url, value: "https://evdar.az/wp-content/uploads/Dadli-V%C9%99-Faydali-T%C9%99z%C9%99-T%C9%99r%C9%99v%C9%99z-Salati2-1024x683.jpg" }
+              - column: { name: created_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: is_deleted, valueBoolean: false }
+              - column:
+                  name: name
+                  value: '{"az": "Tərəvəz salatı", "en": "Vegetable salad", "ru": "Овощной салат"}'
+                  type: jsonb
+              - column:
+                  name: description
+                  value: '{"az": "Mövsümi tərəvəzlər, zeytun yağı ilə", "en": "Seasonal vegetables with olive oil", "ru": "Сезонные овощи с оливковым маслом"}'
+                  type: jsonb
+              - column: { name: price, valueNumeric: 6.50 }
+              - column: { name: category_id, value: "11111111-0000-4000-8000-000000000002" }
+              - column: { name: is_available, valueBoolean: true }
+              - column: { name: preparation_time, valueNumeric: 6 }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+        - insert:
+            schemaName: tabler_menu
+            tableName: menu_items
+            columns:
+              - column: { name: id, value: "22222222-0000-4000-8000-000000000008" }
+              - column: { name: image_url, value: "https://upload.wikimedia.org/wikipedia/commons/d/d8/Caprese-1.jpg" }
+              - column: { name: created_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: is_deleted, valueBoolean: false }
+              - column:
+                  name: name
+                  value: '{"az": "Caprese salatı", "en": "Caprese salad", "ru": "Салат Капрезе"}'
+                  type: jsonb
+              - column:
+                  name: description
+                  value: '{"az": "Mozzarella, pomidor, reyhan", "en": "Mozzarella, tomato, basil", "ru": "Моцарелла, томаты, базилик"}'
+                  type: jsonb
+              - column: { name: price, valueNumeric: 8.90 }
+              - column: { name: category_id, value: "11111111-0000-4000-8000-000000000002" }
+              - column: { name: is_available, valueBoolean: true }
+              - column: { name: preparation_time, valueNumeric: 7 }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+        - insert:
+            schemaName: tabler_menu
+            tableName: menu_items
+            columns:
+              - column: { name: id, value: "22222222-0000-4000-8000-000000000009" }
+              - column: { name: image_url, value: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQgQ0Y_0gGFDGZXgW_vCEF6xnW_LVX14pSyjx0yXU4nqV5O5K012CAtpn4&s=10" }
+              - column: { name: created_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: is_deleted, valueBoolean: false }
+              - column:
+                  name: name
+                  value: '{"az": "Margarita", "en": "Margherita", "ru": "Маргарита"}'
+                  type: jsonb
+              - column:
+                  name: description
+                  value: '{"az": "Pomidor sousu, mozzarella, reyhan", "en": "Tomato sauce, mozzarella, basil", "ru": "Томатный соус, моцарелла, базилик"}'
+                  type: jsonb
+              - column: { name: price, valueNumeric: 12.00 }
+              - column: { name: category_id, value: "11111111-0000-4000-8000-000000000003" }
+              - column: { name: is_available, valueBoolean: true }
+              - column: { name: preparation_time, valueNumeric: 15 }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+        - insert:
+            schemaName: tabler_menu
+            tableName: menu_items
+            columns:
+              - column: { name: id, value: "22222222-0000-4000-8000-000000000010" }
+              - column: { name: image_url, value: "http://localhost:8001/api/menu-ms/v1/images/22222222-0000-4000-8000-000000000010.jpg" }
+              - column: { name: created_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: is_deleted, valueBoolean: false }
+              - column:
+                  name: name
+                  value: '{"az": "Pepperoni", "en": "Pepperoni", "ru": "Пепперони"}'
+                  type: jsonb
+              - column:
+                  name: description
+                  value: '{"az": "Pepperoni kolbasa, mozzarella", "en": "Pepperoni, mozzarella", "ru": "Пепперони, моцарелла"}'
+                  type: jsonb
+              - column: { name: price, valueNumeric: 14.50 }
+              - column: { name: category_id, value: "11111111-0000-4000-8000-000000000003" }
+              - column: { name: is_available, valueBoolean: true }
+              - column: { name: preparation_time, valueNumeric: 15 }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+        - insert:
+            schemaName: tabler_menu
+            tableName: menu_items
+            columns:
+              - column: { name: id, value: "22222222-0000-4000-8000-000000000011" }
+              - column: { name: image_url, value: "https://ninzasushi.az/product-images/ce26b496-6662-43c4-95c5-00d679f7756d.webp" }
+              - column: { name: created_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: is_deleted, valueBoolean: false }
+              - column:
+                  name: name
+                  value: '{"az": "Dörd pendir", "en": "Quattro formaggi", "ru": "Четыре сыра"}'
+                  type: jsonb
+              - column:
+                  name: description
+                  value: '{"az": "Mozzarella, gorgonzola, parmezan, çedar", "en": "Mozzarella, gorgonzola, parmesan, cheddar", "ru": "Моцарелла, горгонзола, пармезан, чеддер"}'
+                  type: jsonb
+              - column: { name: price, valueNumeric: 15.00 }
+              - column: { name: category_id, value: "11111111-0000-4000-8000-000000000003" }
+              - column: { name: is_available, valueBoolean: true }
+              - column: { name: preparation_time, valueNumeric: 18 }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+        - insert:
+            schemaName: tabler_menu
+            tableName: menu_items
+            columns:
+              - column: { name: id, value: "22222222-0000-4000-8000-000000000012" }
+              - column: { name: image_url, value: "https://eightforestlane.com/wp-content/uploads/2018/07/Proscuitto-Pizza_SQ-1.jpg" }
+              - column: { name: created_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: is_deleted, valueBoolean: false }
+              - column:
+                  name: name
+                  value: '{"az": "Prosciutto pizza", "en": "Prosciutto pizza", "ru": "Пицца с прошутто"}'
+                  type: jsonb
+              - column:
+                  name: description
+                  value: '{"az": "Prosciutto, rukola, parmezan", "en": "Prosciutto, arugula, parmesan", "ru": "Прошутто, руккола, пармезан"}'
+                  type: jsonb
+              - column: { name: price, valueNumeric: 16.50 }
+              - column: { name: category_id, value: "11111111-0000-4000-8000-000000000003" }
+              - column: { name: is_available, valueBoolean: true }
+              - column: { name: preparation_time, valueNumeric: 20 }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+        - insert:
+            schemaName: tabler_menu
+            tableName: menu_items
+            columns:
+              - column: { name: id, value: "22222222-0000-4000-8000-000000000013" }
+              - column: { name: image_url, value: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTwDp1tpqVAqMvgEAwDRyt9TypqJttjRctGmPfEsa00pPqqxYBDubfEZis&s=10" }
+              - column: { name: created_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: is_deleted, valueBoolean: false }
+              - column:
+                  name: name
+                  value: '{"az": "Klassik burger", "en": "Classic burger", "ru": "Классический бургер"}'
+                  type: jsonb
+              - column:
+                  name: description
+                  value: '{"az": "Mal əti kotlet, çedar, kahı", "en": "Beef patty, cheddar, lettuce", "ru": "Говяжья котлета, чеддер, салат"}'
+                  type: jsonb
+              - column: { name: price, valueNumeric: 11.00 }
+              - column: { name: category_id, value: "11111111-0000-4000-8000-000000000004" }
+              - column: { name: is_available, valueBoolean: true }
+              - column: { name: preparation_time, valueNumeric: 12 }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+        - insert:
+            schemaName: tabler_menu
+            tableName: menu_items
+            columns:
+              - column: { name: id, value: "22222222-0000-4000-8000-000000000014" }
+              - column: { name: image_url, value: "https://imgrosetta.yemek.com/file/109353/109353-940x940.jpg" }
+              - column: { name: created_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: is_deleted, valueBoolean: false }
+              - column:
+                  name: name
+                  value: '{"az": "Çizburger", "en": "Cheeseburger", "ru": "Чизбургер"}'
+                  type: jsonb
+              - column:
+                  name: description
+                  value: '{"az": "İkiqat çedar, turşu, sous", "en": "Double cheddar, pickles, sauce", "ru": "Двойной чеддер, огурцы, соус"}'
+                  type: jsonb
+              - column: { name: price, valueNumeric: 12.50 }
+              - column: { name: category_id, value: "11111111-0000-4000-8000-000000000004" }
+              - column: { name: is_available, valueBoolean: true }
+              - column: { name: preparation_time, valueNumeric: 12 }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+        - insert:
+            schemaName: tabler_menu
+            tableName: menu_items
+            columns:
+              - column: { name: id, value: "22222222-0000-4000-8000-000000000015" }
+              - column: { name: image_url, value: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSJHdwDhn8bBExjHk504j7ANsOT5DBVCiDIYNNA2nzg8AtKJb_oD80MAaoz&s=10" }
+              - column: { name: created_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: is_deleted, valueBoolean: false }
+              - column:
+                  name: name
+                  value: '{"az": "Barbekyu burger", "en": "BBQ burger", "ru": "Бургер барбекю"}'
+                  type: jsonb
+              - column:
+                  name: description
+                  value: '{"az": "Barbekyu sousu, qızardılmış soğan", "en": "BBQ sauce, crispy onions", "ru": "Соус барбекю, жареный лук"}'
+                  type: jsonb
+              - column: { name: price, valueNumeric: 13.50 }
+              - column: { name: category_id, value: "11111111-0000-4000-8000-000000000004" }
+              - column: { name: is_available, valueBoolean: true }
+              - column: { name: preparation_time, valueNumeric: 15 }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+        - insert:
+            schemaName: tabler_menu
+            tableName: menu_items
+            columns:
+              - column: { name: id, value: "22222222-0000-4000-8000-000000000016" }
+              - column: { name: image_url, value: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTxBRlbCalrOFqw7gNd3JyFQi7TeESBo2JKAAiRDz6clcV7nGBTZIadtyQ&s=10" }
+              - column: { name: created_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: is_deleted, valueBoolean: false }
+              - column:
+                  name: name
+                  value: '{"az": "Toyuq burger", "en": "Chicken burger", "ru": "Куриный бургер"}'
+                  type: jsonb
+              - column:
+                  name: description
+                  value: '{"az": "Xırtıldayan toyuq, ranç sousu", "en": "Crispy chicken, ranch sauce", "ru": "Хрустящая курица, соус ранч"}'
+                  type: jsonb
+              - column: { name: price, valueNumeric: 10.50 }
+              - column: { name: category_id, value: "11111111-0000-4000-8000-000000000004" }
+              - column: { name: is_available, valueBoolean: false }
+              - column: { name: preparation_time, valueNumeric: 10 }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+        - insert:
+            schemaName: tabler_menu
+            tableName: menu_items
+            columns:
+              - column: { name: id, value: "22222222-0000-4000-8000-000000000017" }
+              - column: { name: image_url, value: "https://www.preciouscore.com/wp-content/uploads/2025/07/Bone-In-Ribeye-Steak.jpg" }
+              - column: { name: created_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: is_deleted, valueBoolean: false }
+              - column:
+                  name: name
+                  value: '{"az": "Rıb-eye steyk", "en": "Rib-eye steak", "ru": "Стейк рибай"}'
+                  type: jsonb
+              - column:
+                  name: description
+                  value: '{"az": "300 q, kartof püresi ilə", "en": "300g served with mashed potatoes", "ru": "300 г с картофельным пюре"}'
+                  type: jsonb
+              - column: { name: price, valueNumeric: 32.00 }
+              - column: { name: category_id, value: "11111111-0000-4000-8000-000000000005" }
+              - column: { name: is_available, valueBoolean: true }
+              - column: { name: preparation_time, valueNumeric: 25 }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+        - insert:
+            schemaName: tabler_menu
+            tableName: menu_items
+            columns:
+              - column: { name: id, value: "22222222-0000-4000-8000-000000000018" }
+              - column: { name: image_url, value: "https://img.redaktor.az/news/2024/04/photo_238954.jpg" }
+              - column: { name: created_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: is_deleted, valueBoolean: false }
+              - column:
+                  name: name
+                  value: '{"az": "Qril toyuq", "en": "Grilled chicken", "ru": "Курица на гриле"}'
+                  type: jsonb
+              - column:
+                  name: description
+                  value: '{"az": "Yarım toyuq, qrildə, tərəvəz qarnir", "en": "Half chicken on the grill with vegetables", "ru": "Половина курицы на гриле с овощами"}'
+                  type: jsonb
+              - column: { name: price, valueNumeric: 15.00 }
+              - column: { name: category_id, value: "11111111-0000-4000-8000-000000000005" }
+              - column: { name: is_available, valueBoolean: true }
+              - column: { name: preparation_time, valueNumeric: 20 }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+        - insert:
+            schemaName: tabler_menu
+            tableName: menu_items
+            columns:
+              - column: { name: id, value: "22222222-0000-4000-8000-000000000019" }
+              - column: { name: image_url, value: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQg3KjPbzzVmWf-HeubVq-PX1U9SWmesbIy43FVYY3p98e4uS--jmyB7ry3&s=10" }
+              - column: { name: created_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: is_deleted, valueBoolean: false }
+              - column:
+                  name: name
+                  value: '{"az": "Balıq fileti", "en": "Fish fillet", "ru": "Филе рыбы"}'
+                  type: jsonb
+              - column:
+                  name: description
+                  value: '{"az": "Somon file, limon sousu ilə", "en": "Salmon fillet with lemon butter sauce", "ru": "Филе лосося с лимонным соусом"}'
+                  type: jsonb
+              - column: { name: price, valueNumeric: 18.00 }
+              - column: { name: category_id, value: "11111111-0000-4000-8000-000000000005" }
+              - column: { name: is_available, valueBoolean: true }
+              - column: { name: preparation_time, valueNumeric: 22 }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+        - insert:
+            schemaName: tabler_menu
+            tableName: menu_items
+            columns:
+              - column: { name: id, value: "22222222-0000-4000-8000-000000000020" }
+              - column: { name: image_url, value: "https://www.azcookbook.com/wp-content/uploads/2014/02/meatball-soup4.jpg" }
+              - column: { name: created_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: is_deleted, valueBoolean: false }
+              - column:
+                  name: name
+                  value: '{"az": "Küftə", "en": "Meatballs", "ru": "Тефтели"}'
+                  type: jsonb
+              - column:
+                  name: description
+                  value: '{"az": "Pomidor sousunda, spagetti ilə", "en": "In tomato sauce with spaghetti", "ru": "В томатном соусе со спагетти"}'
+                  type: jsonb
+              - column: { name: price, valueNumeric: 13.00 }
+              - column: { name: category_id, value: "11111111-0000-4000-8000-000000000005" }
+              - column: { name: is_available, valueBoolean: true }
+              - column: { name: preparation_time, valueNumeric: 18 }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+        - insert:
+            schemaName: tabler_menu
+            tableName: menu_items
+            columns:
+              - column: { name: id, value: "22222222-0000-4000-8000-000000000021" }
+              - column: { name: image_url, value: "https://images.food400.com/images/recipes/fall-off-the-bone-pork-ribs/hero.jpg" }
+              - column: { name: created_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: is_deleted, valueBoolean: false }
+              - column:
+                  name: name
+                  value: '{"az": "Donuz qabırğası", "en": "Pork ribs", "ru": "Свиные ребрышки"}'
+                  type: jsonb
+              - column:
+                  name: description
+                  value: '{"az": "Barbekyu sousunda, 500 q", "en": "BBQ glazed, 500g", "ru": "В соусе барбекю, 500 г"}'
+                  type: jsonb
+              - column: { name: price, valueNumeric: 24.00 }
+              - column: { name: category_id, value: "11111111-0000-4000-8000-000000000005" }
+              - column: { name: is_available, valueBoolean: true }
+              - column: { name: preparation_time, valueNumeric: 30 }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+        - insert:
+            schemaName: tabler_menu
+            tableName: menu_items
+            columns:
+              - column: { name: id, value: "22222222-0000-4000-8000-000000000022" }
+              - column: { name: image_url, value: "https://bazarstore.az/cdn/shop/files/a093b4e23b1b8d61f1a6eaee4c05cdbf.jpg?v=1764747236" }
+              - column: { name: created_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: is_deleted, valueBoolean: false }
+              - column:
+                  name: name
+                  value: '{"az": "Ayran", "en": "Ayran", "ru": "Айран"}'
+                  type: jsonb
+              - column:
+                  name: description
+                  value: '{"az": "Təzə hazırlanmış ayran, 300 ml", "en": "Freshly made ayran, 300ml", "ru": "Свежий айран, 300 мл"}'
+                  type: jsonb
+              - column: { name: price, valueNumeric: 2.50 }
+              - column: { name: category_id, value: "11111111-0000-4000-8000-000000000006" }
+              - column: { name: is_available, valueBoolean: true }
+              - column: { name: preparation_time, valueNumeric: 2 }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+        - insert:
+            schemaName: tabler_menu
+            tableName: menu_items
+            columns:
+              - column: { name: id, value: "22222222-0000-4000-8000-000000000023" }
+              - column: { name: image_url, value: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQsh3RzlurmGzJFCDHa61p5uWssUGSuayGIrLcrh1P0tT37O_k6TfHf3fU&s=10" }
+              - column: { name: created_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: is_deleted, valueBoolean: false }
+              - column:
+                  name: name
+                  value: '{"az": "Qazlı içki", "en": "Soft drink", "ru": "Газированный напиток"}'
+                  type: jsonb
+              - column:
+                  name: description
+                  value: '{"az": "Koladan seçim, 330 ml", "en": "Choice of cola, 330ml", "ru": "Кола на выбор, 330 мл"}'
+                  type: jsonb
+              - column: { name: price, valueNumeric: 3.00 }
+              - column: { name: category_id, value: "11111111-0000-4000-8000-000000000006" }
+              - column: { name: is_available, valueBoolean: true }
+              - column: { name: preparation_time, valueNumeric: 1 }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+        - insert:
+            schemaName: tabler_menu
+            tableName: menu_items
+            columns:
+              - column: { name: id, value: "22222222-0000-4000-8000-000000000024" }
+              - column: { name: image_url, value: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQqK4lOawPW4Oc2xdwX35pMbl4cjpCc4TQ9uPmHOwDIPbRzei6SD9fEYq4&s=10" }
+              - column: { name: created_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: is_deleted, valueBoolean: false }
+              - column:
+                  name: name
+                  value: '{"az": "Ev limonadı", "en": "Homemade lemonade", "ru": "Домашний лимонад"}'
+                  type: jsonb
+              - column:
+                  name: description
+                  value: '{"az": "Nanə və limon ilə", "en": "With mint and lemon", "ru": "С мятой и лимоном"}'
+                  type: jsonb
+              - column: { name: price, valueNumeric: 4.50 }
+              - column: { name: category_id, value: "11111111-0000-4000-8000-000000000006" }
+              - column: { name: is_available, valueBoolean: true }
+              - column: { name: preparation_time, valueNumeric: 5 }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+        - insert:
+            schemaName: tabler_menu
+            tableName: menu_items
+            columns:
+              - column: { name: id, value: "22222222-0000-4000-8000-000000000025" }
+              - column: { name: image_url, value: "https://news.milli.az/media/2021/11/03/992624.jpg" }
+              - column: { name: created_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: is_deleted, valueBoolean: false }
+              - column:
+                  name: name
+                  value: '{"az": "Təzə portağal şirəsi", "en": "Fresh orange juice", "ru": "Свежевыжатый апельсиновый сок"}'
+                  type: jsonb
+              - column:
+                  name: description
+                  value: '{"az": "Təzə sıxılmış, 250 ml", "en": "Freshly squeezed, 250ml", "ru": "Свежевыжатый, 250 мл"}'
+                  type: jsonb
+              - column: { name: price, valueNumeric: 6.00 }
+              - column: { name: category_id, value: "11111111-0000-4000-8000-000000000006" }
+              - column: { name: is_available, valueBoolean: true }
+              - column: { name: preparation_time, valueNumeric: 5 }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+        - insert:
+            schemaName: tabler_menu
+            tableName: menu_items
+            columns:
+              - column: { name: id, value: "22222222-0000-4000-8000-000000000026" }
+              - column: { name: image_url, value: "https://mocktail.net/wp-content/uploads/2022/03/homemade-Iced-Americano-recipe_1ig.jpg" }
+              - column: { name: created_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: is_deleted, valueBoolean: false }
+              - column:
+                  name: name
+                  value: '{"az": "Americano", "en": "Americano", "ru": "Американо"}'
+                  type: jsonb
+              - column:
+                  name: description
+                  value: '{"az": "Təzə çəkilmiş qəhvə", "en": "Freshly brewed coffee", "ru": "Свежесваренный кофе"}'
+                  type: jsonb
+              - column: { name: price, valueNumeric: 3.50 }
+              - column: { name: category_id, value: "11111111-0000-4000-8000-000000000006" }
+              - column: { name: is_available, valueBoolean: true }
+              - column: { name: preparation_time, valueNumeric: 5 }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+        - insert:
+            schemaName: tabler_menu
+            tableName: menu_items
+            columns:
+              - column: { name: id, value: "22222222-0000-4000-8000-000000000027" }
+              - column: { name: image_url, value: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRvvhEeWXTsd3FYrtchusxtPjqN0mf1I124o2reOtGJwQ1pbG_eAKe1_OI&s=10" }
+              - column: { name: created_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: is_deleted, valueBoolean: false }
+              - column:
+                  name: name
+                  value: '{"az": "Çay", "en": "Tea", "ru": "Чай"}'
+                  type: jsonb
+              - column:
+                  name: description
+                  value: '{"az": "Qara çay, 200 ml", "en": "Black tea, 200ml", "ru": "Черный чай, 200 мл"}'
+                  type: jsonb
+              - column: { name: price, valueNumeric: 2.00 }
+              - column: { name: category_id, value: "11111111-0000-4000-8000-000000000006" }
+              - column: { name: is_available, valueBoolean: true }
+              - column: { name: preparation_time, valueNumeric: 5 }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+        - insert:
+            schemaName: tabler_menu
+            tableName: menu_items
+            columns:
+              - column: { name: id, value: "22222222-0000-4000-8000-000000000028" }
+              - column: { name: image_url, value: "https://www.giallozafferano.com/images/260-26067/Tiramisu_1200x800.jpg" }
+              - column: { name: created_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: is_deleted, valueBoolean: false }
+              - column:
+                  name: name
+                  value: '{"az": "Tiramisu", "en": "Tiramisu", "ru": "Тирамису"}'
+                  type: jsonb
+              - column:
+                  name: description
+                  value: '{"az": "Masxarpone kremli klassik tiramisu", "en": "Classic tiramisu with mascarpone cream", "ru": "Классический тирамису с маскарпоне"}'
+                  type: jsonb
+              - column: { name: price, valueNumeric: 7.00 }
+              - column: { name: category_id, value: "11111111-0000-4000-8000-000000000007" }
+              - column: { name: is_available, valueBoolean: true }
+              - column: { name: preparation_time, valueNumeric: 10 }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+        - insert:
+            schemaName: tabler_menu
+            tableName: menu_items
+            columns:
+              - column: { name: id, value: "22222222-0000-4000-8000-000000000029" }
+              - column: { name: image_url, value: "https://www.chelsea.co.nz/hs-fs/hubfs/Best%20Chocolate%20Brownie%20Recipe%20NZ%20Chelsea%20Sugar.jpg?width=755&height=500&name=Best%20Chocolate%20Brownie%20Recipe%20NZ%20Chelsea%20Sugar.jpg" }
+              - column: { name: created_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: is_deleted, valueBoolean: false }
+              - column:
+                  name: name
+                  value: '{"az": "Şokoladlı brauni", "en": "Chocolate brownie", "ru": "Шоколадный брауни"}'
+                  type: jsonb
+              - column:
+                  name: description
+                  value: '{"az": "Dondurma ilə isti brauni", "en": "Warm brownie with ice cream", "ru": "Теплый брауни с мороженым"}'
+                  type: jsonb
+              - column: { name: price, valueNumeric: 5.50 }
+              - column: { name: category_id, value: "11111111-0000-4000-8000-000000000007" }
+              - column: { name: is_available, valueBoolean: true }
+              - column: { name: preparation_time, valueNumeric: 8 }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+        - insert:
+            schemaName: tabler_menu
+            tableName: menu_items
+            columns:
+              - column: { name: id, value: "22222222-0000-4000-8000-000000000030" }
+              - column: { name: image_url, value: "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcS_bHQPTjUjsWc4PEl6swyaQYtkxRcWHDC2HKDhd378ztYg7PeJoQO49i8&s=10" }
+              - column: { name: created_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: is_deleted, valueBoolean: false }
+              - column:
+                  name: name
+                  value: '{"az": "Meyvə təbəsi", "en": "Fruit platter", "ru": "Фруктовая тарелка"}'
+                  type: jsonb
+              - column:
+                  name: description
+                  value: '{"az": "Mövsümi meyvələr", "en": "Seasonal fruits", "ru": "Сезонные фрукты"}'
+                  type: jsonb
+              - column: { name: price, valueNumeric: 9.00 }
+              - column: { name: category_id, value: "11111111-0000-4000-8000-000000000007" }
+              - column: { name: is_available, valueBoolean: true }
+              - column: { name: preparation_time, valueNumeric: 10 }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+
+        # ==================== Orders (tabler_order) ====================
+        - insert:
+            schemaName: tabler_order
+            tableName: orders
+            columns:
+              - column: { name: id, value: "33333333-0000-4000-8000-000000000001" }
+              - column: { name: created_at, value: "2026-08-01T12:30:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T13:20:00Z" }
+              - column: { name: table_id, value: "dddddddd-0000-4000-8000-000000000003" }
+              - column: { name: table_number, valueNumeric: 3 }
+              - column: { name: status, value: "SERVED" }
+              - column: { name: payment_status, value: "PAID" }
+              - column: { name: total_amount, valueNumeric: 19.50 }
+              - column: { name: waiter_id, value: "bbbbbbbb-0000-4000-8000-000000000002" }
+              - column: { name: waiter_name, value: "Aysel Məmmədova" }
+              - column: { name: order_source, value: "WAITER" }
+              - column: { name: waiter_confirmed, valueBoolean: true }
+              - column: { name: payment_requested, valueBoolean: false }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+        - insert:
+            schemaName: tabler_order
+            tableName: orders
+            columns:
+              - column: { name: id, value: "33333333-0000-4000-8000-000000000002" }
+              - column: { name: created_at, value: "2026-08-01T14:10:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T14:25:00Z" }
+              - column: { name: table_id, value: "dddddddd-0000-4000-8000-000000000002" }
+              - column: { name: table_number, valueNumeric: 2 }
+              - column: { name: status, value: "PREPARING" }
+              - column: { name: payment_status, value: "PENDING" }
+              - column: { name: total_amount, valueNumeric: 22.00 }
+              - column: { name: waiter_id, value: "bbbbbbbb-0000-4000-8000-000000000002" }
+              - column: { name: waiter_name, value: "Aysel Məmmədova" }
+              - column: { name: order_source, value: "CUSTOMER" }
+              - column: { name: waiter_confirmed, valueBoolean: true }
+              - column: { name: payment_requested, valueBoolean: true }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+
+        # ==================== Order items (tabler_order) ====================
+        - insert:
+            schemaName: tabler_order
+            tableName: order_items
+            columns:
+              - column: { name: id, value: "44444444-0000-4000-8000-000000000001" }
+              - column: { name: created_at, value: "2026-08-01T12:30:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T13:20:00Z" }
+              - column: { name: order_id, value: "33333333-0000-4000-8000-000000000001" }
+              - column: { name: menu_item_id, value: "22222222-0000-4000-8000-000000000010" }
+              - column: { name: menu_item_name, value: "Pepperoni" }
+              - column: { name: quantity, valueNumeric: 1 }
+              - column: { name: price, valueNumeric: 14.50 }
+              - column: { name: status, value: "SERVED" }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+        - insert:
+            schemaName: tabler_order
+            tableName: order_items
+            columns:
+              - column: { name: id, value: "44444444-0000-4000-8000-000000000002" }
+              - column: { name: created_at, value: "2026-08-01T12:30:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T13:20:00Z" }
+              - column: { name: order_id, value: "33333333-0000-4000-8000-000000000001" }
+              - column: { name: menu_item_id, value: "22222222-0000-4000-8000-000000000022" }
+              - column: { name: menu_item_name, value: "Ayran" }
+              - column: { name: quantity, valueNumeric: 2 }
+              - column: { name: price, valueNumeric: 2.50 }
+              - column: { name: status, value: "SERVED" }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+        - insert:
+            schemaName: tabler_order
+            tableName: order_items
+            columns:
+              - column: { name: id, value: "44444444-0000-4000-8000-000000000003" }
+              - column: { name: created_at, value: "2026-08-01T14:10:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T14:25:00Z" }
+              - column: { name: order_id, value: "33333333-0000-4000-8000-000000000002" }
+              - column: { name: menu_item_id, value: "22222222-0000-4000-8000-000000000005" }
+              - column: { name: menu_item_name, value: "Sezar salatı" }
+              - column: { name: quantity, valueNumeric: 1 }
+              - column: { name: price, valueNumeric: 9.50 }
+              - column: { name: status, value: "PREPARING" }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+        - insert:
+            schemaName: tabler_order
+            tableName: order_items
+            columns:
+              - column: { name: id, value: "44444444-0000-4000-8000-000000000004" }
+              - column: { name: created_at, value: "2026-08-01T14:10:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T14:25:00Z" }
+              - column: { name: order_id, value: "33333333-0000-4000-8000-000000000002" }
+              - column: { name: menu_item_id, value: "22222222-0000-4000-8000-000000000014" }
+              - column: { name: menu_item_name, value: "Çizburger" }
+              - column: { name: quantity, valueNumeric: 1 }
+              - column: { name: price, valueNumeric: 12.50 }
+              - column: { name: status, value: "PREPARING" }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }

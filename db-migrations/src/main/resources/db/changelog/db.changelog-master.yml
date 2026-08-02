@@ -19,3 +19,5 @@ databaseChangeLog:
       file: db/changelog/changes/v1/008-add-password-to-users.yml
   - include:
       file: db/changelog/changes/v1/009-fix-organization-slug-uniqueness.yml
+  - include:
+      file: db/changelog/changes/v1/010-insert-test-data.yml
