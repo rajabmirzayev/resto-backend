@@ -9,21 +9,40 @@ spring:
   messages:
     basename: messages
 
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${JWT_ISSUER_URI:http://localhost:8080/realms/tabler}
+
 service:
   order:
     url: ${ORDER_SERVICE_URL:http://localhost:8107}
   table:
     url: ${TABLE_SERVICE_URL:http://localhost:8106}
 
+feign:
+  client:
+    config:
+      default:
+        connectTimeout: 2000
+        readTimeout: 5000
+        loggerLevel: BASIC
+
 server:
   port: ${WAITER_SERVER_PORT:8109}
   servlet:
     context-path: /api/waiter-ms
 
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+
 logging:
   level:
-    az.codlab.waiter: DEBUG
-
+    az.codlab.waiter: INFO
 
 security:
   internal-auth:
