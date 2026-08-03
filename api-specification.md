@@ -2006,22 +2006,136 @@ Success (200):
 ## 7. Order — `order-service` (port 8107)
 
 > API prefix: `/api/order-ms/v1/...`
-> Response: `ApiResponse<T>` wrapper
-> Error: Spring `ProblemDetail`
+> Gateway: `http://localhost:8001` → `/api/order-ms/...` (bütün sorğular gateway-dən keçir)
+> Auth: bütün endpoint-lər `Authorization: Bearer {token}` tələb edir (public endpoint yoxdur)
+> Response: `ApiResponse<T>` wrapper → `{ success, message, errorCode, data }`
+> Error: Spring `ProblemDetail` (RFC 9457) → `key`, `path`, `timestamp`, bəzi hallarda `fieldErrors`
+
+### Tenant & Giriş Qaydaları
+
+- Hər sifariş və sifariş maddəsi bir `orgId`-yə aiddir.
+- **Read** (GET): `orgId` query parametri məcburidir; bütün filterlər həmin org daxilində tətbiq olunur. `orgId` verilməzsə → 400 `ORDER_MS_1003`.
+- **Write**: `orgId` request body-də məcburidir. Sifarişin maddələri yalnız həmin org-un menyusundan (menu-servis), masası isə yalnız həmin org-a aid masalardan (table-servis) seçilə bilər — hər iki yoxlama aidiyyatı servisin səviyyəsində aparılır.
+- **SUPER_ADMIN** (platform admin) bütün org-lara tam girişə malikdir.
+- Internal microservice çağrıları (`X-Internal-Auth` header-i ilə) bütün data-ya oxuya bilər.
+
+> ⚠️ **Qeyd (tenant yoxlaması yarımçıqdır):** menu-ms və table-ms-dən fərqli olaraq order-ms hələ tam tenant yoxlaması tətbiq etmir — `GET /orders/{id}` kimi id-əsaslı endpoint-lərdə sifarişin `orgId`-si principal ilə yoxlanılmır, `orgId` əsasən filter kimi istifadə olunur. Servis table-ms/waiter-ms kimi bərkidilməli, `ORDER_MS_3003` kodu əlavə edilməlidir (yol xəritəsində).
+
+### Sifariş Status Maşını (Lifecycle)
+
+`/status` endpoint-i ilə yalnız irəli keçidlər mümkündür (geriyə keçid yoxdur):
+
+```
+PENDING → CONFIRMED → PREPARING → READY → SERVED → COMPLETED
+```
+
+Qaydalar:
+- `PENDING` → `CONFIRMED`; `CONFIRMED` → `PREPARING`; `PREPARING` → `READY`; `READY` → `SERVED`; `SERVED` → `COMPLETED`.
+- Eyni statusa keçid də qadağandır (məs. `CONFIRMED` → `CONFIRMED`) → 400 `ORDER_MS_4001`.
+- `CANCELLED` `/status` endpoint-i ilə **QƏBUL EDİLMİR** → 400 `ORDER_MS_4009`. Ləğv üçün mütləq `POST /orders/{id}/cancel` istifadə olunur.
+- **Ləğv edilə bilən statuslar:** `PENDING`, `CONFIRMED`, `PREPARING`, `READY`. `SERVED`-dən sonra ləğv mümkün deyil → 400 `ORDER_MS_4009`.
+- `COMPLETED` və `CANCELLED` terminal statuslardır — heç bir keçid yoxdur.
+- `COMPLETED` olmaq üçün sifariş `SERVED` olmalıdır (yoxdursa 400 `ORDER_MS_4001`); ödəniş `PAID` olanda sifariş avtomatik `COMPLETED` olur.
+
+**Maddə (item) status maşını:**
+
+| Cari \\ Hədəf | `PREPARING` | `READY` | `SERVED` | `CANCELLED` |
+|---|---|---|---|---|
+| `PENDING` | ✓ | ✗ | ✗ | ✓ |
+| `CONFIRMED` | ✓ | ✗ | ✗ | ✓ |
+| `PREPARING` | ✗ | ✓ | ✗ | ✓ |
+| `READY` | ✗ | ✗ | ✓ | ✓ |
+| `SERVED` | ✗ | ✗ | ✗ | ✗ |
+| `CANCELLED` | ✗ | ✗ | ✗ | ✗ |
+
+- Eyni status yenidən göndərilə bilər (idempotent); digər qadağan keçid → 400 `ORDER_MS_4007`.
+- Maddə statusu dəyişəndə sifariş statusu avtomatik yenilənə bilər:
+  - Bütün aktiv maddələr `READY`/`SERVED` və sifariş `PREPARING` → sifariş `READY`
+  - Bütün aktiv maddələr `SERVED` və sifariş `READY` → sifariş `SERVED`
+
+### Order-servis Error Kodları
+
+| HTTP | `key` | Səbəb |
+|---|---|---|
+| 400 | `ORDER_MS_1000` | Validation failed (DTO/field) / yanlış enum dəyəri (`status`, `method` və s.) |
+| 400 | `ORDER_MS_1001` | JSON parse error |
+| 400 | `ORDER_MS_1003` | Parametr tipi yanlış (məs. UUID olmayan `{id}`) / məcburi parametr verilməyib |
+| 401 | `COMMON_4001` | Token yoxdur / etibarsız |
+| 403 | `COMMON_4003` | Security layer tərəfindən qadağan |
+| 404 | `ORDER_MS_3001` | Sifariş tapılmadı (silinib və ya mövcud deyil) |
+| 404 | `ORDER_MS_4006` | Sifariş maddəsi tapılmadı (bu sifarişə aid deyil) |
+| 400 | `ORDER_MS_4001` | Sifariş status keçidi qadağandır |
+| 400 | `ORDER_MS_4004` | Yalnız `PENDING` sifariş təsdiqlənə bilər (waiter-confirm) |
+| 400 | `ORDER_MS_4005` | Tamamlanmış/ləğv olunmuş sifarişə maddə əlavə etmək olmaz |
+| 400 | `ORDER_MS_4007` | Maddə status keçidi qadağandır |
+| 409 | `ORDER_MS_4008` | Ödəniş artıq tamamlanıb (`PAID`) |
+| 400 | `ORDER_MS_4009` | Sifariş cari statusda ləğv oluna bilməz |
+| 400 | `ORDER_MS_4011` | Masa `AVAILABLE` deyil (boş deyil) |
+| 400 | `ORDER_MS_4012` | Menu maddəsi org-un menyusunda yoxdur |
+| 400 | `ORDER_MS_4013` | Menu maddəsi qeyri-aktivdir (`isAvailable=false`) |
+| 500 | `ORDER_MS_9999` | Daxili xəta |
+
+> `ORDER_MS_4002` (completed order ləğvi) və `ORDER_MS_4003` (paid order ləğvi) enum-da mövcuddur, amma hazırki kodda istifadə edilmir (ləğv qadağası `ORDER_MS_4009` ilə əhatə olunur).
+> Masa mövcud deyilsə, table-servis öz xətasını (məs. `TABLE_MS_3001` 404) qaytarır və o, olduğu kimi ötürülür.
+
+---
+
+### Data Modelləri
+
+**Order** (sifariş cavabı)
+
+| Field | Tip | Qeyd |
+|---|---|---|
+| `id` | String (UUID) | |
+| `tableId` | UUID | |
+| `tableNumber` | Integer | Masa yaradılanda table-servisdən götürülür |
+| `items` | List\<OrderItem\> | |
+| `status` | String | `PENDING` \| `CONFIRMED` \| `PREPARING` \| `READY` \| `SERVED` \| `COMPLETED` \| `CANCELLED` |
+| `paymentStatus` | String | `PENDING` \| `PAID` |
+| `totalAmount` | BigDecimal | Σ (price × quantity) |
+| `waiterId` | UUID \| null | |
+| `waiterName` | String \| null | |
+| `orderSource` | String | `WAITER` \| `CUSTOMER` |
+| `waiterConfirmed` | Boolean | |
+| `confirmedBy` | String \| null | Ofisant təsdiqi (`waiter-confirm` ilə) |
+| `customerPhoto` | String \| null | |
+| `paymentMethod` | String \| null | `CASH` \| `CARD` |
+| `paymentRequested` | Boolean | |
+| `cancelReason` | String \| null | |
+| `orgId` | UUID | |
+| `createdAt` | String (ISO-8601) | məs. `2026-07-30T14:30:00Z` |
+| `updatedAt` | String (ISO-8601) | |
+
+**OrderItem** (maddə)
+
+| Field | Tip | Qeyd |
+|---|---|---|
+| `id` | String (UUID) | |
+| `menuItemId` | UUID | |
+| `menuItemName` | String | Yaradılma anında request-dən alınır |
+| `quantity` | Integer | |
+| `price` | BigDecimal | |
+| `notes` | String \| null | |
+| `status` | String | `PENDING` \| `CONFIRMED` \| `PREPARING` \| `READY` \| `SERVED` \| `CANCELLED` |
+
+---
 
 ### `GET /api/order-ms/v1/orders`
 
-**Sifariş siyahısı.**
+**Sifariş siyahısı** (filterlərlə).
 
 Headers: `Authorization: Bearer {token}`
 
 Query:
-| Parameter | Tip | Məcburi | İzah |
+
+| Parametr | Tip | Məcburi | İzah |
 |---|---|---|---|
-| `orgId` | UUID | Bəli | Org filter |
-| `status` | String | X | Status: `pending`, `confirmed`, `preparing`, `ready`, `served`, `completed`, `cancelled` |
-| `tableId` | UUID | X | Masa filter |
-| `waiterId` | UUID | X | Ofisant filter |
+| `orgId` | UUID | ✅ | Org filter; verilməzsə → 400 `ORDER_MS_1003` |
+| `status` | String | ✗ | Status filter (case-insensitive): `PENDING`, `CONFIRMED`, `PREPARING`, `READY`, `SERVED`, `COMPLETED`, `CANCELLED`. Yanlış dəyər → 400 `ORDER_MS_1000` |
+| `tableId` | UUID | ✗ | Masa filter |
+| `waiterId` | UUID | ✗ | Ofisant filter |
+
+> **Filterlərin işləmə qaydası:** `status`+`tableId` birlikdə işləyir; `status`+`waiterId` birlikdə verilərsə `waiterId` nəzərə alınmır (status əsas götürülür). `waiterId` tək verilərsə həmin ofisantın sifarişləri qayıdır.
 
 Success (200):
 ```json
@@ -2052,7 +2166,7 @@ Success (200):
       "waiterName": "Leyla Hüseynova",
       "orderSource": "WAITER",
       "waiterConfirmed": true,
-      "confirmedBy": "Leyla Hüseynova",
+      "confirmedBy": null,
       "customerPhoto": null,
       "paymentMethod": null,
       "paymentRequested": false,
@@ -2062,6 +2176,20 @@ Success (200):
       "updatedAt": "2026-07-30T18:32:00.000Z"
     }
   ]
+}
+```
+
+Error (400) — yanlış `status` dəyəri:
+```json
+{
+  "type": "about:blank",
+  "title": "Validation Failed",
+  "status": 400,
+  "detail": "Validation failed for one or more fields",
+  "instance": "trace:xxx",
+  "key": "ORDER_MS_1000",
+  "path": "/api/order-ms/v1/orders",
+  "timestamp": "2026-07-30T12:00:00.000Z"
 }
 ```
 
@@ -2081,10 +2209,10 @@ Error (404):
   "type": "about:blank",
   "title": "Not Found",
   "status": 404,
-  "detail": "Order with id o99 not found",
+  "detail": "Order not found",
   "instance": "trace:xxx",
   "key": "ORDER_MS_3001",
-  "path": "/api/order-ms/v1/orders/o99",
+  "path": "/api/order-ms/v1/orders/550e8400-e29b-41d4-a716-446655440080",
   "timestamp": "2026-07-30T12:00:00.000Z"
 }
 ```
@@ -2093,72 +2221,67 @@ Error (404):
 
 ### `POST /api/order-ms/v1/orders`
 
-**Yeni sifariş yarat.**
+**Yeni sifariş yarat.** (Ofisant paneli və müştəri axını üçün; müştəri axını adətən customer-servis vasitəsilə internal çağrılır.)
 
-Headers: `Authorization: Bearer {token}` (opsional — customer endpoint-i istifadə etmir)
+Headers: `Authorization: Bearer {token}`
 
 **Request (waiter):**
 ```json
 {
+  "orgId": "550e8400-e29b-41d4-a716-446655440001",
   "tableId": "550e8400-e29b-41d4-a716-446655440061",
   "waiterId": "550e8400-e29b-41d4-a716-446655440010",
   "waiterName": "Leyla Hüseynova",
   "orderSource": "WAITER",
   "items": [
-    {
-      "menuItemId": "550e8400-e29b-41d4-a716-446655440040",
-      "menuItemName": "Pomidor Şorbası",
-      "quantity": 2,
-      "price": 8.00,
-      "notes": ""
-    },
-    {
-      "menuItemId": "550e8400-e29b-41d4-a716-446655440041",
-      "menuItemName": "Lülə Kebab",
-      "quantity": 1,
-      "price": 28.00,
-      "notes": "Az bişmiş"
-    }
-  ],
-  "orgId": "550e8400-e29b-41d4-a716-446655440001"
+    { "menuItemId": "550e8400-e29b-41d4-a716-446655440040", "menuItemName": "Pomidor Şorbası", "quantity": 2, "price": 8.00, "notes": "" },
+    { "menuItemId": "550e8400-e29b-41d4-a716-446655440041", "menuItemName": "Lülə Kebab", "quantity": 1, "price": 28.00, "notes": "Az bişmiş" }
+  ]
 }
 ```
 
 **Request (customer):**
 ```json
 {
+  "orgId": "550e8400-e29b-41d4-a716-446655440001",
   "tableId": "550e8400-e29b-41d4-a716-446655440063",
   "orderSource": "CUSTOMER",
   "items": [
-    {
-      "menuItemId": "550e8400-e29b-41d4-a716-446655440042",
-      "menuItemName": "Margarita Pizza",
-      "quantity": 1,
-      "price": 18.00,
-      "notes": ""
-    }
+    { "menuItemId": "550e8400-e29b-41d4-a716-446655440042", "menuItemName": "Margarita Pizza", "quantity": 1, "price": 18.00, "notes": "" }
   ],
   "customerPhoto": "data:image/jpeg;base64,...",
-  "paymentMethod": "CASH",
-  "orgId": "550e8400-e29b-41d4-a716-446655440001"
+  "paymentMethod": "CASH"
 }
 ```
 
+| Field | Məcburi | Validasiya |
+|---|---|---|
+| `orgId` | ✅ | UUID |
+| `tableId` | ✅ | UUID; masa **eyni org-da** və `AVAILABLE` olmalıdır → deyilsə 400 `ORDER_MS_4011` |
+| `orderSource` | ✅ | `WAITER` \| `CUSTOMER` (case-insensitive) |
+| `items` | ✅ | Ən azı 1 maddə; hər maddədə: `menuItemId` (UUID, org menyusunda olmalıdır → 400 `ORDER_MS_4012`, `isAvailable=true` olmalıdır → 400 `ORDER_MS_4013`), `menuItemName` (non-blank), `quantity` (required integer), `price` (required decimal), `notes` (opsional) |
+| `waiterId` | ✗ | UUID; WAITER axını üçün |
+| `waiterName` | ✗ | WAITER axını üçün |
+| `customerPhoto` | ✗ | CUSTOMER axını üçün |
+| `paymentMethod` | ✗ | `CASH` \| `CARD`; CUSTOMER axını üçün ilkin ödəniş metodu |
+
 **Status assignment rules (backend):**
 
-| orderSource | Mode | waiterConfirmed | status |
+| orderSource | orderMode (org setting) | waiterConfirmed | status |
 |---|---|---|---|
 | `WAITER` | — | `true` | `CONFIRMED` |
 | `CUSTOMER` | `CUSTOMER` | `true` | `CONFIRMED` |
 | `CUSTOMER` | `CUSTOMER_WAITER_CONFIRM` | `false` | `PENDING` |
 
-**PaymentStatus rules:**
-- `paymentMethod` var + org setting `paymentTiming=BEFORE` → `PENDING`
-- `paymentMethod` yoxdursa → `PENDING`
+**PaymentStatus rules (create):**
+- Org setting `paymentTiming=BEFORE` → `PAID`
+- Org setting `paymentTiming=AFTER` → `PENDING`
 
-**Business rule:** Sifariş yaradılanda:
-- Masanın status-u `OCCUPIED` olur
-- Masanın `currentOrderId`-si set edilir
+**Business rules:**
+- Masa `AVAILABLE` deyilsə → 400 `ORDER_MS_4011`; masa mövcud deyilsə table-servis 404-ü ötürülür (`TABLE_MS_3001`).
+- Bütün maddələr org-un menyusunda olmalı və `isAvailable=true` olmalıdır.
+- Yaradılanda masa `OCCUPIED` olur və masanın `currentOrderId`-si set edilir (table-servis çağrılır).
+- Yeni maddələrin statusu `PENDING`, `paymentRequested=false` olur; `totalAmount` hesablanır.
 
 Success (201):
 ```json
@@ -2168,44 +2291,44 @@ Success (201):
   "errorCode": null,
   "data": {
     "id": "550e8400-e29b-41d4-a716-446655440080",
-    "items": [
-      {
-        "id": "550e8400-e29b-41d4-a716-446655440081",
-        "menuItemId": "550e8400-e29b-41d4-a716-446655440040",
-        "menuItemName": "Pomidor Şorbası",
-        "quantity": 2,
-        "price": 8.00,
-        "notes": "",
-        "status": "PENDING"
-      },
-      {
-        "id": "550e8400-e29b-41d4-a716-446655440082",
-        "menuItemId": "550e8400-e29b-41d4-a716-446655440055",
-        "menuItemName": "Qızardılmış Balıq",
-        "quantity": 1,
-        "price": 18.00,
-        "notes": "Az duzlu",
-        "status": "PENDING"
-      }
-    ],
     "tableId": "550e8400-e29b-41d4-a716-446655440061",
     "tableNumber": 2,
-    "status": "PENDING",
+    "items": [
+      { "id": "550e8400-e29b-41d4-a716-446655440081", "menuItemId": "550e8400-e29b-41d4-a716-446655440040", "menuItemName": "Pomidor Şorbası", "quantity": 2, "price": 8.00, "notes": "", "status": "PENDING" },
+      { "id": "550e8400-e29b-41d4-a716-446655440082", "menuItemId": "550e8400-e29b-41d4-a716-446655440041", "menuItemName": "Lülə Kebab", "quantity": 1, "price": 28.00, "notes": "Az bişmiş", "status": "PENDING" }
+    ],
+    "status": "CONFIRMED",
     "paymentStatus": "PENDING",
     "totalAmount": 44.00,
-    "waiterId": "550e8400-e29b-41d4-a716-446655440090",
+    "waiterId": "550e8400-e29b-41d4-a716-446655440010",
     "waiterName": "Leyla Hüseynova",
     "orderSource": "WAITER",
-    "waiterConfirmed": false,
+    "waiterConfirmed": true,
     "confirmedBy": null,
     "customerPhoto": null,
     "paymentMethod": null,
     "paymentRequested": false,
     "cancelReason": null,
     "orgId": "550e8400-e29b-41d4-a716-446655440001",
-    "createdAt": "2026-07-30T14:30:00Z",
-    "updatedAt": "2026-07-30T14:30:00Z"
+    "createdAt": "2026-07-30T14:30:00.000Z",
+    "updatedAt": "2026-07-30T14:30:00.000Z"
   }
+}
+```
+
+> Müştəri axınında `orderMode=CUSTOMER_WAITER_CONFIRM` olan org-da status `PENDING`, `waiterConfirmed=false` qayıdır — təsdiq üçün `PUT /orders/{id}/waiter-confirm` istifadə olunur.
+
+Error (400) — masa boş deyil:
+```json
+{
+  "type": "about:blank",
+  "title": "Table Not Available",
+  "status": 400,
+  "detail": "Table is not available",
+  "instance": "trace:xxx",
+  "key": "ORDER_MS_4011",
+  "path": "/api/order-ms/v1/orders",
+  "timestamp": "2026-07-30T12:00:00.000Z"
 }
 ```
 
@@ -2213,24 +2336,22 @@ Success (201):
 
 ### `PUT /api/order-ms/v1/orders/{id}/status`
 
-**Sifariş statusunu dəyiş.**
+**Sifariş statusunu dəyiş** (status maşınına tabedir).
 
 Headers: `Authorization: Bearer {token}`
 
-Request:
+Request body:
 ```json
 {
   "status": "PREPARING"
 }
 ```
 
-**Status lifecycle:**
-```
-PENDING → CONFIRMED → PREPARING → READY → SERVED → COMPLETED
-                                                   ↓ (paymentStatus=PAID)
-```
+| Field | Məcburi | Validasiya |
+|---|---|---|
+| `status` | ✅ | `PENDING` \| `CONFIRMED` \| `PREPARING` \| `READY` \| `SERVED` \| `COMPLETED` (case-insensitive). `CANCELLED` bu endpoint ilə **QƏBUL EDİLMİR** → 400 `ORDER_MS_4009` (bunun üçün `/cancel` var). Yanlış dəyər → 400 `ORDER_MS_1000` |
 
-`CANCELLED` istənilən statusdan çağrıla bilər (xüsusi endpoint).
+**Status maşını** yuxarıdakı cədvələ tabedir; qadağan keçid → 400 `ORDER_MS_4001`.
 
 Success (200):
 ```json
@@ -2238,27 +2359,21 @@ Success (200):
   "success": true,
   "message": "Order status updated",
   "errorCode": null,
-  "data": { "id": "550e8400-e29b-41d4-a716-446655440080",
-    "items": [
-      { "id": "uuid", "menuItemId": "uuid", "menuItemName": "Pomidor Şorbası", "quantity": 2, "price": 8.00, "notes": "", "status": "PENDING" }
-    ],
-    "tableId": "uuid",
-    "tableNumber": 2,
-    "status": "PENDING",
-    "paymentStatus": "PENDING",
-    "totalAmount": 44.00,
-    "waiterId": "uuid",
-    "waiterName": "Leyla Hüseynova",
-    "orderSource": "WAITER",
-    "waiterConfirmed": false,
-    "confirmedBy": null,
-    "customerPhoto": null,
-    "paymentMethod": null,
-    "paymentRequested": false,
-    "cancelReason": null,
-    "orgId": "550e8400-e29b-41d4-a716-446655440001",
-    "createdAt": "2026-07-30T14:30:00Z",
-    "updatedAt": "2026-07-30T14:30:00Z" }
+  "data": { "...Order (status: PREPARING)..." }
+}
+```
+
+Error (400) — qadağan keçid (məs. `PENDING` → `READY`):
+```json
+{
+  "type": "about:blank",
+  "title": "Invalid Status",
+  "status": 400,
+  "detail": "Invalid order status transition",
+  "instance": "trace:xxx",
+  "key": "ORDER_MS_4001",
+  "path": "/api/order-ms/v1/orders/550e8400-e29b-41d4-a716-446655440080/status",
+  "timestamp": "2026-07-30T12:00:00.000Z"
 }
 ```
 
@@ -2266,18 +2381,24 @@ Success (200):
 
 ### `PUT /api/order-ms/v1/orders/{id}/items/{itemId}/status`
 
-**Tək maddənin statusunu dəyiş.**
+**Tək maddənin statusunu dəyiş** (maddə status maşınına tabedir).
 
 Headers: `Authorization: Bearer {token}`
 
-Request:
+Request body:
 ```json
 {
   "status": "PREPARING"
 }
 ```
 
-**Mümkün statuslar:** `PREPARING` | `READY` | `SERVED`
+| Field | Məcburi | Validasiya |
+|---|---|---|
+| `status` | ✅ | Maddə maşınındakı hədəflərdən biri: `PREPARING` \| `READY` \| `SERVED` \| `CANCELLED` (case-insensitive). Eyni status yenidən göndərilə bilər. Qadağan keçid → 400 `ORDER_MS_4007` |
+
+**Business rules:**
+- Maddə bu sifarişə aid olmalıdır (aid deyilsə → 404 `ORDER_MS_4006`).
+- Yeniləmədən sonra sifariş statusu avtomatik hesablanır (bax: Maddə status maşını → avtomatik yenilənmə).
 
 Success (200):
 ```json
@@ -2285,27 +2406,21 @@ Success (200):
   "success": true,
   "message": "Item status updated",
   "errorCode": null,
-  "data": { "id": "550e8400-e29b-41d4-a716-446655440080",
-    "items": [
-      { "id": "uuid", "menuItemId": "uuid", "menuItemName": "Pomidor Şorbası", "quantity": 2, "price": 8.00, "notes": "", "status": "PENDING" }
-    ],
-    "tableId": "uuid",
-    "tableNumber": 2,
-    "status": "PENDING",
-    "paymentStatus": "PENDING",
-    "totalAmount": 44.00,
-    "waiterId": "uuid",
-    "waiterName": "Leyla Hüseynova",
-    "orderSource": "WAITER",
-    "waiterConfirmed": false,
-    "confirmedBy": null,
-    "customerPhoto": null,
-    "paymentMethod": null,
-    "paymentRequested": false,
-    "cancelReason": null,
-    "orgId": "550e8400-e29b-41d4-a716-446655440001",
-    "createdAt": "2026-07-30T14:30:00Z",
-    "updatedAt": "2026-07-30T14:30:00Z" }
+  "data": { "...Order (həmin maddənin statusu yenilənib)..." }
+}
+```
+
+Error (404) — maddə tapılmadı / bu sifarişə aid deyil:
+```json
+{
+  "type": "about:blank",
+  "title": "Item Not Found",
+  "status": 404,
+  "detail": "Order item not found",
+  "instance": "trace:xxx",
+  "key": "ORDER_MS_4006",
+  "path": "/api/order-ms/v1/orders/550e8400-e29b-41d4-a716-446655440080/items/550e8400-e29b-41d4-a716-446655440090/status",
+  "timestamp": "2026-07-30T12:00:00.000Z"
 }
 ```
 
@@ -2317,22 +2432,22 @@ Success (200):
 
 Headers: `Authorization: Bearer {token}`
 
-Request:
+Request body:
 ```json
 {
   "items": [
-    {
-      "menuItemId": "550e8400-e29b-41d4-a716-446655440043",
-      "menuItemName": "Cola",
-      "quantity": 2,
-      "price": 4.00,
-      "notes": ""
-    }
+    { "menuItemId": "550e8400-e29b-41d4-a716-446655440043", "menuItemName": "Cola", "quantity": 2, "price": 4.00, "notes": "" }
   ]
 }
 ```
 
-> Yeni maddələrin status-u `PENDING` olur. `totalAmount` yenidən hesablanır.
+| Field | Məcburi | Validasiya |
+|---|---|---|
+| `items` | ✅ | Ən azı 1 maddə; validasiyalar `POST /orders` ilə eynidir (`menuItemId`, `menuItemName`, `quantity`, `price`, `notes`) |
+
+**Business rules:**
+- Sifariş `COMPLETED` və ya `CANCELLED` statusundadırsa → 400 `ORDER_MS_4005`.
+- Yeni maddələrin statusu `PENDING` olur; `totalAmount` yenidən hesablanır.
 
 Success (200):
 ```json
@@ -2340,27 +2455,21 @@ Success (200):
   "success": true,
   "message": "Items added to order",
   "errorCode": null,
-  "data": { "id": "550e8400-e29b-41d4-a716-446655440080",
-    "items": [
-      { "id": "uuid", "menuItemId": "uuid", "menuItemName": "Pomidor Şorbası", "quantity": 2, "price": 8.00, "notes": "", "status": "PENDING" }
-    ],
-    "tableId": "uuid",
-    "tableNumber": 2,
-    "status": "PENDING",
-    "paymentStatus": "PENDING",
-    "totalAmount": 44.00,
-    "waiterId": "uuid",
-    "waiterName": "Leyla Hüseynova",
-    "orderSource": "WAITER",
-    "waiterConfirmed": false,
-    "confirmedBy": null,
-    "customerPhoto": null,
-    "paymentMethod": null,
-    "paymentRequested": false,
-    "cancelReason": null,
-    "orgId": "550e8400-e29b-41d4-a716-446655440001",
-    "createdAt": "2026-07-30T14:30:00Z",
-    "updatedAt": "2026-07-30T14:30:00Z" }
+  "data": { "...Order (yeni maddələr əlavə olunub, totalAmount yenilənib)..." }
+}
+```
+
+Error (400) — tamamlanmış sifarişə əlavə:
+```json
+{
+  "type": "about:blank",
+  "title": "Not Active",
+  "status": 400,
+  "detail": "Cannot modify a completed or cancelled order",
+  "instance": "trace:xxx",
+  "key": "ORDER_MS_4005",
+  "path": "/api/order-ms/v1/orders/550e8400-e29b-41d4-a716-446655440080/items",
+  "timestamp": "2026-07-30T12:00:00.000Z"
 }
 ```
 
@@ -2368,11 +2477,11 @@ Success (200):
 
 ### `PUT /api/order-ms/v1/orders/{id}/waiter-confirm`
 
-**Ofisant müştəri sifarişini təsdiqləyir** (customer-waiter-confirm mode).
+**Ofisant müştəri sifarişini təsdiqləyir** (`orderMode=CUSTOMER_WAITER_CONFIRM` olan sifarişlər üçün).
 
 Headers: `Authorization: Bearer {token}`
 
-Request:
+Request body:
 ```json
 {
   "waiterId": "550e8400-e29b-41d4-a716-446655440010",
@@ -2380,7 +2489,16 @@ Request:
 }
 ```
 
-Result: `waiterConfirmed=true`, status `CONFIRMED`.
+| Field | Məcburi | Validasiya |
+|---|---|---|
+| `waiterId` | ✅ | UUID |
+| `waiterName` | ✅ | Non-blank |
+
+**Business rules:**
+- Sifariş statusu `PENDING` olmalıdır → deyilsə 400 `ORDER_MS_4004`.
+- Sifariş `orderSource=CUSTOMER` olmalıdır → deyilsə 400 `ORDER_MS_4001`.
+
+Result: `waiterConfirmed=true`, `confirmedBy=waiterName`, `waiterId`/`waiterName` yenilənir, status `CONFIRMED` olur.
 
 Success (200):
 ```json
@@ -2388,27 +2506,21 @@ Success (200):
   "success": true,
   "message": "Order confirmed",
   "errorCode": null,
-  "data": { "id": "550e8400-e29b-41d4-a716-446655440080",
-    "items": [
-      { "id": "uuid", "menuItemId": "uuid", "menuItemName": "Pomidor Şorbası", "quantity": 2, "price": 8.00, "notes": "", "status": "PENDING" }
-    ],
-    "tableId": "uuid",
-    "tableNumber": 2,
-    "status": "PENDING",
-    "paymentStatus": "PENDING",
-    "totalAmount": 44.00,
-    "waiterId": "uuid",
-    "waiterName": "Leyla Hüseynova",
-    "orderSource": "WAITER",
-    "waiterConfirmed": false,
-    "confirmedBy": null,
-    "customerPhoto": null,
-    "paymentMethod": null,
-    "paymentRequested": false,
-    "cancelReason": null,
-    "orgId": "550e8400-e29b-41d4-a716-446655440001",
-    "createdAt": "2026-07-30T14:30:00Z",
-    "updatedAt": "2026-07-30T14:30:00Z" }
+  "data": { "...Order (status: CONFIRMED, waiterConfirmed: true)..." }
+}
+```
+
+Error (400) — sifariş PENDING deyil:
+```json
+{
+  "type": "about:blank",
+  "title": "Not Pending",
+  "status": 400,
+  "detail": "Only pending orders can be confirmed",
+  "instance": "trace:xxx",
+  "key": "ORDER_MS_4004",
+  "path": "/api/order-ms/v1/orders/550e8400-e29b-41d4-a716-446655440080/waiter-confirm",
+  "timestamp": "2026-07-30T12:00:00.000Z"
 }
 ```
 
@@ -2420,14 +2532,20 @@ Success (200):
 
 Headers: `Authorization: Bearer {token}`
 
-Request (opsional):
+Request body (opsional):
 ```json
 {
   "reason": "Müştəri imtina etdi"
 }
 ```
 
-**Business rule:** Masa status-u `CLEANING` olur, `currentOrderId` təmizlənir.
+| Field | Məcburi | Validasiya |
+|---|---|---|
+| `reason` | ✗ | Opsional (uzunluq limiti servis tərəfindən tətbiq edilmir) |
+
+**Business rules:**
+- Yalnız `PENDING`, `CONFIRMED`, `PREPARING`, `READY` statuslarından ləğv oluna bilər → başqasından 400 `ORDER_MS_4009`.
+- Ləğvdən sonra masa statusu `CLEANING` olur və masanın `currentOrderId`-si təmizlənir (table-servis çağrılır).
 
 Success (200):
 ```json
@@ -2435,27 +2553,21 @@ Success (200):
   "success": true,
   "message": "Order cancelled",
   "errorCode": null,
-  "data": { "id": "550e8400-e29b-41d4-a716-446655440080",
-    "items": [
-      { "id": "uuid", "menuItemId": "uuid", "menuItemName": "Pomidor Şorbası", "quantity": 2, "price": 8.00, "notes": "", "status": "PENDING" }
-    ],
-    "tableId": "uuid",
-    "tableNumber": 2,
-    "status": "PENDING",
-    "paymentStatus": "PENDING",
-    "totalAmount": 44.00,
-    "waiterId": "uuid",
-    "waiterName": "Leyla Hüseynova",
-    "orderSource": "WAITER",
-    "waiterConfirmed": false,
-    "confirmedBy": null,
-    "customerPhoto": null,
-    "paymentMethod": null,
-    "paymentRequested": false,
-    "cancelReason": null,
-    "orgId": "550e8400-e29b-41d4-a716-446655440001",
-    "createdAt": "2026-07-30T14:30:00Z",
-    "updatedAt": "2026-07-30T14:30:00Z" }
+  "data": { "...Order (status: CANCELLED, cancelReason set)..." }
+}
+```
+
+Error (400) — cari statusdan ləğv mümkün deyil:
+```json
+{
+  "type": "about:blank",
+  "title": "Not Cancellable",
+  "status": 400,
+  "detail": "This order cannot be cancelled in its current state",
+  "instance": "trace:xxx",
+  "key": "ORDER_MS_4009",
+  "path": "/api/order-ms/v1/orders/550e8400-e29b-41d4-a716-446655440080/cancel",
+  "timestamp": "2026-07-30T12:00:00.000Z"
 }
 ```
 
@@ -2463,18 +2575,22 @@ Success (200):
 
 ### `POST /api/order-ms/v1/orders/{id}/request-payment`
 
-**Ödəniş tələbi (müştəri və ya ofisant).**
+**Ödəniş tələbi** (müştəri və ya ofisant). `paymentRequested=true` olur, `paymentMethod` set edilir.
 
 Headers: `Authorization: Bearer {token}`
 
-Request:
+Request body:
 ```json
 {
   "method": "CASH"
 }
 ```
 
-Result: `paymentRequested=true`, `paymentMethod` set.
+| Field | Məcburi | Validasiya |
+|---|---|---|
+| `method` | ✅ | `CASH` \| `CARD` (case-insensitive). Yanlış dəyər → 400 `ORDER_MS_1000` |
+
+> `paymentStatus` bu əməliyyatda dəyişmir (`PENDING` qalır) — `PAID` yalnız `complete-payment` ilə olur.
 
 Success (200):
 ```json
@@ -2482,27 +2598,7 @@ Success (200):
   "success": true,
   "message": "Payment requested",
   "errorCode": null,
-  "data": { "id": "550e8400-e29b-41d4-a716-446655440080",
-    "items": [
-      { "id": "uuid", "menuItemId": "uuid", "menuItemName": "Pomidor Şorbası", "quantity": 2, "price": 8.00, "notes": "", "status": "PENDING" }
-    ],
-    "tableId": "uuid",
-    "tableNumber": 2,
-    "status": "PENDING",
-    "paymentStatus": "PENDING",
-    "totalAmount": 44.00,
-    "waiterId": "uuid",
-    "waiterName": "Leyla Hüseynova",
-    "orderSource": "WAITER",
-    "waiterConfirmed": false,
-    "confirmedBy": null,
-    "customerPhoto": null,
-    "paymentMethod": null,
-    "paymentRequested": false,
-    "cancelReason": null,
-    "orgId": "550e8400-e29b-41d4-a716-446655440001",
-    "createdAt": "2026-07-30T14:30:00Z",
-    "updatedAt": "2026-07-30T14:30:00Z" }
+  "data": { "...Order (paymentRequested: true, paymentMethod: CASH)..." }
 }
 ```
 
@@ -2510,13 +2606,17 @@ Success (200):
 
 ### `POST /api/order-ms/v1/orders/{id}/complete-payment`
 
-**Ödənişi qəbul et (ofisant).**
+**Ödənişi qəbul et** (ofisant).
 
 Headers: `Authorization: Bearer {token}`
 
 Request body yoxdur.
 
-Result: `paymentStatus=PAID`, order status `COMPLETED`, masa `AVAILABLE`.
+**Business rules:**
+- Sifariş statusu `SERVED` olmalıdır → deyilsə 400 `ORDER_MS_4001`.
+- Sifariş artıq `PAID`-dırsa → 409 `ORDER_MS_4008`.
+
+Result: `paymentStatus=PAID`, sifariş statusu `COMPLETED`, masa `AVAILABLE` olur (table-servis çağrılır).
 
 Success (200):
 ```json
@@ -2524,27 +2624,21 @@ Success (200):
   "success": true,
   "message": "Payment completed",
   "errorCode": null,
-  "data": { "id": "550e8400-e29b-41d4-a716-446655440080",
-    "items": [
-      { "id": "uuid", "menuItemId": "uuid", "menuItemName": "Pomidor Şorbası", "quantity": 2, "price": 8.00, "notes": "", "status": "PENDING" }
-    ],
-    "tableId": "uuid",
-    "tableNumber": 2,
-    "status": "PENDING",
-    "paymentStatus": "PENDING",
-    "totalAmount": 44.00,
-    "waiterId": "uuid",
-    "waiterName": "Leyla Hüseynova",
-    "orderSource": "WAITER",
-    "waiterConfirmed": false,
-    "confirmedBy": null,
-    "customerPhoto": null,
-    "paymentMethod": null,
-    "paymentRequested": false,
-    "cancelReason": null,
-    "orgId": "550e8400-e29b-41d4-a716-446655440001",
-    "createdAt": "2026-07-30T14:30:00Z",
-    "updatedAt": "2026-07-30T14:30:00Z" }
+  "data": { "...Order (paymentStatus: PAID, status: COMPLETED)..." }
+}
+```
+
+Error (409) — ödəniş artıq tamamlanıb:
+```json
+{
+  "type": "about:blank",
+  "title": "Payment Completed",
+  "status": 409,
+  "detail": "Payment has already been completed for this order",
+  "instance": "trace:xxx",
+  "key": "ORDER_MS_4008",
+  "path": "/api/order-ms/v1/orders/550e8400-e29b-41d4-a716-446655440080/complete-payment",
+  "timestamp": "2026-07-30T12:00:00.000Z"
 }
 ```
 
@@ -2552,11 +2646,15 @@ Success (200):
 
 ### `POST /api/order-ms/v1/orders/{id}/start-preparing`
 
-**Bütün gözləyən maddələri `PREPARING` et. Order status-u `PREPARING` olur.**
+**Bütün gözləyən maddələri `PREPARING` et.** Order status-u `PREPARING` olur.
 
 Headers: `Authorization: Bearer {token}`
 
 Request body yoxdur.
+
+**Business rules:**
+- Sifariş `CONFIRMED` və ya `PENDING` statusunda olmalıdır → deyilsə 400 `ORDER_MS_4001`.
+- `PENDING`/`CONFIRMED` maddələr `PREPARING` olur; `READY`/`SERVED`/`CANCELLED` maddələr dəyişmir.
 
 Success (200):
 ```json
@@ -2564,27 +2662,7 @@ Success (200):
   "success": true,
   "message": "Order is now being prepared",
   "errorCode": null,
-  "data": { "id": "550e8400-e29b-41d4-a716-446655440080",
-    "items": [
-      { "id": "uuid", "menuItemId": "uuid", "menuItemName": "Pomidor Şorbası", "quantity": 2, "price": 8.00, "notes": "", "status": "PENDING" }
-    ],
-    "tableId": "uuid",
-    "tableNumber": 2,
-    "status": "PENDING",
-    "paymentStatus": "PENDING",
-    "totalAmount": 44.00,
-    "waiterId": "uuid",
-    "waiterName": "Leyla Hüseynova",
-    "orderSource": "WAITER",
-    "waiterConfirmed": false,
-    "confirmedBy": null,
-    "customerPhoto": null,
-    "paymentMethod": null,
-    "paymentRequested": false,
-    "cancelReason": null,
-    "orgId": "550e8400-e29b-41d4-a716-446655440001",
-    "createdAt": "2026-07-30T14:30:00Z",
-    "updatedAt": "2026-07-30T14:30:00Z" }
+  "data": { "...Order (status: PREPARING)..." }
 }
 ```
 
@@ -2592,11 +2670,14 @@ Success (200):
 
 ### `POST /api/order-ms/v1/orders/{id}/mark-all-ready`
 
-**Bütün maddələri `READY` et. Order status-u `READY` olur.**
+**Bütün maddələri `READY` et.** Order status-u `READY` olur.
 
 Headers: `Authorization: Bearer {token}`
 
 Request body yoxdur.
+
+**Business rules:**
+- `PREPARING` maddələr `READY` olur; digər maddələr dəyişmir.
 
 Success (200):
 ```json
@@ -2604,27 +2685,7 @@ Success (200):
   "success": true,
   "message": "All items are ready",
   "errorCode": null,
-  "data": { "id": "550e8400-e29b-41d4-a716-446655440080",
-    "items": [
-      { "id": "uuid", "menuItemId": "uuid", "menuItemName": "Pomidor Şorbası", "quantity": 2, "price": 8.00, "notes": "", "status": "PENDING" }
-    ],
-    "tableId": "uuid",
-    "tableNumber": 2,
-    "status": "PENDING",
-    "paymentStatus": "PENDING",
-    "totalAmount": 44.00,
-    "waiterId": "uuid",
-    "waiterName": "Leyla Hüseynova",
-    "orderSource": "WAITER",
-    "waiterConfirmed": false,
-    "confirmedBy": null,
-    "customerPhoto": null,
-    "paymentMethod": null,
-    "paymentRequested": false,
-    "cancelReason": null,
-    "orgId": "550e8400-e29b-41d4-a716-446655440001",
-    "createdAt": "2026-07-30T14:30:00Z",
-    "updatedAt": "2026-07-30T14:30:00Z" }
+  "data": { "...Order (status: READY)..." }
 }
 ```
 
@@ -2714,7 +2775,30 @@ Success (200):
 
 > API prefix: `/api/waiter-ms/v1/...`
 > Response: `ApiResponse<T>` wrapper
-> **Not:** Aggregation service — öz DB-si yoxdur, digər servislərdən məlumatları birləşdirir
+> **Not:** Aggregation service — öz DB-si yoxdur, digər servislərdən məlumatları birləşdirir.
+> Yalnız oxuma (GET) endpoint-ləri var; yazma əməliyyatı yoxdur.
+
+### Auth & Tenant qaydaları
+
+- Bütün endpoint-lər `Authorization: Bearer {token}` və ya gateway-dən ötürülən identity header-ları (`X-User-Id`, `X-Org-Id`, `X-Roles`, `X-Platform-Admin`, `X-Internal-Auth`) ilə işləyir.
+- Gateway müştəridən gələn bütün identity header-larını **silib** JWT-dən yenidən qoyur — kənar istifadəçi bu header-ları saxtalaşdıra bilməz; `X-Internal-Auth` secret-i yalnız gateway bilir.
+- `orgId` **tenant yoxlaması**: tələb olunur və autentifikasiya olunmuş istifadəçinin `orgId`-si ilə eyni olmalıdır.
+  - Uyğunsuzluq → **403** `WAITER_MS_3003` ACCESS_DENIED.
+  - `SUPER_ADMIN` (platform admin) istənilən `orgId`-ni oxuya bilər.
+  - Servislərarası (internal, `X-Internal-Auth`) çağrılar keçərlidir.
+- Upstream servis xətaları **səssiz boş cavab kimi yutulmur**:
+  - table-ms / order-ms əlçatmazdırsa (connect/timeout) → **503** `WAITER_MS_9001` UPSTREAM_UNAVAILABLE
+  - cavab formatı keçərsizdirsə (`success=false` və ya null data) → **502** `WAITER_MS_9002` UPSTREAM_ERROR
+  - table-ms / order-ms biznes xətası qaytararsa → onun öz error kodu olduğu kimi ötürülür (FeignClientException)
+- Nəticələr `createdAt` azalan sıra ilə, ən son **200** qeydlə məhdudlaşdırılır (memory/DoS qoruması).
+
+### Error kodları (WAITER_MS_*)
+
+| Code | HTTP | Mənası |
+|------|------|--------|
+| WAITER_MS_3003 | 403 | Başqa təşkilatın məlumatına giriş qadağandır |
+| WAITER_MS_9001 | 503 | Upstream servis müvəqqəti əlçatmazdır |
+| WAITER_MS_9002 | 502 | Upstream servis keçərsiz cavab qaytardı |
 
 ### `GET /api/waiter-ms/v1/tables`
 
@@ -2723,6 +2807,11 @@ Success (200):
 Headers: `Authorization: Bearer {token}`
 
 Query: `?orgId=550e8400-e29b-41d4-a716-446655440001`
+
+Davranış:
+- Masalar `tableNumber` artan sıra ilə qayıdır.
+- `orderSummary` yalnız masanın **cari sifarişindən** (`currentOrderId`) hesablanır — keçmiş/historiya sifarişlər deyil.
+- `section` section adıdır; tanınmayan/boş section üçün `""` qayıdır.
 
 Success (200):
 ```json
@@ -2759,6 +2848,8 @@ Success (200):
 }
 ```
 
+Error: 401 (token yox/keçərsiz), 403 `WAITER_MS_3003`, 503 `WAITER_MS_9001`, 502 `WAITER_MS_9002`.
+
 ---
 
 ### `GET /api/waiter-ms/v1/orders/pending-confirm`
@@ -2769,7 +2860,7 @@ Headers: `Authorization: Bearer {token}`
 
 Query: `?orgId=550e8400-e29b-41d4-a716-446655440001`
 
-Filter: `waiterConfirmed=false`, `orderSource=CUSTOMER`, status `PENDING`.
+Filter: `waiterConfirmed=false`, `orderSource=CUSTOMER`, status `PENDING`. `createdAt` azalan sıra, maks 200.
 
 Success (200):
 ```json
@@ -2787,12 +2878,12 @@ Success (200):
     "status": "PENDING",
     "paymentStatus": "PENDING",
     "totalAmount": 44.00,
-    "waiterId": "uuid",
-    "waiterName": "Leyla Hüseynova",
-    "orderSource": "WAITER",
+    "waiterId": null,
+    "waiterName": null,
+    "orderSource": "CUSTOMER",
     "waiterConfirmed": false,
     "confirmedBy": null,
-    "customerPhoto": null,
+    "customerPhoto": "https://...",
     "paymentMethod": null,
     "paymentRequested": false,
     "cancelReason": null,
@@ -2802,6 +2893,8 @@ Success (200):
   ]
 }
 ```
+
+Error: 401, 403 `WAITER_MS_3003`, 503 `WAITER_MS_9001`, 502 `WAITER_MS_9002`.
 
 ---
 
@@ -2813,7 +2906,7 @@ Headers: `Authorization: Bearer {token}`
 
 Query: `?orgId=550e8400-e29b-41d4-a716-446655440001`
 
-Filter: `paymentRequested=true`, `paymentStatus=PENDING`.
+Filter: `paymentRequested=true`, `paymentStatus=PENDING`. `createdAt` azalan sıra, maks 200.
 
 Success (200):
 ```json
@@ -2828,17 +2921,17 @@ Success (200):
     ],
     "tableId": "uuid",
     "tableNumber": 2,
-    "status": "PENDING",
+    "status": "CONFIRMED",
     "paymentStatus": "PENDING",
     "totalAmount": 44.00,
     "waiterId": "uuid",
     "waiterName": "Leyla Hüseynova",
     "orderSource": "WAITER",
-    "waiterConfirmed": false,
-    "confirmedBy": null,
+    "waiterConfirmed": true,
+    "confirmedBy": "uuid",
     "customerPhoto": null,
-    "paymentMethod": null,
-    "paymentRequested": false,
+    "paymentMethod": "CARD",
+    "paymentRequested": true,
     "cancelReason": null,
     "orgId": "550e8400-e29b-41d4-a716-446655440001",
     "createdAt": "2026-07-30T14:30:00Z",
@@ -2846,6 +2939,8 @@ Success (200):
   ]
 }
 ```
+
+Error: 401, 403 `WAITER_MS_3003`, 503 `WAITER_MS_9001`, 502 `WAITER_MS_9002`.
 
 ---
 
