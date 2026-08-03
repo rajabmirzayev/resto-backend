@@ -37,7 +37,7 @@ out/
 .vscode/
 
 script/.env
-script/tabler-realm.json.local
+script/resto-realm.json.local
 script/bootstrap-kc.local.sh
 
 data/

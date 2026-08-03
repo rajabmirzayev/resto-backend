@@ -7,15 +7,15 @@ databaseChangeLog:
         - sql:
             dbms: postgresql
             sql: |
-              UPDATE tabler_table.restaurant_tables t
+              UPDATE resto_table.restaurant_tables t
               SET section_id = keep.id
-              FROM tabler_table.sections dup
-              JOIN tabler_table.sections keep
+              FROM resto_table.sections dup
+              JOIN resto_table.sections keep
                 ON keep.org_id = dup.org_id
                AND keep.is_deleted = false
                AND lower(keep.name) = lower(dup.name)
                AND keep.id = (
-                     SELECT s2.id FROM tabler_table.sections s2
+                     SELECT s2.id FROM resto_table.sections s2
                      WHERE s2.org_id = dup.org_id
                        AND lower(s2.name) = lower(dup.name)
                        AND s2.is_deleted = false
@@ -29,11 +29,11 @@ databaseChangeLog:
         - sql:
             dbms: postgresql
             sql: |
-              UPDATE tabler_table.sections s
+              UPDATE resto_table.sections s
               SET is_deleted = true, deleted_at = now()
               WHERE s.is_deleted = false
                 AND s.id <> (
-                      SELECT s2.id FROM tabler_table.sections s2
+                      SELECT s2.id FROM resto_table.sections s2
                       WHERE s2.org_id = s.org_id
                         AND lower(s2.name) = lower(s.name)
                         AND s2.is_deleted = false
@@ -44,11 +44,11 @@ databaseChangeLog:
         - sql:
             dbms: postgresql
             sql: |
-              UPDATE tabler_table.restaurant_tables t
+              UPDATE resto_table.restaurant_tables t
               SET is_deleted = true, deleted_at = now()
               WHERE t.is_deleted = false
                 AND t.id <> (
-                      SELECT t2.id FROM tabler_table.restaurant_tables t2
+                      SELECT t2.id FROM resto_table.restaurant_tables t2
                       WHERE t2.org_id = t.org_id
                         AND t2.table_number = t.table_number
                         AND t2.is_deleted = false
@@ -59,11 +59,11 @@ databaseChangeLog:
             dbms: postgresql
             sql: |
               CREATE UNIQUE INDEX IF NOT EXISTS uq_sections_org_name
-              ON tabler_table.sections (org_id, LOWER(name))
+              ON resto_table.sections (org_id, LOWER(name))
               WHERE is_deleted = false;
         - sql:
             dbms: postgresql
             sql: |
               CREATE UNIQUE INDEX IF NOT EXISTS uq_tables_org_number
-              ON tabler_table.restaurant_tables (org_id, table_number)
+              ON resto_table.restaurant_tables (org_id, table_number)
               WHERE is_deleted = false;

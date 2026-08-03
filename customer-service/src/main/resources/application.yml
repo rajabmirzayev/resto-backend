@@ -26,7 +26,7 @@ server:
 
 logging:
   level:
-    az.codlab.customer: DEBUG
+    az.flowix.customer: DEBUG
 
 
 security:

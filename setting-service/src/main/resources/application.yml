@@ -7,7 +7,7 @@ spring:
     name: setting-service
 
   datasource:
-    url: ${SETTING_DB_URL:jdbc:postgresql://localhost:5432/tabler?currentSchema=tabler_setting}
+    url: ${SETTING_DB_URL:jdbc:postgresql://localhost:5432/resto?currentSchema=resto_setting}
     username: ${SETTING_DB_USERNAME:postgres}
     password: ${SETTING_DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
@@ -35,7 +35,7 @@ service:
 
 logging:
   level:
-    az.codlab.setting: DEBUG
+    az.flowix.setting: DEBUG
 
 
 security:

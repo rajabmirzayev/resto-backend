@@ -1,4 +1,4 @@
-# Tabler API Specification
+# RestoFlow API Specification
 
 ## Ümumi Qaydalar
 
@@ -423,7 +423,7 @@ Success (200):
   "message": "Success",
   "errorCode": null,
   "data": {
-    "qrCodeUrl": "https://api.qrserver.com/v1/create-qr-code/?size=512x512&data=https%3A%2F%2Ftabler.az%2Forg%2F550e8400-e29b-41d4-a716-446655440001%2Fmenu"
+    "qrCodeUrl": "https://api.qrserver.com/v1/create-qr-code/?size=512x512&data=https%3A%2F%2Fresto.az%2Forg%2F550e8400-e29b-41d4-a716-446655440001%2Fmenu"
   }
 }
 ```

@@ -1,6 +1,6 @@
-# Tabler — Backend
+# RestoFlow — Backend
 
-Microservice backend for the Tabler restaurant-management platform. Spring Boot 3 / Java 21, single PostgreSQL database with per-service schemas, Keycloak for auth, a Spring Cloud Gateway entry point, and an optional all-in-one Docker Compose stack.
+Microservice backend for the RestoFlow restaurant-management platform. Spring Boot 3 / Java 21, single PostgreSQL database with per-service schemas, Keycloak for auth, a Spring Cloud Gateway entry point, and an optional all-in-one Docker Compose stack.
 
 ```
 Frontend ──► cloud-gateway (8001) ──► auth-gateway ──► Keycloak (8080)
@@ -8,8 +8,8 @@ Frontend ──► cloud-gateway (8001) ──► auth-gateway ──► Keycloa
                └──────────────► PostgreSQL (5432), Valkey/Redis (6379)
 ```
 
-- **Auth:** Keycloak 26.5 (`tabler` realm, client `tabler-auth`). The gateway validates JWTs; `auth-gateway` proxies login/refresh/logout. The frontend never talks to Keycloak directly.
-- **Database:** one `tabler` database; each service owns a schema (`tabler_user`, `tabler_role`, `tabler_organization`, `tabler_menu`, `tabler_table`, `tabler_order`, `tabler_setting`). Schema migrations live in `db-migrations` (Liquibase).
+- **Auth:** Keycloak 26.5 (`resto` realm, client `resto-auth`). The gateway validates JWTs; `auth-gateway` proxies login/refresh/logout. The frontend never talks to Keycloak directly.
+- **Database:** one `resto` database; each service owns a schema (`resto_user`, `resto_role`, `resto_organization`, `resto_menu`, `resto_table`, `resto_order`, `resto_setting`). Schema migrations live in `db-migrations` (Liquibase).
 - **Config:** 100% env-driven via `script/.env`. No secrets in the repository.
 
 ---
@@ -44,7 +44,7 @@ Smoke test:
 curl -s http://localhost:8001/actuator/health
 curl -s -X POST http://localhost:8001/api/auth-ms/v1/auth/login \
   -H 'Content-Type: application/json' \
-  -d '{"username":"platform@codlab.az","password":"<PLATFORM_BOOTSTRAP_PASSWORD>"}'
+  -d '{"username":"admin@flowix.az","password":"<PLATFORM_BOOTSTRAP_PASSWORD>"}'
 ```
 
 A successful login returns a JWT whose `roles` claim contains `SUPER_ADMIN`.
@@ -97,7 +97,7 @@ This applies all Liquibase changesets and exits (`Started DbMigrationApplication
 docker compose -f script/local-compose.yml exec keycloak /bin/sh /tmp/scripts/bootstrap-kc.sh
 ```
 
-Idempotent — safe to re-run. Creates/updates the `tabler-auth` client secret, creates `PLATFORM_BOOTSTRAP_EMAIL` (default `platform@codlab.az`), sets its password and assigns `SUPER_ADMIN`.
+Idempotent — safe to re-run. Creates/updates the `resto-auth` client secret, creates `PLATFORM_BOOTSTRAP_EMAIL` (default `admin@flowix.az`), sets its password and assigns `SUPER_ADMIN`.
 
 ### 2.5 Run the services
 
@@ -113,16 +113,16 @@ Services (start gateways first, then the rest; startup order between business se
 |---|---|---|
 | `cloud-gateway` | 8001 | – |
 | `auth-gateway` | 8002 | – |
-| `organization-service` | 8102 | `tabler_organization` |
-| `user-service` | 8103 | `tabler_user` |
-| `role-service` | 8104 | `tabler_role` |
-| `menu-service` | 8105 | `tabler_menu` |
-| `table-service` | 8106 | `tabler_table` |
-| `order-service` | 8107 | `tabler_order` |
+| `organization-service` | 8102 | `resto_organization` |
+| `user-service` | 8103 | `resto_user` |
+| `role-service` | 8104 | `resto_role` |
+| `menu-service` | 8105 | `resto_menu` |
+| `table-service` | 8106 | `resto_table` |
+| `order-service` | 8107 | `resto_order` |
 | `kitchen-service` | 8108 | – |
 | `waiter-service` | 8109 | – |
 | `customer-service` | 8110 | – |
-| `setting-service` | 8111 | `tabler_setting` |
+| `setting-service` | 8111 | `resto_setting` |
 | `dashboard-service` | 8112 | – |
 | `report-service` | 8113 | – |
 
@@ -137,7 +137,7 @@ curl -s http://localhost:8001/actuator/health
 # login through the gateway (expect a JWT)
 curl -s -X POST http://localhost:8001/api/auth-ms/v1/auth/login \
   -H 'Content-Type: application/json' \
-  -d '{"username":"platform@codlab.az","password":"platform123"}'
+  -d '{"username":"admin@flowix.az","password":"platform123"}'
 ```
 
 ---
@@ -151,7 +151,7 @@ The same `compose.yml` used for the quick start is the deployment unit.
 1. Install **Docker** and the compose plugin.
 2. Copy the project and prepare the env:
    ```bash
-   git clone <your-repo> tabler-back && cd tabler-back/script
+   git clone <your-repo> restoflow-back && cd restoflow-back/script
    cp .env.example .env
    ```
 3. Set production values in `.env`:
@@ -187,7 +187,7 @@ docker compose up -d --build --remove-orphans   # rebuilds changed images, leave
 docker compose exec keycloak /bin/sh /tmp/scripts/bootstrap-kc.sh   # no-op if nothing changed
 ```
 
-Backups: `docker compose exec db pg_dump -U postgres tabler > backup.sql`.
+Backups: `docker compose exec db pg_dump -U postgres resto > backup.sql`.
 
 ---
 
@@ -201,7 +201,7 @@ All runtime configuration lives in `script/.env` (see `script/.env.example` for 
 | `POSTGRES_URL` | `db-migrations` | JDBC URL (local: `localhost`, docker: `db`) |
 | `CORS_ALLOWED_ORIGIN_PATTERNS` | gateways | Allowed frontend origins |
 | `KC_BOOTSTRAP_ADMIN_USERNAME/PASSWORD` | keycloak | Keycloak admin account |
-| `AUTH_KEYCLOAK_CLIENT_SECRET` | auth-gateway, bootstrap | Secret of the `tabler-auth` client |
+| `AUTH_KEYCLOAK_CLIENT_SECRET` | auth-gateway, bootstrap | Secret of the `resto-auth` client |
 | `PLATFORM_BOOTSTRAP_EMAIL/PASSWORD/ORG_ID` | bootstrap | Initial platform super-admin user |
 | `MENU_PUBLIC_BASE_URL` | menu-service | Base URL for menu image URLs |
 | `MENU_STORAGE_DIR` | menu-service | Where menu images are stored |
@@ -230,7 +230,7 @@ script/
   .env / .env.example         environment (git-ignored / template)
   compose.yml                 full stack (server / quick start)
   local-compose.yml           infra only (local development)
-  tabler-realm.json           Keycloak realm export
+  resto-realm.json           Keycloak realm export
   bootstrap-kc.sh             creates the platform user + client secret (idempotent)
 ```
 

@@ -7,7 +7,7 @@ databaseChangeLog:
 
         # ==================== Organization ====================
         - insert:
-            schemaName: tabler_organization
+            schemaName: resto_organization
             tableName: organizations
             columns:
               - column:
@@ -24,16 +24,16 @@ databaseChangeLog:
                   valueBoolean: false
               - column:
                   name: name
-                  value: "Tabler Demo Restoranı"
+                  value: "RestoFlow Demo Restoranı"
               - column:
                   name: slug
-                  value: "tabler-demo"
+                  value: "restoflow-demo"
               - column:
                   name: admin_name
                   value: "Demo Admin"
               - column:
                   name: admin_email
-                  value: "admin@tabler-demo.az"
+                  value: "admin@flowix.az"
               - column:
                   name: phone
                   value: "+994 50 123 45 67"
@@ -41,9 +41,9 @@ databaseChangeLog:
                   name: address
                   value: "Bakı şəhəri, Nizami küçəsi 45"
 
-        # ==================== Roles (tabler_role) ====================
+        # ==================== Roles (resto_role) ====================
         - insert:
-            schemaName: tabler_role
+            schemaName: resto_role
             tableName: roles
             columns:
               - column:
@@ -72,7 +72,7 @@ databaseChangeLog:
                   name: org_id
                   value: "01234567-89ab-cdef-0123-456789abcdef"
         - insert:
-            schemaName: tabler_role
+            schemaName: resto_role
             tableName: roles
             columns:
               - column:
@@ -101,7 +101,7 @@ databaseChangeLog:
                   name: org_id
                   value: "01234567-89ab-cdef-0123-456789abcdef"
         - insert:
-            schemaName: tabler_role
+            schemaName: resto_role
             tableName: roles
             columns:
               - column:
@@ -130,9 +130,9 @@ databaseChangeLog:
                   name: org_id
                   value: "01234567-89ab-cdef-0123-456789abcdef"
 
-        # ==================== Users (tabler_user) ====================
+        # ==================== Users (resto_user) ====================
         - insert:
-            schemaName: tabler_user
+            schemaName: resto_user
             tableName: users
             columns:
               - column:
@@ -155,7 +155,7 @@ databaseChangeLog:
                   value: "demo.admin"
               - column:
                   name: email
-                  value: "admin@tabler-demo.az"
+                  value: "admin@flowix.az"
               - column:
                   name: phone
                   value: "+994 50 123 45 67"
@@ -175,7 +175,7 @@ databaseChangeLog:
                   name: is_active
                   valueBoolean: true
         - insert:
-            schemaName: tabler_user
+            schemaName: resto_user
             tableName: users
             columns:
               - column:
@@ -198,7 +198,7 @@ databaseChangeLog:
                   value: "aysel"
               - column:
                   name: email
-                  value: "aysel@tabler-demo.az"
+                  value: "aysel@flowix.az"
               - column:
                   name: phone
                   value: "+994 51 234 56 78"
@@ -218,7 +218,7 @@ databaseChangeLog:
                   name: is_active
                   valueBoolean: true
         - insert:
-            schemaName: tabler_user
+            schemaName: resto_user
             tableName: users
             columns:
               - column:
@@ -241,7 +241,7 @@ databaseChangeLog:
                   value: "elvin"
               - column:
                   name: email
-                  value: "elvin@tabler-demo.az"
+                  value: "elvin@flowix.az"
               - column:
                   name: phone
                   value: "+994 55 345 67 89"
@@ -261,9 +261,9 @@ databaseChangeLog:
                   name: is_active
                   valueBoolean: true
 
-        # ==================== Sections (tabler_table) ====================
+        # ==================== Sections (resto_table) ====================
         - insert:
-            schemaName: tabler_table
+            schemaName: resto_table
             tableName: sections
             columns:
               - column:
@@ -285,7 +285,7 @@ databaseChangeLog:
                   name: org_id
                   value: "01234567-89ab-cdef-0123-456789abcdef"
         - insert:
-            schemaName: tabler_table
+            schemaName: resto_table
             tableName: sections
             columns:
               - column:
@@ -307,7 +307,7 @@ databaseChangeLog:
                   name: org_id
                   value: "01234567-89ab-cdef-0123-456789abcdef"
         - insert:
-            schemaName: tabler_table
+            schemaName: resto_table
             tableName: sections
             columns:
               - column:
@@ -329,9 +329,9 @@ databaseChangeLog:
                   name: org_id
                   value: "01234567-89ab-cdef-0123-456789abcdef"
 
-        # ==================== Restaurant tables (tabler_table) ====================
+        # ==================== Restaurant tables (resto_table) ====================
         - insert:
-            schemaName: tabler_table
+            schemaName: resto_table
             tableName: restaurant_tables
             columns:
               - column: { name: id, value: "dddddddd-0000-4000-8000-000000000001" }
@@ -344,7 +344,7 @@ databaseChangeLog:
               - column: { name: section_id, value: "cccccccc-0000-4000-8000-000000000001" }
               - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
         - insert:
-            schemaName: tabler_table
+            schemaName: resto_table
             tableName: restaurant_tables
             columns:
               - column: { name: id, value: "dddddddd-0000-4000-8000-000000000002" }
@@ -358,7 +358,7 @@ databaseChangeLog:
               - column: { name: current_order_id, value: "33333333-0000-4000-8000-000000000002" }
               - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
         - insert:
-            schemaName: tabler_table
+            schemaName: resto_table
             tableName: restaurant_tables
             columns:
               - column: { name: id, value: "dddddddd-0000-4000-8000-000000000003" }
@@ -372,7 +372,7 @@ databaseChangeLog:
               - column: { name: current_order_id, value: "33333333-0000-4000-8000-000000000001" }
               - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
         - insert:
-            schemaName: tabler_table
+            schemaName: resto_table
             tableName: restaurant_tables
             columns:
               - column: { name: id, value: "dddddddd-0000-4000-8000-000000000004" }
@@ -385,7 +385,7 @@ databaseChangeLog:
               - column: { name: section_id, value: "cccccccc-0000-4000-8000-000000000001" }
               - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
         - insert:
-            schemaName: tabler_table
+            schemaName: resto_table
             tableName: restaurant_tables
             columns:
               - column: { name: id, value: "dddddddd-0000-4000-8000-000000000005" }
@@ -398,7 +398,7 @@ databaseChangeLog:
               - column: { name: section_id, value: "cccccccc-0000-4000-8000-000000000002" }
               - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
         - insert:
-            schemaName: tabler_table
+            schemaName: resto_table
             tableName: restaurant_tables
             columns:
               - column: { name: id, value: "dddddddd-0000-4000-8000-000000000006" }
@@ -411,7 +411,7 @@ databaseChangeLog:
               - column: { name: section_id, value: "cccccccc-0000-4000-8000-000000000002" }
               - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
         - insert:
-            schemaName: tabler_table
+            schemaName: resto_table
             tableName: restaurant_tables
             columns:
               - column: { name: id, value: "dddddddd-0000-4000-8000-000000000007" }
@@ -424,7 +424,7 @@ databaseChangeLog:
               - column: { name: section_id, value: "cccccccc-0000-4000-8000-000000000002" }
               - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
         - insert:
-            schemaName: tabler_table
+            schemaName: resto_table
             tableName: restaurant_tables
             columns:
               - column: { name: id, value: "dddddddd-0000-4000-8000-000000000008" }
@@ -437,7 +437,7 @@ databaseChangeLog:
               - column: { name: section_id, value: "cccccccc-0000-4000-8000-000000000002" }
               - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
         - insert:
-            schemaName: tabler_table
+            schemaName: resto_table
             tableName: restaurant_tables
             columns:
               - column: { name: id, value: "dddddddd-0000-4000-8000-000000000009" }
@@ -450,7 +450,7 @@ databaseChangeLog:
               - column: { name: section_id, value: "cccccccc-0000-4000-8000-000000000003" }
               - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
         - insert:
-            schemaName: tabler_table
+            schemaName: resto_table
             tableName: restaurant_tables
             columns:
               - column: { name: id, value: "dddddddd-0000-4000-8000-000000000010" }
@@ -463,9 +463,9 @@ databaseChangeLog:
               - column: { name: section_id, value: "cccccccc-0000-4000-8000-000000000003" }
               - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
 
-        # ==================== Org settings (tabler_setting) ====================
+        # ==================== Org settings (resto_setting) ====================
         - insert:
-            schemaName: tabler_setting
+            schemaName: resto_setting
             tableName: org_settings
             columns:
               - column:
@@ -493,9 +493,9 @@ databaseChangeLog:
                   name: customer_theme
                   value: "EMERALD"
 
-        # ==================== Menu categories (tabler_menu) ====================
+        # ==================== Menu categories (resto_menu) ====================
         - insert:
-            schemaName: tabler_menu
+            schemaName: resto_menu
             tableName: menu_categories
             columns:
               - column: { name: id, value: "11111111-0000-4000-8000-000000000001" }
@@ -510,7 +510,7 @@ databaseChangeLog:
               - column: { name: sort_order, valueNumeric: 1 }
               - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
         - insert:
-            schemaName: tabler_menu
+            schemaName: resto_menu
             tableName: menu_categories
             columns:
               - column: { name: id, value: "11111111-0000-4000-8000-000000000002" }
@@ -525,7 +525,7 @@ databaseChangeLog:
               - column: { name: sort_order, valueNumeric: 2 }
               - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
         - insert:
-            schemaName: tabler_menu
+            schemaName: resto_menu
             tableName: menu_categories
             columns:
               - column: { name: id, value: "11111111-0000-4000-8000-000000000003" }
@@ -540,7 +540,7 @@ databaseChangeLog:
               - column: { name: sort_order, valueNumeric: 3 }
               - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
         - insert:
-            schemaName: tabler_menu
+            schemaName: resto_menu
             tableName: menu_categories
             columns:
               - column: { name: id, value: "11111111-0000-4000-8000-000000000004" }
@@ -555,7 +555,7 @@ databaseChangeLog:
               - column: { name: sort_order, valueNumeric: 4 }
               - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
         - insert:
-            schemaName: tabler_menu
+            schemaName: resto_menu
             tableName: menu_categories
             columns:
               - column: { name: id, value: "11111111-0000-4000-8000-000000000005" }
@@ -570,7 +570,7 @@ databaseChangeLog:
               - column: { name: sort_order, valueNumeric: 5 }
               - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
         - insert:
-            schemaName: tabler_menu
+            schemaName: resto_menu
             tableName: menu_categories
             columns:
               - column: { name: id, value: "11111111-0000-4000-8000-000000000006" }
@@ -585,7 +585,7 @@ databaseChangeLog:
               - column: { name: sort_order, valueNumeric: 6 }
               - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
         - insert:
-            schemaName: tabler_menu
+            schemaName: resto_menu
             tableName: menu_categories
             columns:
               - column: { name: id, value: "11111111-0000-4000-8000-000000000007" }
@@ -600,9 +600,9 @@ databaseChangeLog:
               - column: { name: sort_order, valueNumeric: 7 }
               - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
 
-        # ==================== Menu items (tabler_menu) ====================
+        # ==================== Menu items (resto_menu) ====================
         - insert:
-            schemaName: tabler_menu
+            schemaName: resto_menu
             tableName: menu_items
             columns:
               - column: { name: id, value: "22222222-0000-4000-8000-000000000001" }
@@ -624,7 +624,7 @@ databaseChangeLog:
               - column: { name: preparation_time, valueNumeric: 10 }
               - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
         - insert:
-            schemaName: tabler_menu
+            schemaName: resto_menu
             tableName: menu_items
             columns:
               - column: { name: id, value: "22222222-0000-4000-8000-000000000002" }
@@ -646,7 +646,7 @@ databaseChangeLog:
               - column: { name: preparation_time, valueNumeric: 12 }
               - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
         - insert:
-            schemaName: tabler_menu
+            schemaName: resto_menu
             tableName: menu_items
             columns:
               - column: { name: id, value: "22222222-0000-4000-8000-000000000003" }
@@ -668,7 +668,7 @@ databaseChangeLog:
               - column: { name: preparation_time, valueNumeric: 8 }
               - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
         - insert:
-            schemaName: tabler_menu
+            schemaName: resto_menu
             tableName: menu_items
             columns:
               - column: { name: id, value: "22222222-0000-4000-8000-000000000004" }
@@ -690,7 +690,7 @@ databaseChangeLog:
               - column: { name: preparation_time, valueNumeric: 8 }
               - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
         - insert:
-            schemaName: tabler_menu
+            schemaName: resto_menu
             tableName: menu_items
             columns:
               - column: { name: id, value: "22222222-0000-4000-8000-000000000005" }
@@ -712,7 +712,7 @@ databaseChangeLog:
               - column: { name: preparation_time, valueNumeric: 10 }
               - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
         - insert:
-            schemaName: tabler_menu
+            schemaName: resto_menu
             tableName: menu_items
             columns:
               - column: { name: id, value: "22222222-0000-4000-8000-000000000006" }
@@ -734,7 +734,7 @@ databaseChangeLog:
               - column: { name: preparation_time, valueNumeric: 8 }
               - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
         - insert:
-            schemaName: tabler_menu
+            schemaName: resto_menu
             tableName: menu_items
             columns:
               - column: { name: id, value: "22222222-0000-4000-8000-000000000007" }
@@ -756,7 +756,7 @@ databaseChangeLog:
               - column: { name: preparation_time, valueNumeric: 6 }
               - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
         - insert:
-            schemaName: tabler_menu
+            schemaName: resto_menu
             tableName: menu_items
             columns:
               - column: { name: id, value: "22222222-0000-4000-8000-000000000008" }
@@ -778,7 +778,7 @@ databaseChangeLog:
               - column: { name: preparation_time, valueNumeric: 7 }
               - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
         - insert:
-            schemaName: tabler_menu
+            schemaName: resto_menu
             tableName: menu_items
             columns:
               - column: { name: id, value: "22222222-0000-4000-8000-000000000009" }
@@ -800,7 +800,7 @@ databaseChangeLog:
               - column: { name: preparation_time, valueNumeric: 15 }
               - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
         - insert:
-            schemaName: tabler_menu
+            schemaName: resto_menu
             tableName: menu_items
             columns:
               - column: { name: id, value: "22222222-0000-4000-8000-000000000010" }
@@ -822,7 +822,7 @@ databaseChangeLog:
               - column: { name: preparation_time, valueNumeric: 15 }
               - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
         - insert:
-            schemaName: tabler_menu
+            schemaName: resto_menu
             tableName: menu_items
             columns:
               - column: { name: id, value: "22222222-0000-4000-8000-000000000011" }
@@ -844,7 +844,7 @@ databaseChangeLog:
               - column: { name: preparation_time, valueNumeric: 18 }
               - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
         - insert:
-            schemaName: tabler_menu
+            schemaName: resto_menu
             tableName: menu_items
             columns:
               - column: { name: id, value: "22222222-0000-4000-8000-000000000012" }
@@ -866,7 +866,7 @@ databaseChangeLog:
               - column: { name: preparation_time, valueNumeric: 20 }
               - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
         - insert:
-            schemaName: tabler_menu
+            schemaName: resto_menu
             tableName: menu_items
             columns:
               - column: { name: id, value: "22222222-0000-4000-8000-000000000013" }
@@ -888,7 +888,7 @@ databaseChangeLog:
               - column: { name: preparation_time, valueNumeric: 12 }
               - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
         - insert:
-            schemaName: tabler_menu
+            schemaName: resto_menu
             tableName: menu_items
             columns:
               - column: { name: id, value: "22222222-0000-4000-8000-000000000014" }
@@ -910,7 +910,7 @@ databaseChangeLog:
               - column: { name: preparation_time, valueNumeric: 12 }
               - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
         - insert:
-            schemaName: tabler_menu
+            schemaName: resto_menu
             tableName: menu_items
             columns:
               - column: { name: id, value: "22222222-0000-4000-8000-000000000015" }
@@ -932,7 +932,7 @@ databaseChangeLog:
               - column: { name: preparation_time, valueNumeric: 15 }
               - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
         - insert:
-            schemaName: tabler_menu
+            schemaName: resto_menu
             tableName: menu_items
             columns:
               - column: { name: id, value: "22222222-0000-4000-8000-000000000016" }
@@ -954,7 +954,7 @@ databaseChangeLog:
               - column: { name: preparation_time, valueNumeric: 10 }
               - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
         - insert:
-            schemaName: tabler_menu
+            schemaName: resto_menu
             tableName: menu_items
             columns:
               - column: { name: id, value: "22222222-0000-4000-8000-000000000017" }
@@ -976,7 +976,7 @@ databaseChangeLog:
               - column: { name: preparation_time, valueNumeric: 25 }
               - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
         - insert:
-            schemaName: tabler_menu
+            schemaName: resto_menu
             tableName: menu_items
             columns:
               - column: { name: id, value: "22222222-0000-4000-8000-000000000018" }
@@ -998,7 +998,7 @@ databaseChangeLog:
               - column: { name: preparation_time, valueNumeric: 20 }
               - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
         - insert:
-            schemaName: tabler_menu
+            schemaName: resto_menu
             tableName: menu_items
             columns:
               - column: { name: id, value: "22222222-0000-4000-8000-000000000019" }
@@ -1020,7 +1020,7 @@ databaseChangeLog:
               - column: { name: preparation_time, valueNumeric: 22 }
               - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
         - insert:
-            schemaName: tabler_menu
+            schemaName: resto_menu
             tableName: menu_items
             columns:
               - column: { name: id, value: "22222222-0000-4000-8000-000000000020" }
@@ -1042,7 +1042,7 @@ databaseChangeLog:
               - column: { name: preparation_time, valueNumeric: 18 }
               - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
         - insert:
-            schemaName: tabler_menu
+            schemaName: resto_menu
             tableName: menu_items
             columns:
               - column: { name: id, value: "22222222-0000-4000-8000-000000000021" }
@@ -1064,7 +1064,7 @@ databaseChangeLog:
               - column: { name: preparation_time, valueNumeric: 30 }
               - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
         - insert:
-            schemaName: tabler_menu
+            schemaName: resto_menu
             tableName: menu_items
             columns:
               - column: { name: id, value: "22222222-0000-4000-8000-000000000022" }
@@ -1086,7 +1086,7 @@ databaseChangeLog:
               - column: { name: preparation_time, valueNumeric: 2 }
               - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
         - insert:
-            schemaName: tabler_menu
+            schemaName: resto_menu
             tableName: menu_items
             columns:
               - column: { name: id, value: "22222222-0000-4000-8000-000000000023" }
@@ -1108,7 +1108,7 @@ databaseChangeLog:
               - column: { name: preparation_time, valueNumeric: 1 }
               - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
         - insert:
-            schemaName: tabler_menu
+            schemaName: resto_menu
             tableName: menu_items
             columns:
               - column: { name: id, value: "22222222-0000-4000-8000-000000000024" }
@@ -1130,7 +1130,7 @@ databaseChangeLog:
               - column: { name: preparation_time, valueNumeric: 5 }
               - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
         - insert:
-            schemaName: tabler_menu
+            schemaName: resto_menu
             tableName: menu_items
             columns:
               - column: { name: id, value: "22222222-0000-4000-8000-000000000025" }
@@ -1152,7 +1152,7 @@ databaseChangeLog:
               - column: { name: preparation_time, valueNumeric: 5 }
               - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
         - insert:
-            schemaName: tabler_menu
+            schemaName: resto_menu
             tableName: menu_items
             columns:
               - column: { name: id, value: "22222222-0000-4000-8000-000000000026" }
@@ -1174,7 +1174,7 @@ databaseChangeLog:
               - column: { name: preparation_time, valueNumeric: 5 }
               - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
         - insert:
-            schemaName: tabler_menu
+            schemaName: resto_menu
             tableName: menu_items
             columns:
               - column: { name: id, value: "22222222-0000-4000-8000-000000000027" }
@@ -1196,7 +1196,7 @@ databaseChangeLog:
               - column: { name: preparation_time, valueNumeric: 5 }
               - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
         - insert:
-            schemaName: tabler_menu
+            schemaName: resto_menu
             tableName: menu_items
             columns:
               - column: { name: id, value: "22222222-0000-4000-8000-000000000028" }
@@ -1218,7 +1218,7 @@ databaseChangeLog:
               - column: { name: preparation_time, valueNumeric: 10 }
               - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
         - insert:
-            schemaName: tabler_menu
+            schemaName: resto_menu
             tableName: menu_items
             columns:
               - column: { name: id, value: "22222222-0000-4000-8000-000000000029" }
@@ -1240,7 +1240,7 @@ databaseChangeLog:
               - column: { name: preparation_time, valueNumeric: 8 }
               - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
         - insert:
-            schemaName: tabler_menu
+            schemaName: resto_menu
             tableName: menu_items
             columns:
               - column: { name: id, value: "22222222-0000-4000-8000-000000000030" }
@@ -1262,9 +1262,9 @@ databaseChangeLog:
               - column: { name: preparation_time, valueNumeric: 10 }
               - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
 
-        # ==================== Orders (tabler_order) ====================
+        # ==================== Orders (resto_order) ====================
         - insert:
-            schemaName: tabler_order
+            schemaName: resto_order
             tableName: orders
             columns:
               - column: { name: id, value: "33333333-0000-4000-8000-000000000001" }
@@ -1282,7 +1282,7 @@ databaseChangeLog:
               - column: { name: payment_requested, valueBoolean: false }
               - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
         - insert:
-            schemaName: tabler_order
+            schemaName: resto_order
             tableName: orders
             columns:
               - column: { name: id, value: "33333333-0000-4000-8000-000000000002" }
@@ -1300,9 +1300,9 @@ databaseChangeLog:
               - column: { name: payment_requested, valueBoolean: true }
               - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
 
-        # ==================== Order items (tabler_order) ====================
+        # ==================== Order items (resto_order) ====================
         - insert:
-            schemaName: tabler_order
+            schemaName: resto_order
             tableName: order_items
             columns:
               - column: { name: id, value: "44444444-0000-4000-8000-000000000001" }
@@ -1316,7 +1316,7 @@ databaseChangeLog:
               - column: { name: status, value: "SERVED" }
               - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
         - insert:
-            schemaName: tabler_order
+            schemaName: resto_order
             tableName: order_items
             columns:
               - column: { name: id, value: "44444444-0000-4000-8000-000000000002" }
@@ -1330,7 +1330,7 @@ databaseChangeLog:
               - column: { name: status, value: "SERVED" }
               - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
         - insert:
-            schemaName: tabler_order
+            schemaName: resto_order
             tableName: order_items
             columns:
               - column: { name: id, value: "44444444-0000-4000-8000-000000000003" }
@@ -1344,7 +1344,7 @@ databaseChangeLog:
               - column: { name: status, value: "PREPARING" }
               - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
         - insert:
-            schemaName: tabler_order
+            schemaName: resto_order
             tableName: order_items
             columns:
               - column: { name: id, value: "44444444-0000-4000-8000-000000000004" }

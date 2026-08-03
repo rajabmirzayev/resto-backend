@@ -7,7 +7,7 @@ spring:
     name: organization-service
 
   datasource:
-    url: ${ORG_DB_URL:jdbc:postgresql://localhost:5432/tabler?currentSchema=tabler_organization}
+    url: ${ORG_DB_URL:jdbc:postgresql://localhost:5432/resto?currentSchema=resto_organization}
     username: ${ORG_DB_USERNAME:postgres}
     password: ${ORG_DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
@@ -43,7 +43,7 @@ server:
 
 logging:
   level:
-    az.codlab.organization: DEBUG
+    az.flowix.organization: DEBUG
 
 
 security:

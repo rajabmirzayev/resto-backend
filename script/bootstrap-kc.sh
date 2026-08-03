@@ -18,10 +18,10 @@ log_fail() {
 : "${PLATFORM_BOOTSTRAP_PASSWORD:?PLATFORM_BOOTSTRAP_PASSWORD is required}"
 
 KC_BASE_URL="${KC_BASE_URL:-http://localhost:8080}"
-PLATFORM_BOOTSTRAP_EMAIL="${PLATFORM_BOOTSTRAP_EMAIL:-platform@codlab.az}"
+PLATFORM_BOOTSTRAP_EMAIL="${PLATFORM_BOOTSTRAP_EMAIL:-admin@flowix.az}"
 PLATFORM_BOOTSTRAP_ORG_ID="${PLATFORM_BOOTSTRAP_ORG_ID:-a55faced-dead-4bed-babe-feeddeadbeef}"
-KC_REALM="${KC_REALM:-tabler}"
-KC_CLIENT_ID="${KC_CLIENT_ID:-tabler-auth}"
+KC_REALM="${KC_REALM:-resto}"
+KC_CLIENT_ID="${KC_CLIENT_ID:-resto-auth}"
 
 echo "[STEP 1] Configuring credentials..."
 output=$(/opt/keycloak/bin/kcadm.sh config credentials --server "$KC_BASE_URL" --realm master --user "$KC_BOOTSTRAP_ADMIN_USERNAME" --password "$KC_BOOTSTRAP_ADMIN_PASSWORD" 2>&1) \

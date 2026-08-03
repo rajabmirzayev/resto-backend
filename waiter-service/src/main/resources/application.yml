@@ -13,7 +13,7 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: ${JWT_ISSUER_URI:http://localhost:8080/realms/tabler}
+          issuer-uri: ${JWT_ISSUER_URI:http://localhost:8080/realms/resto}
 
 service:
   order:
@@ -42,7 +42,7 @@ management:
 
 logging:
   level:
-    az.codlab.waiter: INFO
+    az.flowix.waiter: INFO
 
 security:
   internal-auth:

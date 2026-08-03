@@ -7,7 +7,7 @@ spring:
     name: role-service
 
   datasource:
-    url: ${ROLE_DB_URL:jdbc:postgresql://localhost:5432/tabler?currentSchema=tabler_role}
+    url: ${ROLE_DB_URL:jdbc:postgresql://localhost:5432/resto?currentSchema=resto_role}
     username: ${ROLE_DB_USERNAME:postgres}
     password: ${ROLE_DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
@@ -35,7 +35,7 @@ service:
 
 logging:
   level:
-    az.codlab.role: DEBUG
+    az.flowix.role: DEBUG
 
 
 security:

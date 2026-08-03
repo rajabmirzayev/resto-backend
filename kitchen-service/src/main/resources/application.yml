@@ -20,7 +20,7 @@ server:
 
 logging:
   level:
-    az.codlab.kitchen: DEBUG
+    az.flowix.kitchen: DEBUG
 
 
 security:

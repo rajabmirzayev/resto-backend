@@ -97,9 +97,9 @@ spring:
 
 security:
   oauth2:
-    issuer-uri: ${GW_KEYCLOAK_ISSUER_URI:http://localhost:8080/realms/tabler}
+    issuer-uri: ${GW_KEYCLOAK_ISSUER_URI:http://localhost:8080/realms/resto}
     audience: ${GW_KEYCLOAK_AUDIENCE:}
-    client-id: ${GW_KEYCLOAK_CLIENT_ID:tabler-gateway}
+    client-id: ${GW_KEYCLOAK_CLIENT_ID:resto-gateway}
   internal-auth:
     secret: ${INTERNAL_AUTH_SECRET:}
 

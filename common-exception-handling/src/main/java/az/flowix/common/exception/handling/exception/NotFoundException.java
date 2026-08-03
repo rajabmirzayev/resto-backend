@@ -1,0 +1,19 @@
+package az.flowix.common.exception.handling.exception;
+
+import az.flowix.common.exception.handling.error.ErrorCode;
+import org.springframework.http.HttpStatus;
+
+public class NotFoundException extends BaseException {
+
+    public NotFoundException(ErrorCode errorCode, Object[] args) {
+        super(errorCode, HttpStatus.NOT_FOUND, null, args);
+    }
+
+    public NotFoundException(ErrorCode errorCode, HttpStatus status, Object[] args) {
+        super(errorCode, status, null, args);
+    }
+
+    public NotFoundException(ErrorCode errorCode, HttpStatus status, String detail, Object[] args) {
+        super(errorCode, status, detail, args);
+    }
+}

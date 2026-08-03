@@ -22,7 +22,7 @@ server:
     context-path: /api/dashboard-ms
 logging:
   level:
-    az.codlab.dashboard: DEBUG
+    az.flowix.dashboard: DEBUG
 
 
 security:

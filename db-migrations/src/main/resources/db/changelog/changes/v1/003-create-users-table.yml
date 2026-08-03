@@ -4,7 +4,7 @@ databaseChangeLog:
       author: rajabmirzayev
       changes:
         - createTable:
-            schemaName: tabler_user
+            schemaName: resto_user
             tableName: users
             remarks: User table for user-service
             columns:
@@ -83,12 +83,12 @@ databaseChangeLog:
                   constraints:
                     nullable: false
         - addUniqueConstraint:
-            schemaName: tabler_user
+            schemaName: resto_user
             tableName: users
             columnNames: keycloak_id
             constraintName: uq_users_keycloak_id
         - createIndex:
-            schemaName: tabler_user
+            schemaName: resto_user
             tableName: users
             indexName: idx_user_username
             unique: true
@@ -97,7 +97,7 @@ databaseChangeLog:
               - column:
                   name: username
         - createIndex:
-            schemaName: tabler_user
+            schemaName: resto_user
             tableName: users
             indexName: idx_user_org
             where: is_deleted = false
@@ -105,7 +105,7 @@ databaseChangeLog:
               - column:
                   name: org_id
         - createIndex:
-            schemaName: tabler_user
+            schemaName: resto_user
             tableName: users
             indexName: idx_user_role
             columns:

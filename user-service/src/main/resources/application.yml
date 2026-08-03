@@ -7,7 +7,7 @@ spring:
     name: user-service
 
   datasource:
-    url: ${USER_DB_URL:jdbc:postgresql://localhost:5432/tabler?currentSchema=tabler_user}
+    url: ${USER_DB_URL:jdbc:postgresql://localhost:5432/resto?currentSchema=resto_user}
     username: ${USER_DB_USERNAME:postgres}
     password: ${USER_DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
@@ -30,8 +30,8 @@ service:
 
 keycloak:
   server-url: ${AUTH_KEYCLOAK_URL:http://localhost:8080}
-  realm: ${AUTH_KEYCLOAK_REALM:tabler}
-  client-id: ${AUTH_KEYCLOAK_CLIENT_ID:tabler-auth}
+  realm: ${AUTH_KEYCLOAK_REALM:resto}
+  client-id: ${AUTH_KEYCLOAK_CLIENT_ID:resto-auth}
   client-secret: ${AUTH_KEYCLOAK_CLIENT_SECRET:}
   connect-timeout-ms: ${AUTH_KEYCLOAK_CONNECT_TIMEOUT:5000}
   read-timeout-ms: ${AUTH_KEYCLOAK_READ_TIMEOUT:10000}
@@ -43,7 +43,7 @@ server:
 
 logging:
   level:
-    az.codlab.user: DEBUG
+    az.flowix.user: DEBUG
 
 
 security:

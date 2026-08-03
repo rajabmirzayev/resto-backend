@@ -5,7 +5,7 @@ databaseChangeLog:
       changes:
         # ==================== sections ====================
         - createTable:
-            schemaName: tabler_table
+            schemaName: resto_table
             tableName: sections
             remarks: Table sections
             columns:
@@ -55,7 +55,7 @@ databaseChangeLog:
                   constraints:
                     nullable: false
         - createIndex:
-            schemaName: tabler_table
+            schemaName: resto_table
             tableName: sections
             indexName: idx_section_org
             where: is_deleted = false
@@ -65,7 +65,7 @@ databaseChangeLog:
 
         # ==================== restaurant_tables ====================
         - createTable:
-            schemaName: tabler_table
+            schemaName: resto_table
             tableName: restaurant_tables
             remarks: Restaurant tables
             columns:
@@ -134,7 +134,7 @@ databaseChangeLog:
                   constraints:
                     nullable: false
         - createIndex:
-            schemaName: tabler_table
+            schemaName: resto_table
             tableName: restaurant_tables
             indexName: idx_table_org
             where: is_deleted = false
@@ -142,7 +142,7 @@ databaseChangeLog:
               - column:
                   name: org_id
         - createIndex:
-            schemaName: tabler_table
+            schemaName: resto_table
             tableName: restaurant_tables
             indexName: idx_table_section
             where: is_deleted = false
@@ -150,7 +150,7 @@ databaseChangeLog:
               - column:
                   name: section_id
         - createIndex:
-            schemaName: tabler_table
+            schemaName: resto_table
             tableName: restaurant_tables
             indexName: idx_table_status
             where: is_deleted = false

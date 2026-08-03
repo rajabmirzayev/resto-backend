@@ -20,7 +20,7 @@ server:
     context-path: /api/report-ms
 logging:
   level:
-    az.codlab.report: DEBUG
+    az.flowix.report: DEBUG
 
 
 security:

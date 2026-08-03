@@ -5,7 +5,7 @@ databaseChangeLog:
       changes:
         # ==================== organizations ====================
         - createTable:
-            schemaName: tabler_organization
+            schemaName: resto_organization
             tableName: organizations
             remarks: Organization table (multi-tenant root entity)
             columns:
@@ -76,7 +76,7 @@ databaseChangeLog:
                   name: address
                   type: TEXT
         - createIndex:
-            schemaName: tabler_organization
+            schemaName: resto_organization
             tableName: organizations
             indexName: idx_org_slug
             unique: false
@@ -85,7 +85,7 @@ databaseChangeLog:
               - column:
                   name: slug
         - createIndex:
-            schemaName: tabler_organization
+            schemaName: resto_organization
             tableName: organizations
             indexName: idx_org_created_at
             columns:
@@ -94,7 +94,7 @@ databaseChangeLog:
 
         # ==================== users ====================
         - createTable:
-            schemaName: tabler_organization
+            schemaName: resto_organization
             tableName: users
             remarks: Local user table (temp until user-service is built)
             columns:
@@ -175,12 +175,12 @@ databaseChangeLog:
                   constraints:
                     nullable: false
         - addUniqueConstraint:
-            schemaName: tabler_organization
+            schemaName: resto_organization
             tableName: users
             columnNames: keycloak_id
             constraintName: uq_users_keycloak_id
         - createIndex:
-            schemaName: tabler_organization
+            schemaName: resto_organization
             tableName: users
             indexName: idx_user_username
             unique: true
@@ -189,7 +189,7 @@ databaseChangeLog:
               - column:
                   name: username
         - createIndex:
-            schemaName: tabler_organization
+            schemaName: resto_organization
             tableName: users
             indexName: idx_user_org
             where: is_deleted = false
@@ -197,7 +197,7 @@ databaseChangeLog:
               - column:
                   name: org_id
         - createIndex:
-            schemaName: tabler_organization
+            schemaName: resto_organization
             tableName: users
             indexName: idx_user_role
             columns:
@@ -206,7 +206,7 @@ databaseChangeLog:
 
         # ==================== roles ====================
         - createTable:
-            schemaName: tabler_organization
+            schemaName: resto_organization
             tableName: roles
             remarks: Local role table (temp until role-service is built)
             columns:
@@ -265,7 +265,7 @@ databaseChangeLog:
                   name: org_id
                   type: UUID
         - createIndex:
-            schemaName: tabler_organization
+            schemaName: resto_organization
             tableName: roles
             indexName: idx_role_org
             where: is_deleted = false
@@ -275,7 +275,7 @@ databaseChangeLog:
 
         # ==================== org_settings ====================
         - createTable:
-            schemaName: tabler_organization
+            schemaName: resto_organization
             tableName: org_settings
             remarks: Local org settings table (temp until setting-service is built)
             columns:
@@ -333,7 +333,7 @@ databaseChangeLog:
 
         # ==================== sections ====================
         - createTable:
-            schemaName: tabler_organization
+            schemaName: resto_organization
             tableName: sections
             remarks: Local section table (temp until table-service is built)
             columns:
@@ -383,7 +383,7 @@ databaseChangeLog:
                   constraints:
                     nullable: false
         - createIndex:
-            schemaName: tabler_organization
+            schemaName: resto_organization
             tableName: sections
             indexName: idx_section_org
             where: is_deleted = false

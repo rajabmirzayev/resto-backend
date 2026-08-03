@@ -4,7 +4,7 @@ databaseChangeLog:
       author: rajabmirzayev
       changes:
         - createTable:
-            schemaName: tabler_role
+            schemaName: resto_role
             tableName: roles
             remarks: Role table for role-service
             columns:
@@ -63,7 +63,7 @@ databaseChangeLog:
                   name: org_id
                   type: UUID
         - createIndex:
-            schemaName: tabler_role
+            schemaName: resto_role
             tableName: roles
             indexName: idx_role_org
             where: is_deleted = false

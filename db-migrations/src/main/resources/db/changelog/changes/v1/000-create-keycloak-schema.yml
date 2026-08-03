@@ -4,20 +4,20 @@ databaseChangeLog:
       author: rajabmirzayev
       changes:
         - sql:
-            sql: CREATE SCHEMA IF NOT EXISTS tabler_organization
+            sql: CREATE SCHEMA IF NOT EXISTS resto_organization
         - sql:
-            sql: CREATE SCHEMA IF NOT EXISTS tabler_user
+            sql: CREATE SCHEMA IF NOT EXISTS resto_user
         - sql:
-            sql: CREATE SCHEMA IF NOT EXISTS tabler_role
+            sql: CREATE SCHEMA IF NOT EXISTS resto_role
         - sql:
-            sql: CREATE SCHEMA IF NOT EXISTS tabler_menu
+            sql: CREATE SCHEMA IF NOT EXISTS resto_menu
         - sql:
-            sql: CREATE SCHEMA IF NOT EXISTS tabler_table
+            sql: CREATE SCHEMA IF NOT EXISTS resto_table
         - sql:
-            sql: CREATE SCHEMA IF NOT EXISTS tabler_setting
+            sql: CREATE SCHEMA IF NOT EXISTS resto_setting
         - sql:
-            sql: CREATE SCHEMA IF NOT EXISTS tabler_order
+            sql: CREATE SCHEMA IF NOT EXISTS resto_order
         - sql:
             sql: CREATE SCHEMA IF NOT EXISTS keycloak
         - sql:
-            sql: GRANT ALL PRIVILEGES ON SCHEMA tabler_organization, tabler_user, tabler_role, tabler_menu, tabler_table, tabler_setting, tabler_order, keycloak TO postgres
+            sql: GRANT ALL PRIVILEGES ON SCHEMA resto_organization, resto_user, resto_role, resto_menu, resto_table, resto_setting, resto_order, keycloak TO postgres

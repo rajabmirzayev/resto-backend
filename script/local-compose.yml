@@ -8,7 +8,7 @@ services:
       POSTGRES_DB: $POSTGRES_DB
       TZ: Asia/Baku
     networks:
-      - tabler_net
+      - resto_net
     ports:
       - "5432:5432"
     volumes:
@@ -24,10 +24,10 @@ services:
     restart: always
     command: start-dev --import-realm
     volumes:
-      - ./tabler-realm.json:/opt/keycloak/data/import/tabler-realm.json
+      - ./resto-realm.json:/opt/keycloak/data/import/resto-realm.json
       - ./bootstrap-kc.sh:/tmp/scripts/bootstrap-kc.sh
     networks:
-      - tabler_net
+      - resto_net
     ports:
       - "8080:8080"
     environment:
@@ -61,7 +61,7 @@ services:
       PGADMIN_DEFAULT_PASSWORD: $PGADMIN_DEFAULT_PASSWORD
       TZ: Asia/Baku
     networks:
-      - tabler_net
+      - resto_net
     ports:
       - "5050:80"
     volumes:
@@ -73,14 +73,14 @@ services:
     image: valkey/valkey:9
     restart: always
     networks:
-      - tabler_net
+      - resto_net
     ports:
       - "6379:6379"
     volumes:
       - valkey_data:/data
 
 networks:
-  tabler_net:
+  resto_net:
     driver: bridge
 
 volumes:

@@ -12,7 +12,7 @@ spring:
     name: menu-service
 
   datasource:
-    url: ${MENU_DB_URL:jdbc:postgresql://localhost:5432/tabler?currentSchema=tabler_menu}
+    url: ${MENU_DB_URL:jdbc:postgresql://localhost:5432/resto?currentSchema=resto_menu}
     username: ${MENU_DB_USERNAME:postgres}
     password: ${MENU_DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
@@ -41,7 +41,7 @@ server:
 
 logging:
   level:
-    az.codlab.menu: DEBUG
+    az.flowix.menu: DEBUG
 
 
 security:

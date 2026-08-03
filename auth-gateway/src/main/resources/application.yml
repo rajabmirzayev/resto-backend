@@ -26,8 +26,8 @@ spring:
 
 keycloak:
   server-url: ${AUTH_KEYCLOAK_URL:http://localhost:8080}
-  realm: ${AUTH_KEYCLOAK_REALM:tabler}
-  client-id: ${AUTH_KEYCLOAK_CLIENT_ID:tabler-auth}
+  realm: ${AUTH_KEYCLOAK_REALM:resto}
+  client-id: ${AUTH_KEYCLOAK_CLIENT_ID:resto-auth}
   client-secret: ${AUTH_KEYCLOAK_CLIENT_SECRET}
   token-uri: ${keycloak.server-url}/realms/${keycloak.realm}/protocol/openid-connect/token
   logout-uri: ${keycloak.server-url}/realms/${keycloak.realm}/protocol/openid-connect/logout

@@ -1,2 +1,2 @@
-az.codlab.common.security.config.SecurityFeignAutoConfiguration
-az.codlab.common.security.config.SecurityConfig
+az.flowix.common.security.config.SecurityFeignAutoConfiguration
+az.flowix.common.security.config.SecurityConfig
