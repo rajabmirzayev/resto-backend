@@ -63,9 +63,12 @@ public class PermissionService {
         if (codes == null || codes.isEmpty()) {
             return List.of();
         }
+        Map<String, PermissionDto> byCode = toPermissionDtos(
+                permissionRepository.findAllByCodeInAndDeletedFalseAndIsActiveTrue(codes)).stream()
+                .collect(Collectors.toMap(PermissionDto::getCode, Function.identity()));
         return codes.stream()
                 .sorted()
-                .map(code -> PermissionDto.builder().code(code).build())
+                .map(code -> byCode.getOrDefault(code, PermissionDto.builder().code(code).build()))
                 .toList();
     }
 

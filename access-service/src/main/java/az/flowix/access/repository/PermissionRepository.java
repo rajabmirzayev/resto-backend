@@ -18,4 +18,6 @@ public interface PermissionRepository extends JpaRepository<Permission, UUID>,
 
     List<Permission> findAllByDeletedFalseAndIsActiveTrue();
 
+    List<Permission> findAllByCodeInAndDeletedFalseAndIsActiveTrue(Collection<String> codes);
+
 }
