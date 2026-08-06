@@ -27,6 +27,8 @@ public class HeaderPropagationRequestInterceptor implements RequestInterceptor {
             HeaderAuthenticationFilter.HEADER_USER_ID,
             HeaderAuthenticationFilter.HEADER_ORG_ID,
             HeaderAuthenticationFilter.HEADER_ROLES,
+            HeaderAuthenticationFilter.HEADER_PERMISSIONS,
+            HeaderAuthenticationFilter.HEADER_UI_SCOPE,
             HeaderAuthenticationFilter.HEADER_PLATFORM_ADMIN
     };
 
@@ -81,6 +83,12 @@ public class HeaderPropagationRequestInterceptor implements RequestInterceptor {
                 Set<String> roles = principal.getRoles();
                 yield (roles == null || roles.isEmpty()) ? null : String.join(",", roles);
             }
+            case HeaderAuthenticationFilter.HEADER_PERMISSIONS -> {
+                Set<String> permissions = principal.getPermissions();
+                yield (permissions == null || permissions.isEmpty()) ? null : String.join(",", permissions);
+            }
+            case HeaderAuthenticationFilter.HEADER_UI_SCOPE ->
+                    principal.getUiScope() == null ? null : principal.getUiScope().name();
             case HeaderAuthenticationFilter.HEADER_PLATFORM_ADMIN -> String.valueOf(principal.isPlatformAdmin());
             default -> null;
         };

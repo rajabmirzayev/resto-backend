@@ -14,17 +14,16 @@
 | 4 | `common-security` | — | — | — |
 | 5 | `common-exception-handling` | — | — | — |
 | 6 | `organization-service` | `/api/organization-ms/v1/` | `Organization` | `az.flowix.organization.entity` |
-| 7 | `user-service` | `/api/user-ms/v1/` | `User` | `az.flowix.user.entity` |
-| 8 | `role-service` | `/api/role-ms/v1/` | `Role` | `az.flowix.role.entity` |
-| 9 | `menu-service` | `/api/menu-ms/v1/` | `MenuCategory`, `MenuItem` | `az.flowix.menu.entity` |
-| 10 | `table-service` | `/api/table-ms/v1/` | `Section`, `RestaurantTable` | `az.flowix.table.entity` |
-| 11 | `order-service` | `/api/order-ms/v1/` | `Order`, `OrderItem` | `az.flowix.order.entity` |
-| 12 | `kitchen-service` | `/api/kitchen-ms/v1/` | _(reuses Order/OrderItem)_ | — |
-| 13 | `waiter-service` | `/api/waiter-ms/v1/` | _(aggregation)_ | — |
-| 14 | `customer-service` | `/api/customer-ms/v1/` | _(public API)_ | — |
-| 15 | `setting-service` | `/api/setting-ms/v1/` | `OrgSetting` | `az.flowix.setting.entity` |
-| 16 | `dashboard-service` | `/api/dashboard-ms/v1/` | _(aggregation)_ | — |
-| 17 | `report-service` | `/api/report-ms/v1/` | _(aggregation)_ | — |
+| 7 | `access-service` | `/api/access-ms/v1/` | `User`, `Role`, `Permission`, `Module`, `UiGroup` | `az.flowix.access.entity` |
+| 8 | `menu-service` | `/api/menu-ms/v1/` | `MenuCategory`, `MenuItem` | `az.flowix.menu.entity` |
+| 9 | `table-service` | `/api/table-ms/v1/` | `Section`, `RestaurantTable` | `az.flowix.table.entity` |
+| 10 | `order-service` | `/api/order-ms/v1/` | `Order`, `OrderItem` | `az.flowix.order.entity` |
+| 11 | `kitchen-service` | `/api/kitchen-ms/v1/` | _(reuses Order/OrderItem)_ | — |
+| 12 | `waiter-service` | `/api/waiter-ms/v1/` | _(aggregation)_ | — |
+| 13 | `customer-service` | `/api/customer-ms/v1/` | _(public API)_ | — |
+| 14 | `setting-service` | `/api/setting-ms/v1/` | `OrgSetting` | `az.flowix.setting.entity` |
+| 15 | `dashboard-service` | `/api/dashboard-ms/v1/` | _(aggregation)_ | — |
+| 16 | `report-service` | `/api/report-ms/v1/` | _(aggregation)_ | — |
 
 ---
 
@@ -509,21 +508,22 @@ public class Organization extends SoftDeletableCoreEntity {
 
 ---
 
-## 4. Role Service — `role-service`
+## 4. Access Service — `access-service` (User + Role)
 
-> API prefix: `/api/role-ms/v1/`
-> Package: `az.flowix.role.entity`
+> API prefix: `/api/access-ms/v1/`
+> Package: `az.flowix.access.entity`
 
 ### `Role`
 
 ```java
-package az.flowix.role.entity;
+package az.flowix.access.entity;
 
 import az.flowix.common.entity.SoftDeletableCoreEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.ManyToMany;
 import jakarta.persistence.Table;
-import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -532,8 +532,6 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.FieldDefaults;
 import lombok.experimental.SuperBuilder;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "roles")
@@ -545,39 +543,43 @@ import org.hibernate.type.SqlTypes;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class Role extends SoftDeletableCoreEntity {
 
+    @Column(name = "code", nullable = false)
+    String code;
+
     @Column(name = "name", nullable = false)
     String name;
 
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "permissions", columnDefinition = "jsonb", nullable = false)
-    List<String> permissions;
+    @Column(name = "ui_scope", nullable = false)
+    String uiScope;
 
     @Column(name = "is_system", nullable = false)
     boolean isSystem;
 
+    @Column(name = "is_active", nullable = false)
+    boolean isActive;
+
     @Column(name = "org_id")
     UUID orgId;
+
+    @ManyToMany
+    @JoinTable(name = "role_permissions",
+            joinColumns = @JoinColumn(name = "role_id"),
+            inverseJoinColumns = @JoinColumn(name = "permission_id"))
+    Set<Permission> permissions;
 }
 ```
-
----
-
-## 5. User Service — `user-service`
-
-> API prefix: `/api/user-ms/v1/`
-> Package: `az.flowix.user.entity`
 
 ### `User`
 
 ```java
-package az.flowix.user.entity;
+package az.flowix.access.entity;
 
 import az.flowix.common.entity.SoftDeletableCoreEntity;
-import az.flowix.common.enums.UserRole;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.util.UUID;
 import lombok.AccessLevel;
@@ -601,6 +603,9 @@ public class User extends SoftDeletableCoreEntity {
     @Column(name = "keycloak_id", unique = true)
     String keycloakId;
 
+    @Column(name = "password")
+    String password;
+
     @Column(name = "name", nullable = false)
     String name;
 
@@ -613,12 +618,9 @@ public class User extends SoftDeletableCoreEntity {
     @Column(name = "phone")
     String phone;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "role", nullable = false, length = 20)
-    UserRole role;
-
-    @Column(name = "role_id")
-    UUID roleId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "role_id")
+    Role role;
 
     @Column(name = "org_id")
     UUID orgId;

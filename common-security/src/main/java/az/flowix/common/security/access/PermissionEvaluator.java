@@ -9,9 +9,8 @@ import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.core.Authentication;
-import org.springframework.stereotype.Component;
+import org.springframework.security.core.context.SecurityContextHolder;
 
-@Component("perm")
 public class PermissionEvaluator {
 
     private static final Logger log = LoggerFactory.getLogger(PermissionEvaluator.class);
@@ -26,6 +25,14 @@ public class PermissionEvaluator {
             this.permissionResolver = new HeaderBasedPermissionResolver();
             log.info("Using header-based PermissionResolver (no DB resolver configured)");
         }
+    }
+
+    public boolean has(String permission) {
+        return has(SecurityContextHolder.getContext().getAuthentication(), permission);
+    }
+
+    public boolean hasAny(String... permissions) {
+        return hasAny(SecurityContextHolder.getContext().getAuthentication(), permissions);
     }
 
     public boolean has(Authentication auth, String permission) {
@@ -50,6 +57,10 @@ public class PermissionEvaluator {
         }
 
         return resolveAndCheckAny(principal, permissions);
+    }
+
+    public boolean hasAuthority(Authentication auth, String authority) {
+        return has(auth, authority);
     }
 
     public boolean selfOrHas(Authentication auth, String resourceUserId, String permission) {
@@ -98,6 +109,11 @@ public class PermissionEvaluator {
     }
 
     private boolean resolveAndCheck(UserPrincipal principal, String permission) {
+        Set<String> permissions = principal.getPermissions();
+        if (!permissions.isEmpty()) {
+            return permissions.contains(permission);
+        }
+
         Set<String> roles = principal.getRoles();
         if (roles.isEmpty()) {
             return false;
@@ -105,12 +121,22 @@ public class PermissionEvaluator {
         return permissionResolver.hasPermission(roles, permission);
     }
 
-    private boolean resolveAndCheckAny(UserPrincipal principal, String... permissions) {
+    private boolean resolveAndCheckAny(UserPrincipal principal, String... permissionsToCheck) {
+        Set<String> permissions = principal.getPermissions();
+        if (!permissions.isEmpty()) {
+            for (String permission : permissionsToCheck) {
+                if (permissions.contains(permission)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         Set<String> roles = principal.getRoles();
         if (roles.isEmpty()) {
             return false;
         }
-        return permissionResolver.hasAnyPermission(roles, permissions);
+        return permissionResolver.hasAnyPermission(roles, permissionsToCheck);
     }
 
     private UserPrincipal getPrincipal(Authentication auth) {

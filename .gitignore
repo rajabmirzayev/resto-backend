@@ -41,3 +41,6 @@ script/resto-realm.json.local
 script/bootstrap-kc.local.sh
 
 data/
+
+# aider tag cache
+.aider.tags.cache.v4/

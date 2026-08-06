@@ -5,7 +5,6 @@ import az.flowix.organization.client.RoleServiceClient;
 import az.flowix.organization.client.SettingServiceClient;
 import az.flowix.organization.client.TableServiceClient;
 import az.flowix.organization.client.UserServiceClient;
-import az.flowix.organization.client.dto.RoleServiceCreateRoleRequest;
 import az.flowix.organization.client.dto.RoleServiceRoleResponse;
 import az.flowix.organization.client.dto.SettingServiceCreateSettingRequest;
 import az.flowix.organization.client.dto.TableServiceSectionRequest;
@@ -17,7 +16,6 @@ import az.flowix.organization.entity.Organization;
 import az.flowix.organization.error.OrganizationErrorCode;
 import az.flowix.organization.mapper.OrganizationMapper;
 
-import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -34,20 +32,14 @@ import org.springframework.stereotype.Service;
  * services can safely read it (fixes the stale-transaction 404). All remote calls
  * then run outside the DB transaction, and independent default-resource calls are
  * fanned out on a dedicated executor. On failure the already-created resources are
- * compensated (user, role, organization).
+ * compensated (user, organization).
  */
 @Service
 public class OrganizationCreationOrchestrator {
 
     private static final Logger log = LoggerFactory.getLogger(OrganizationCreationOrchestrator.class);
 
-    private static final List<String> ORG_ADMIN_PERMISSIONS = List.of(
-            "dashboard.view",
-            "menu.view", "menu.create", "menu.edit", "menu.delete",
-            "tables.view", "tables.manage", "tables.status",
-            "orders.view", "orders.manage", "orders.cancel",
-            "kitchen.view", "kitchen.manage"
-    );
+    private static final String ORG_ADMIN_ROLE_CODE = "ORG_ADMIN";
 
     private final OrganizationService organizationService;
     private final OrganizationMapper organizationMapper;
@@ -77,12 +69,9 @@ public class OrganizationCreationOrchestrator {
     public CreateOrganizationResponse createOrganization(CreateOrganizationRequest request) {
         var organization = organizationService.persistOrganization(request);
 
-        UUID roleId = null;
         UUID userId = null;
         try {
-            var adminRole = createAdminRole(organization);
-            roleId = adminRole.getId();
-
+            var adminRole = getAdminRole();
             var adminUser = createAdminUser(request, organization, adminRole.getId());
             userId = adminUser.getId();
 
@@ -92,18 +81,13 @@ public class OrganizationCreationOrchestrator {
             return buildResponse(organization, adminRole, adminUser);
         } catch (Exception e) {
             log.error("Organization creation failed for {}, compensating resources", organization.getId(), e);
-            compensate(userId, roleId, organization.getId());
+            compensate(userId, organization.getId());
             throw OrganizationErrorCode.ORGANIZATION_CREATION_FAILED.internal();
         }
     }
 
-    private RoleServiceRoleResponse createAdminRole(Organization organization) {
-        var request = RoleServiceCreateRoleRequest.builder()
-                .name(organization.getName() + " Admin")
-                .permissions(ORG_ADMIN_PERMISSIONS)
-                .orgId(organization.getId())
-                .build();
-        return unwrap(roleServiceClient.createRole(request));
+    private RoleServiceRoleResponse getAdminRole() {
+        return unwrap(roleServiceClient.getSystemRole(ORG_ADMIN_ROLE_CODE));
     }
 
     private UserServiceUserResponse createAdminUser(CreateOrganizationRequest request,
@@ -115,7 +99,6 @@ public class OrganizationCreationOrchestrator {
                 .password(request.getAdminPassword())
                 .roleId(roleId)
                 .orgId(organization.getId())
-                .role("ORG_ADMIN")
                 .build();
         return unwrap(userServiceClient.createUser(userRequest));
     }
@@ -168,19 +151,12 @@ public class OrganizationCreationOrchestrator {
         return new CreateOrganizationResponse(orgDto, userDto, roleDto);
     }
 
-    private void compensate(UUID userId, UUID roleId, UUID orgId) {
+    private void compensate(UUID userId, UUID orgId) {
         if (userId != null) {
             try {
                 userServiceClient.deleteUser(userId);
             } catch (Exception ex) {
                 log.warn("Failed to clean up user: {}", userId, ex);
-            }
-        }
-        if (roleId != null) {
-            try {
-                roleServiceClient.deleteRole(roleId);
-            } catch (Exception ex) {
-                log.warn("Failed to clean up role: {}", roleId, ex);
             }
         }
         if (orgId != null) {

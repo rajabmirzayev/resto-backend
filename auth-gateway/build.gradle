@@ -5,6 +5,7 @@ plugins {
 description = 'auth-gateway'
 
 dependencies {
+    implementation project(':common-core')
     implementation project(':common-exception-handling')
     implementation project(':common-security')
     implementation 'org.springframework.boot:spring-boot-starter-web'

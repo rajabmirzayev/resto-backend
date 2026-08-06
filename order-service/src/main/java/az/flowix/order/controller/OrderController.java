@@ -17,6 +17,7 @@ import jakarta.validation.Valid;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -37,6 +38,7 @@ public class OrderController {
     }
 
     @GetMapping
+    @PreAuthorize("@perm.has('order.view')")
     public ResponseEntity<ApiResponse<List<OrderResponse>>> getOrders(
             @RequestParam UUID orgId,
             @RequestParam(required = false) String status,
@@ -47,12 +49,14 @@ public class OrderController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("@perm.has('order.view')")
     public ResponseEntity<ApiResponse<OrderResponse>> getOrder(@PathVariable UUID id) {
         var order = orderService.getOrder(id);
         return ResponseEntity.ok(ApiResponse.success(order));
     }
 
     @PostMapping
+    @PreAuthorize("@perm.has('order.create')")
     public ResponseEntity<ApiResponse<OrderResponse>> createOrder(
             @Valid @RequestBody OrderRequest request) {
         var order = orderService.createOrder(request);
@@ -61,6 +65,7 @@ public class OrderController {
     }
 
     @PutMapping("/{id}/status")
+    @PreAuthorize("@perm.has('order.manage')")
     public ResponseEntity<ApiResponse<OrderResponse>> updateStatus(
             @PathVariable UUID id,
             @Valid @RequestBody StatusRequest request) {
@@ -69,6 +74,7 @@ public class OrderController {
     }
 
     @PutMapping("/{id}/items/{itemId}/status")
+    @PreAuthorize("@perm.has('order.manage')")
     public ResponseEntity<ApiResponse<OrderResponse>> updateItemStatus(
             @PathVariable UUID id,
             @PathVariable UUID itemId,
@@ -78,6 +84,7 @@ public class OrderController {
     }
 
     @PostMapping("/{id}/items")
+    @PreAuthorize("@perm.has('order.manage')")
     public ResponseEntity<ApiResponse<OrderResponse>> addItems(
             @PathVariable UUID id,
             @Valid @RequestBody AddItemsRequest request) {
@@ -86,6 +93,7 @@ public class OrderController {
     }
 
     @PutMapping("/{id}/waiter-confirm")
+    @PreAuthorize("@perm.has('order.manage')")
     public ResponseEntity<ApiResponse<OrderResponse>> waiterConfirm(
             @PathVariable UUID id,
             @Valid @RequestBody WaiterConfirmRequest request) {
@@ -94,6 +102,7 @@ public class OrderController {
     }
 
     @PostMapping("/{id}/cancel")
+    @PreAuthorize("@perm.has('order.cancel')")
     public ResponseEntity<ApiResponse<OrderResponse>> cancelOrder(
             @PathVariable UUID id,
             @RequestBody(required = false) CancelRequest request) {
@@ -102,6 +111,7 @@ public class OrderController {
     }
 
     @PostMapping("/{id}/request-payment")
+    @PreAuthorize("@perm.has('order.payment')")
     public ResponseEntity<ApiResponse<OrderResponse>> requestPayment(
             @PathVariable UUID id,
             @Valid @RequestBody PaymentRequest request) {
@@ -110,18 +120,21 @@ public class OrderController {
     }
 
     @PostMapping("/{id}/complete-payment")
+    @PreAuthorize("@perm.has('order.payment')")
     public ResponseEntity<ApiResponse<OrderResponse>> completePayment(@PathVariable UUID id) {
         var order = orderService.completePayment(id);
         return ResponseEntity.ok(ApiResponse.success(order, "Payment completed"));
     }
 
     @PostMapping("/{id}/start-preparing")
+    @PreAuthorize("@perm.has('order.manage')")
     public ResponseEntity<ApiResponse<OrderResponse>> startPreparing(@PathVariable UUID id) {
         var order = orderService.startPreparing(id);
         return ResponseEntity.ok(ApiResponse.success(order, "Order is now being prepared"));
     }
 
     @PostMapping("/{id}/mark-all-ready")
+    @PreAuthorize("@perm.has('order.manage')")
     public ResponseEntity<ApiResponse<OrderResponse>> markAllReady(@PathVariable UUID id) {
         var order = orderService.markAllReady(id);
         return ResponseEntity.ok(ApiResponse.success(order, "All items are ready"));

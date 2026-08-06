@@ -6,6 +6,7 @@ import az.flowix.kitchen.service.KitchenService;
 import java.util.UUID;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -22,6 +23,7 @@ public class KitchenController {
     }
 
     @GetMapping
+    @PreAuthorize("@perm.has('kitchen.view')")
     public ResponseEntity<ApiResponse<KitchenService.KitchenOrderGroup>> getOrders(
             @RequestParam UUID orgId) {
         var orders = kitchenService.getOrders(orgId);

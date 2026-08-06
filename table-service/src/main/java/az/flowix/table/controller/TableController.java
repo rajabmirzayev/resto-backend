@@ -19,6 +19,7 @@ import jakarta.validation.Valid;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -43,6 +44,7 @@ public class TableController {
     // ======================== Sections ========================
 
     @GetMapping("/sections")
+    @PreAuthorize("@perm.has('table.view')")
     public ResponseEntity<ApiResponse<List<SectionResponse>>> getAllSections(
             @RequestParam UUID orgId,
             @AuthenticationPrincipal UserPrincipal principal) {
@@ -51,6 +53,7 @@ public class TableController {
     }
 
     @PostMapping("/sections")
+    @PreAuthorize("@perm.has('table.create')")
     public ResponseEntity<ApiResponse<SectionResponse>> createSection(
             @Valid @RequestBody SectionRequest request,
             @AuthenticationPrincipal UserPrincipal principal) {
@@ -60,6 +63,7 @@ public class TableController {
     }
 
     @PutMapping("/sections/{id}")
+    @PreAuthorize("@perm.has('table.edit')")
     public ResponseEntity<ApiResponse<SectionResponse>> updateSection(
             @PathVariable UUID id,
             @Valid @RequestBody SectionUpdateRequest request,
@@ -69,6 +73,7 @@ public class TableController {
     }
 
     @DeleteMapping("/sections/{id}")
+    @PreAuthorize("@perm.has('table.delete')")
     public ResponseEntity<ApiResponse<Void>> deleteSection(
             @PathVariable UUID id,
             @AuthenticationPrincipal UserPrincipal principal) {
@@ -79,6 +84,7 @@ public class TableController {
     // ======================== Tables ========================
 
     @GetMapping("/tables")
+    @PreAuthorize("@perm.has('table.view')")
     public ResponseEntity<ApiResponse<List<TableResponse>>> getAllTables(
             @RequestParam UUID orgId,
             @RequestParam(required = false) UUID sectionId,
@@ -89,6 +95,7 @@ public class TableController {
     }
 
     @GetMapping("/tables/{id}")
+    @PreAuthorize("@perm.has('table.view')")
     public ResponseEntity<ApiResponse<TableResponse>> getTable(
             @PathVariable UUID id,
             @AuthenticationPrincipal UserPrincipal principal) {
@@ -97,6 +104,7 @@ public class TableController {
     }
 
     @PostMapping("/tables")
+    @PreAuthorize("@perm.has('table.create')")
     public ResponseEntity<ApiResponse<TableResponse>> createTable(
             @Valid @RequestBody TableRequest request,
             @AuthenticationPrincipal UserPrincipal principal) {
@@ -106,6 +114,7 @@ public class TableController {
     }
 
     @PutMapping("/tables/{id}")
+    @PreAuthorize("@perm.has('table.edit')")
     public ResponseEntity<ApiResponse<TableResponse>> updateTable(
             @PathVariable UUID id,
             @Valid @RequestBody TableUpdateRequest request,
@@ -115,6 +124,7 @@ public class TableController {
     }
 
     @DeleteMapping("/tables/{id}")
+    @PreAuthorize("@perm.has('table.delete')")
     public ResponseEntity<ApiResponse<Void>> deleteTable(
             @PathVariable UUID id,
             @AuthenticationPrincipal UserPrincipal principal) {
@@ -123,6 +133,7 @@ public class TableController {
     }
 
     @PutMapping("/tables/{id}/status")
+    @PreAuthorize("@perm.has('table.status')")
     public ResponseEntity<ApiResponse<TableResponse>> updateTableStatus(
             @PathVariable UUID id,
             @Valid @RequestBody StatusUpdateRequest request,
@@ -132,6 +143,7 @@ public class TableController {
     }
 
     @PutMapping("/tables/{id}/reservation")
+    @PreAuthorize("@perm.has('table.reserve')")
     public ResponseEntity<ApiResponse<TableResponse>> updateReservation(
             @PathVariable UUID id,
             @Valid @RequestBody ReservationRequest request,
@@ -141,6 +153,7 @@ public class TableController {
     }
 
     @DeleteMapping("/tables/{id}/reservation")
+    @PreAuthorize("@perm.has('table.reserve')")
     public ResponseEntity<ApiResponse<TableResponse>> deleteReservation(
             @PathVariable UUID id,
             @AuthenticationPrincipal UserPrincipal principal) {

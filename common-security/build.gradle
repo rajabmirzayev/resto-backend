@@ -1,6 +1,7 @@
 description = 'common-security'
 
 dependencies {
+    implementation project(':common-core')
     implementation project(':common-exception-handling')
 
     implementation 'org.springframework.boot:spring-boot'

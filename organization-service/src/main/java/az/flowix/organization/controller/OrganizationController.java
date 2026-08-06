@@ -38,14 +38,14 @@ public class OrganizationController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAuthority('SUPER_ADMIN')")
+    @PreAuthorize("hasRole('SUPER_ADMIN') and @perm.has('organization.view')")
     public ResponseEntity<ApiResponse<List<OrganizationDto>>> getAllOrganizations() {
         var organizations = organizationService.getAllOrganizations();
         return ResponseEntity.ok(ApiResponse.success(organizations));
     }
 
     @PostMapping
-    @PreAuthorize("hasAuthority('SUPER_ADMIN')")
+    @PreAuthorize("hasRole('SUPER_ADMIN') and @perm.has('organization.create')")
     public ResponseEntity<ApiResponse<CreateOrganizationResponse>> createOrganization(
             @Valid @RequestBody CreateOrganizationRequest request) {
         var response = creationOrchestrator.createOrganization(request);
@@ -54,6 +54,7 @@ public class OrganizationController {
     }
 
     @GetMapping("/{orgId}")
+    @PreAuthorize("@perm.has('organization.view')")
     public ResponseEntity<ApiResponse<OrganizationDto>> getOrganization(@PathVariable UUID orgId,
                                                                         @AuthenticationPrincipal UserPrincipal principal) {
         var organization = organizationService.getOrganizationById(orgId, principal);
@@ -61,6 +62,7 @@ public class OrganizationController {
     }
 
     @GetMapping("/{orgId}/qr-code")
+    @PreAuthorize("@perm.has('organization.view')")
     public ResponseEntity<ApiResponse<QrCodeResponse>> getQrCode(@PathVariable UUID orgId,
                                                                  @AuthenticationPrincipal UserPrincipal principal) {
         var qrCode = organizationService.getQrCode(orgId, principal);

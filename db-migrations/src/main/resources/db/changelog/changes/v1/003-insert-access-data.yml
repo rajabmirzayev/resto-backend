@@ -1,0 +1,231 @@
+databaseChangeLog:
+  - changeSet:
+      id: 003-insert-access-data
+      author: rajabmirzayev
+      comment: RBAC catalog (modules, ui_groups, permissions), system roles (SUPER_ADMIN, ORG_ADMIN), demo roles and staff
+      changes:
+
+        # ==================== Modules ====================
+        - sql:
+            sql: |
+              INSERT INTO resto_access.modules (id, created_at, updated_at, code, name, sort_order, is_active)
+              VALUES
+                ('50000000-0000-4000-8000-000000000001', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'dashboard', 'Dashboard', 1, TRUE),
+                ('50000000-0000-4000-8000-000000000002', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'menu', 'Menyu', 2, TRUE),
+                ('50000000-0000-4000-8000-000000000003', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'table', 'Masalar', 3, TRUE),
+                ('50000000-0000-4000-8000-000000000004', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'order', 'Sifarişlər', 4, TRUE),
+                ('50000000-0000-4000-8000-000000000005', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'kitchen', 'Mətbəx', 5, TRUE),
+                ('50000000-0000-4000-8000-000000000006', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'waiter', 'Ofisiant', 6, TRUE),
+                ('50000000-0000-4000-8000-000000000007', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'staff', 'İşçilər', 7, TRUE),
+                ('50000000-0000-4000-8000-000000000008', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'roles', 'Rollar', 8, TRUE),
+                ('50000000-0000-4000-8000-000000000009', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'settings', 'Tənzimləmələr', 9, TRUE),
+                ('50000000-0000-4000-8000-00000000000a', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'reports', 'Hesabatlar', 10, TRUE),
+                ('50000000-0000-4000-8000-00000000000b', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'organization', 'Təşkilat', 11, TRUE);
+
+        # ==================== UI groups ====================
+        - sql:
+            sql: |
+              INSERT INTO resto_access.ui_groups (id, created_at, updated_at, code, name, module_id, sort_order, is_active)
+              VALUES
+                ('60000000-0000-4000-8000-000000000001', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'dashboard', 'Dashboard', '50000000-0000-4000-8000-000000000001', 1, TRUE),
+                ('60000000-0000-4000-8000-000000000002', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'menu', 'Menyu', '50000000-0000-4000-8000-000000000002', 2, TRUE),
+                ('60000000-0000-4000-8000-000000000003', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'tables', 'Masalar', '50000000-0000-4000-8000-000000000003', 3, TRUE),
+                ('60000000-0000-4000-8000-000000000004', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'orders', 'Sifarişlər', '50000000-0000-4000-8000-000000000004', 4, TRUE),
+                ('60000000-0000-4000-8000-000000000005', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'kitchen', 'Mətbəx', '50000000-0000-4000-8000-000000000005', 5, TRUE),
+                ('60000000-0000-4000-8000-000000000006', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'waiter', 'Ofisiant', '50000000-0000-4000-8000-000000000006', 6, TRUE),
+                ('60000000-0000-4000-8000-000000000007', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'staff', 'İşçilər', '50000000-0000-4000-8000-000000000007', 7, TRUE),
+                ('60000000-0000-4000-8000-000000000008', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'roles', 'Rollar', '50000000-0000-4000-8000-000000000008', 8, TRUE),
+                ('60000000-0000-4000-8000-000000000009', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'settings', 'Tənzimləmələr', '50000000-0000-4000-8000-000000000009', 9, TRUE),
+                ('60000000-0000-4000-8000-00000000000a', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'reports', 'Hesabatlar', '50000000-0000-4000-8000-00000000000a', 10, TRUE),
+                ('60000000-0000-4000-8000-00000000000b', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'organization', 'Təşkilat', '50000000-0000-4000-8000-00000000000b', 11, TRUE);
+
+        # ==================== Permissions ====================
+        - sql:
+            sql: |
+              INSERT INTO resto_access.permissions (id, created_at, updated_at, code, name, description, module_id, ui_group_id, sort_order, is_active)
+              VALUES
+                ('70000000-0000-4000-8000-000000000001', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'dashboard.view', 'Dashboard görüntülə', 'Dashboard səhifəsini görüntüləmək', '50000000-0000-4000-8000-000000000001', '60000000-0000-4000-8000-000000000001', 1, TRUE),
+                ('70000000-0000-4000-8000-000000000002', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'menu.view', 'Menyu görüntülə', 'Menyu və kateqoriyaları görüntüləmək', '50000000-0000-4000-8000-000000000002', '60000000-0000-4000-8000-000000000002', 1, TRUE),
+                ('70000000-0000-4000-8000-000000000003', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'menu.create', 'Menyu yarat', 'Yeni menyu elementi və kateqoriya yaratmaq', '50000000-0000-4000-8000-000000000002', '60000000-0000-4000-8000-000000000002', 2, TRUE),
+                ('70000000-0000-4000-8000-000000000004', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'menu.edit', 'Menyu redaktə et', 'Menyu elementini redaktə etmək', '50000000-0000-4000-8000-000000000002', '60000000-0000-4000-8000-000000000002', 3, TRUE),
+                ('70000000-0000-4000-8000-000000000005', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'menu.delete', 'Menyu sil', 'Menyu elementi silmək', '50000000-0000-4000-8000-000000000002', '60000000-0000-4000-8000-000000000002', 4, TRUE),
+                ('70000000-0000-4000-8000-000000000006', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'table.view', 'Masa görüntülə', 'Masaları və seksiyaları görüntüləmək', '50000000-0000-4000-8000-000000000003', '60000000-0000-4000-8000-000000000003', 1, TRUE),
+                ('70000000-0000-4000-8000-000000000007', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'table.create', 'Masa yarat', 'Yeni masa və seksiya yaratmaq', '50000000-0000-4000-8000-000000000003', '60000000-0000-4000-8000-000000000003', 2, TRUE),
+                ('70000000-0000-4000-8000-000000000008', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'table.edit', 'Masa redaktə et', 'Masa məlumatlarını redaktə etmək', '50000000-0000-4000-8000-000000000003', '60000000-0000-4000-8000-000000000003', 3, TRUE),
+                ('70000000-0000-4000-8000-000000000009', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'table.delete', 'Masa sil', 'Masa silmək', '50000000-0000-4000-8000-000000000003', '60000000-0000-4000-8000-000000000003', 4, TRUE),
+                ('70000000-0000-4000-8000-00000000000a', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'table.status', 'Masa statusunu dəyiş', 'Masa statusunu dəyişdirmək', '50000000-0000-4000-8000-000000000003', '60000000-0000-4000-8000-000000000003', 5, TRUE),
+                ('70000000-0000-4000-8000-00000000000b', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'table.reserve', 'Masa rezerv et', 'Masa rezerv etmək', '50000000-0000-4000-8000-000000000003', '60000000-0000-4000-8000-000000000003', 6, TRUE),
+                ('70000000-0000-4000-8000-00000000000c', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'order.view', 'Sifariş görüntülə', 'Sifarişləri görüntüləmək', '50000000-0000-4000-8000-000000000004', '60000000-0000-4000-8000-000000000004', 1, TRUE),
+                ('70000000-0000-4000-8000-00000000000d', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'order.create', 'Sifariş yarat', 'Yeni sifariş yaratmaq', '50000000-0000-4000-8000-000000000004', '60000000-0000-4000-8000-000000000004', 2, TRUE),
+                ('70000000-0000-4000-8000-00000000000e', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'order.manage', 'Sifarişi idarə et', 'Sifarişi təsdiqləmək və statusunu idarə etmək', '50000000-0000-4000-8000-000000000004', '60000000-0000-4000-8000-000000000004', 3, TRUE),
+                ('70000000-0000-4000-8000-00000000000f', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'order.cancel', 'Sifarişi ləğv et', 'Sifarişi ləğv etmək', '50000000-0000-4000-8000-000000000004', '60000000-0000-4000-8000-000000000004', 4, TRUE),
+                ('70000000-0000-4000-8000-000000000010', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'order.payment', 'Ödəniş et', 'Sifariş üçün ödənişi tamamlamaq', '50000000-0000-4000-8000-000000000004', '60000000-0000-4000-8000-000000000004', 5, TRUE),
+                ('70000000-0000-4000-8000-000000000011', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'kitchen.view', 'Mətbəx görüntülə', 'Mətbəx panellərini görüntüləmək', '50000000-0000-4000-8000-000000000005', '60000000-0000-4000-8000-000000000005', 1, TRUE),
+                ('70000000-0000-4000-8000-000000000012', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'kitchen.manage', 'Mətbəxi idarə et', 'Mətbəx əməliyyatlarını idarə etmək', '50000000-0000-4000-8000-000000000005', '60000000-0000-4000-8000-000000000005', 2, TRUE),
+                ('70000000-0000-4000-8000-000000000013', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'waiter.view', 'Ofisiant paneli görüntülə', 'Ofisiant panelini görüntüləmək', '50000000-0000-4000-8000-000000000006', '60000000-0000-4000-8000-000000000006', 1, TRUE),
+                ('70000000-0000-4000-8000-000000000014', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'waiter.manage', 'Ofisiant panelini idarə et', 'Ofisiant əməliyyatlarını idarə etmək', '50000000-0000-4000-8000-000000000006', '60000000-0000-4000-8000-000000000006', 2, TRUE),
+                ('70000000-0000-4000-8000-000000000015', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'staff.view', 'İşçi görüntülə', 'İşçiləri görüntüləmək', '50000000-0000-4000-8000-000000000007', '60000000-0000-4000-8000-000000000007', 1, TRUE),
+                ('70000000-0000-4000-8000-000000000016', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'staff.create', 'İşçi yarat', 'Yeni işçi yaratmaq', '50000000-0000-4000-8000-000000000007', '60000000-0000-4000-8000-000000000007', 2, TRUE),
+                ('70000000-0000-4000-8000-000000000017', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'staff.edit', 'İşçi redaktə et', 'İşçi məlumatlarını redaktə etmək', '50000000-0000-4000-8000-000000000007', '60000000-0000-4000-8000-000000000007', 3, TRUE),
+                ('70000000-0000-4000-8000-000000000018', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'staff.delete', 'İşçi sil', 'İşçi silmək', '50000000-0000-4000-8000-000000000007', '60000000-0000-4000-8000-000000000007', 4, TRUE),
+                ('70000000-0000-4000-8000-000000000019', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'role.view', 'Rol görüntülə', 'Rolları görüntüləmək', '50000000-0000-4000-8000-000000000008', '60000000-0000-4000-8000-000000000008', 1, TRUE),
+                ('70000000-0000-4000-8000-00000000001a', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'role.create', 'Rol yarat', 'Yeni rol yaratmaq', '50000000-0000-4000-8000-000000000008', '60000000-0000-4000-8000-000000000008', 2, TRUE),
+                ('70000000-0000-4000-8000-00000000001b', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'role.edit', 'Rol redaktə et', 'Rol məlumatlarını redaktə etmək', '50000000-0000-4000-8000-000000000008', '60000000-0000-4000-8000-000000000008', 3, TRUE),
+                ('70000000-0000-4000-8000-00000000001c', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'role.delete', 'Rol sil', 'Rol silmək', '50000000-0000-4000-8000-000000000008', '60000000-0000-4000-8000-000000000008', 4, TRUE),
+                ('70000000-0000-4000-8000-00000000001d', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'role.assign', 'Rol təyin et', 'İstifadəçiyə rol təyin etmək və geri almaq', '50000000-0000-4000-8000-000000000008', '60000000-0000-4000-8000-000000000008', 5, TRUE),
+                ('70000000-0000-4000-8000-00000000001e', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'permission.view', 'İcazə görüntülə', 'İcazə kataloqunu görüntüləmək', '50000000-0000-4000-8000-000000000008', '60000000-0000-4000-8000-000000000008', 6, TRUE),
+                ('70000000-0000-4000-8000-00000000001f', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'permission.manage', 'İcazələri idarə et', 'İcazə kataloqunu idarə etmək', '50000000-0000-4000-8000-000000000008', '60000000-0000-4000-8000-000000000008', 7, TRUE),
+                ('70000000-0000-4000-8000-000000000020', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'settings.view', 'Tənzimləmələri görüntülə', 'Tənzimləmələri görüntüləmək', '50000000-0000-4000-8000-000000000009', '60000000-0000-4000-8000-000000000009', 1, TRUE),
+                ('70000000-0000-4000-8000-000000000021', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'settings.edit', 'Tənzimləmələri redaktə et', 'Tənzimləmələri redaktə etmək', '50000000-0000-4000-8000-000000000009', '60000000-0000-4000-8000-000000000009', 2, TRUE),
+                ('70000000-0000-4000-8000-000000000022', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'report.view', 'Hesabat görüntülə', 'Hesabatları görüntüləmək', '50000000-0000-4000-8000-00000000000a', '60000000-0000-4000-8000-00000000000a', 1, TRUE),
+                ('70000000-0000-4000-8000-000000000023', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'organization.view', 'Təşkilat görüntülə', 'Təşkilat məlumatlarını görüntüləmək', '50000000-0000-4000-8000-00000000000b', '60000000-0000-4000-8000-00000000000b', 1, TRUE),
+                ('70000000-0000-4000-8000-000000000024', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'organization.create', 'Təşkilat yarat', 'Yeni təşkilat yaratmaq', '50000000-0000-4000-8000-00000000000b', '60000000-0000-4000-8000-00000000000b', 2, TRUE),
+                ('70000000-0000-4000-8000-000000000025', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'organization.edit', 'Təşkilat redaktə et', 'Təşkilat məlumatlarını redaktə etmək', '50000000-0000-4000-8000-00000000000b', '60000000-0000-4000-8000-00000000000b', 3, TRUE),
+                ('70000000-0000-4000-8000-000000000026', '2026-08-01T10:00:00Z', '2026-08-01T10:00:00Z', 'organization.delete', 'Təşkilat sil', 'Təşkilat silmək', '50000000-0000-4000-8000-00000000000b', '60000000-0000-4000-8000-00000000000b', 4, TRUE);
+
+        # ==================== Roles ====================
+        - insert:
+            schemaName: resto_access
+            tableName: roles
+            columns:
+              - column: { name: id, value: "aaaaaaaa-0000-4000-8000-000000000001" }
+              - column: { name: created_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: is_deleted, valueBoolean: false }
+              - column: { name: code, value: "SUPER_ADMIN" }
+              - column: { name: name, value: "Super Admin" }
+              - column: { name: ui_scope, value: "SUPER_ADMIN_PANEL" }
+              - column: { name: is_system, valueBoolean: true }
+              - column: { name: is_active, valueBoolean: true }
+        - insert:
+            schemaName: resto_access
+            tableName: roles
+            columns:
+              - column: { name: id, value: "aaaaaaaa-0000-4000-8000-000000000002" }
+              - column: { name: created_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: is_deleted, valueBoolean: false }
+              - column: { name: code, value: "ORG_ADMIN" }
+              - column: { name: name, value: "Organizasiya Admini" }
+              - column: { name: ui_scope, value: "ADMIN_PANEL" }
+              - column: { name: is_system, valueBoolean: true }
+              - column: { name: is_active, valueBoolean: true }
+        - insert:
+            schemaName: resto_access
+            tableName: roles
+            columns:
+              - column: { name: id, value: "aaaaaaaa-0000-4000-8000-000000000003" }
+              - column: { name: created_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: is_deleted, valueBoolean: false }
+              - column: { name: code, value: "ADMIN_DEFAULT" }
+              - column: { name: name, value: "Admin" }
+              - column: { name: ui_scope, value: "ADMIN_PANEL" }
+              - column: { name: is_system, valueBoolean: false }
+              - column: { name: is_active, valueBoolean: true }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+        - insert:
+            schemaName: resto_access
+            tableName: roles
+            columns:
+              - column: { name: id, value: "aaaaaaaa-0000-4000-8000-000000000004" }
+              - column: { name: created_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: is_deleted, valueBoolean: false }
+              - column: { name: code, value: "WAITER_DEFAULT" }
+              - column: { name: name, value: "Ofisiant" }
+              - column: { name: ui_scope, value: "WAITER_PANEL" }
+              - column: { name: is_system, valueBoolean: false }
+              - column: { name: is_active, valueBoolean: true }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+        - insert:
+            schemaName: resto_access
+            tableName: roles
+            columns:
+              - column: { name: id, value: "aaaaaaaa-0000-4000-8000-000000000005" }
+              - column: { name: created_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: is_deleted, valueBoolean: false }
+              - column: { name: code, value: "KITCHEN_DEFAULT" }
+              - column: { name: name, value: "Mətbəx" }
+              - column: { name: ui_scope, value: "KITCHEN_PANEL" }
+              - column: { name: is_system, valueBoolean: false }
+              - column: { name: is_active, valueBoolean: true }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+
+        # ==================== Role permissions ====================
+        - sql:
+            sql: |
+              INSERT INTO resto_access.role_permissions (role_id, permission_id, created_at)
+              SELECT r.id, p.id, now()
+              FROM resto_access.roles r
+              JOIN resto_access.permissions p ON TRUE
+              WHERE r.code IN ('SUPER_ADMIN', 'ORG_ADMIN');
+
+              INSERT INTO resto_access.role_permissions (role_id, permission_id, created_at)
+              SELECT r.id, p.id, now()
+              FROM resto_access.roles r
+              JOIN resto_access.permissions p ON p.code NOT LIKE 'organization.%'
+              WHERE r.code = 'ADMIN_DEFAULT';
+
+              INSERT INTO resto_access.role_permissions (role_id, permission_id, created_at)
+              SELECT r.id, p.id, now()
+              FROM resto_access.roles r
+              JOIN resto_access.permissions p ON p.code IN ('dashboard.view', 'table.view', 'table.status', 'order.view', 'order.create', 'order.manage', 'waiter.view', 'waiter.manage')
+              WHERE r.code = 'WAITER_DEFAULT';
+
+              INSERT INTO resto_access.role_permissions (role_id, permission_id, created_at)
+              SELECT r.id, p.id, now()
+              FROM resto_access.roles r
+              JOIN resto_access.permissions p ON p.code IN ('kitchen.view', 'kitchen.manage', 'order.view')
+              WHERE r.code = 'KITCHEN_DEFAULT';
+
+        # ==================== Users ====================
+        - insert:
+            schemaName: resto_access
+            tableName: users
+            columns:
+              - column: { name: id, value: "bbbbbbbb-0000-4000-8000-000000000001" }
+              - column: { name: created_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: is_deleted, valueBoolean: false }
+              - column: { name: name, value: "Demo Admin" }
+              - column: { name: username, value: "demo.admin" }
+              - column: { name: email, value: "admin@flowix.az" }
+              - column: { name: phone, value: "+994 50 123 45 67" }
+              - column: { name: password, value: "$2a$10$dXJ3SW6G7P50lGmMkkmwe.20cQQubK3.HZWzG3YB1tlRy.fqvM/BG" }
+              - column: { name: role_id, value: "aaaaaaaa-0000-4000-8000-000000000002" }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+              - column: { name: is_active, valueBoolean: true }
+        - insert:
+            schemaName: resto_access
+            tableName: users
+            columns:
+              - column: { name: id, value: "bbbbbbbb-0000-4000-8000-000000000002" }
+              - column: { name: created_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: is_deleted, valueBoolean: false }
+              - column: { name: name, value: "Aysel Məmmədova" }
+              - column: { name: username, value: "aysel" }
+              - column: { name: email, value: "aysel@flowix.az" }
+              - column: { name: phone, value: "+994 51 234 56 78" }
+              - column: { name: password, value: "$2a$10$dXJ3SW6G7P50lGmMkkmwe.20cQQubK3.HZWzG3YB1tlRy.fqvM/BG" }
+              - column: { name: role_id, value: "aaaaaaaa-0000-4000-8000-000000000004" }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+              - column: { name: is_active, valueBoolean: true }
+        - insert:
+            schemaName: resto_access
+            tableName: users
+            columns:
+              - column: { name: id, value: "bbbbbbbb-0000-4000-8000-000000000003" }
+              - column: { name: created_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: updated_at, value: "2026-08-01T10:00:00Z" }
+              - column: { name: is_deleted, valueBoolean: false }
+              - column: { name: name, value: "Elvin Qasımov" }
+              - column: { name: username, value: "elvin" }
+              - column: { name: email, value: "elvin@flowix.az" }
+              - column: { name: phone, value: "+994 55 345 67 89" }
+              - column: { name: password, value: "$2a$10$dXJ3SW6G7P50lGmMkkmwe.20cQQubK3.HZWzG3YB1tlRy.fqvM/BG" }
+              - column: { name: role_id, value: "aaaaaaaa-0000-4000-8000-000000000005" }
+              - column: { name: org_id, value: "01234567-89ab-cdef-0123-456789abcdef" }
+              - column: { name: is_active, valueBoolean: true }

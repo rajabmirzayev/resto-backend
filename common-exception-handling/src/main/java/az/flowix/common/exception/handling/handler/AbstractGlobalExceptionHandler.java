@@ -208,6 +208,7 @@ public abstract class AbstractGlobalExceptionHandler {
 
     @ExceptionHandler(IllegalArgumentException.class)
     public ProblemDetail handleIllegalArgument(IllegalArgumentException ex, HttpServletRequest request) {
+        log.warn("Illegal argument on {} {}", request.getMethod(), request.getRequestURI(), ex);
         Locale locale = resolveLocale(request);
 
         ProblemDetail pd = ProblemDetail.forStatus(400);

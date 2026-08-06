@@ -299,13 +299,6 @@
           "composite": false,
           "clientRole": true,
           "attributes": {}
-        },
-        {
-          "name": "ORG_ADMIN",
-          "description": "Organization administrator role",
-          "composite": false,
-          "clientRole": true,
-          "attributes": {}
         }
       ],
       "account-console": [],
@@ -787,6 +780,58 @@
             "lightweight.claim": "false",
             "access.token.claim": "true",
             "claim.name": "roles",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "id": "mappers-db-roles",
+          "name": "roles attribute",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "roles",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "introspection.token.claim": "true",
+            "claim.name": "dbRoles",
+            "jsonType.label": "String",
+            "multivalued": "true",
+            "aggregate.attrs": "true"
+          }
+        },
+        {
+          "id": "mappers-permissions",
+          "name": "permissions",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "permissions",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "introspection.token.claim": "true",
+            "claim.name": "permissions",
+            "jsonType.label": "String",
+            "multivalued": "true",
+            "aggregate.attrs": "true"
+          }
+        },
+        {
+          "id": "mappers-ui-scope",
+          "name": "uiScope",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "uiScope",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "introspection.token.claim": "true",
+            "claim.name": "uiScope",
             "jsonType.label": "String"
           }
         }

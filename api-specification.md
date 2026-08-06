@@ -1,21 +1,97 @@
 # RestoFlow API Specification
 
+> Bu sənəd **front-end** üçün yeganə mənbədir. Hər endpoint-ə görə: autentifikasiya tələbi, permission kodu (`@PreAuthorize`), request/response JSON nümunələri və error kodları verilib.
+>
+> Bütün dəyişikliklər `implementation-prompts/rbac-prompts.md` faylındakı promptlar (1–9) əsasında kodda tətbiq olunub. Bu fayl kodun hazırkı vəziyyəti ilə 100% uyğundur.
+
 ## Ümumi Qaydalar
 
 | Qayda | Dəyər |
 |---|---|
 | Base URL (API Gateway) | `http://localhost:8001` |
-| Auth path | `/api/auth-ms/v1/auth/{action}` (birbaşa DTO, `ApiResponse` wrapper-i yoxdur) |
-| Digər servislər | `/api/{service-ms}/v1/{resource}` (`ApiResponse<T>` wrapper-i ilə) |
-| Uğur formatı (auth xaric) | `{ success: true, message: "...", data: {...} }` |
-| Error formatı (bütün servislər) | Spring `ProblemDetail` (RFC 9457) — `key`, `path`, `timestamp` property-ləri ilə |
+| Auth path | `/api/auth-ms/v1/auth/{action}` — birbaşa DTO, `ApiResponse` wrapper-i yoxdur |
+| Digər servislər | `/api/{service-ms}/v1/{resource}` — `ApiResponse<T>` wrapper-i ilə |
+| Uğur formatı (auth xaric) | `{ success: true, message: "...", errorCode: null, data: {...} }` |
+| Error formatı (bütün servislər) | Spring `ProblemDetail` (RFC 9457) — `key`, `path`, `timestamp`, bəzən `fieldErrors` |
 | Validation error | 400 + `fieldErrors` array |
+| Auth token | Keycloak JWT access token, header: `Authorization: Bearer {token}` |
+
+### Autentifikasiya və Giriş Nəzarəti (RBAC)
+
+- İstifadəçi **Keycloak** üzərindən `POST /api/auth-ms/v1/auth/login` ilə giriş edir. Cavabda JWT **access token**, **refresh token**, `uiScope` və istifadəçinin **permission** siyahısı gəlir.
+- Hər istəkdə front `Authorization: Bearer {accessToken}` göndərir. **cloud-gateway (8001)** JWT-i doğrulayır, içindəki claim-ləri aşağıdakı header-lərə çevirib microservice-ə ötürür (token-ə front-ün ehtiyacı yoxdur — gateway bunu edir):
+
+| Header | Mənbə (claim) | Nümunə |
+|---|---|---|
+| `X-User-Id` | `sub` | `bbbbbbbb-0000-4000-8000-000000000001` |
+| `X-Org-Id` | `organizationId` | `01234567-89ab-cdef-0123-456789abcdef` |
+| `X-Roles` | `roles` (CSV) | `SUPER_ADMIN` |
+| `X-Permissions` | `permissions` (CSV) | `menu.view,menu.create,order.view,...` |
+| `X-UI-Scope` | `uiScope` | `ADMIN_PANEL` |
+| `X-Platform-Admin` | `roles` tərkibində `SUPER_ADMIN` olması | `true`/`false` |
+| `X-Internal-Auth` | gateway secret (interne) | — |
+
+- Microservice-lər bu header-lərdən `UserPrincipal` qurur; hər endpoint-də `@PreAuthorize("@perm.has('...')")` işləyir.
+- **Platform admin bypass**: principal-ın `platformAdmin=true` olduğu halda (`SUPER_ADMIN` rol) bütün permission-lar avtomatik keçərlidir (403 atılmır).
+- **Permission mənbəyi sırası**: JWT-də `permissions` claim-i varsa birbaşa ondan yoxlanır; boşdursa `roles` claim-i ilə DB-dəki `role_permissions` cədvəlindən həll edilir.
+
+### Public (auth tələb olunmayan) marşrutlar
+
+Gateway-də aşağıdakılar `permitAll`-dir (token olmadan):
+
+- `POST /api/auth-ms/**` (login, refresh, logout)
+- `GET /api/menu-ms/v1/images/**` (menu şəkilləri)
+- `GET /api/access-ms/v1/permissions/my` (login zamanı permission oxumaq üçün)
+- `/api/customer-ms/**` (customer menu/order — QR ssenarisi)
+- `/actuator/**`, `/swagger-ui/**`, `/api/*/v3/api-docs/**`
+
+Qalan hər şey **autentifikasiya tələb edir** (401) və endpoint-ə uyğun permission yoxlanılır (403).
+
+### Search və Pagination (bütün list endpoint-ləri)
+
+| Parametr | Tip | Açıqlama |
+|---|---|---|
+| `q` | `string` | Axtarış (ad/kod üzrə, case-insensitive) |
+| `page` | `int` (default `0`) | Səhifə indeksi (0-dan başlayır) |
+| `size` | `int` (default `20`, max `100`) | Səhifə ölçüsü |
+
+Cavab həmişə `PageDto<T>`:
+
+```json
+{
+  "content": [ ... ],
+  "page": 0,
+  "size": 20,
+  "totalElements": 47,
+  "totalPages": 3,
+  "first": true,
+  "last": false,
+  "empty": false
+}
+```
+
+### Soft-delete davranışı
+
+- Bütün `DELETE` endpoint-ləri **fiziki silmə yox, soft-delete** edir (`is_deleted=true`).
+- Uğurlu silmə adətən **204 No Content** qaytarır (bəzi servislərdə `ApiResponse` wrapper ilə 200).
+- Silinmiş entity-lər bütün sorğularda görünmür.
+
+### Sistem rolları (SUPER_ADMIN, ORG_ADMIN)
+
+- `SUPER_ADMIN` və `ORG_ADMIN` **`isSystem=true`** olan rollardır, heç bir org-a aid deyil (`org_id = null`).
+- Sistem rolların **redaktəsi / silinməsi qadağandır** → **403 Forbidden** (`ACCESS_MS_4003` / `ROLE_IS_SYSTEM`).
+- Digər rollar org-a aiddir (`org_id` dolu) və yalnız öz org tərəfindən idarə oluna bilər.
+
+### Tenant izolyasiyası (org səviyyəsində)
+
+- Non-platform-admin istifadəçi yalnız öz `organizationId`-si ilə işləyə bilər: fərqli org-a aid data sorğusu → **403** (`ACCESS_MS_4004` `USER_ORG_MISMATCH`, `ACCESS_MS_4003` `ROLE_ORG_MISMATCH`).
+- Platform admin (SUPER_ADMIN) bütün org-ları görür.
 
 ---
 
 ## Ümumi Error Formatları
 
-> Bütün microservice-lər eyni error formatını istifadə edir. Validation xaric bütün error-lar `fieldErrors` property-sini qaytarmır.
+> Bütün microservice-lər eyni error formatını istifadə edir (Spring `ProblemDetail`). Validation xaric bütün error-lar `fieldErrors` property-sini qaytarmır. `key` formatı: `{SERVICE_KEY}_{CODE}`.
 
 ### Validation Error (400)
 
@@ -26,9 +102,9 @@
   "status": 400,
   "detail": "Validation failed for one or more fields",
   "instance": "trace:xxx",
-  "key": "USER_MS_1000",
-  "path": "/api/user-ms/v1/users",
-  "timestamp": "2026-07-30T12:00:00.000Z",
+  "key": "ACCESS_MS_1000",
+  "path": "/api/access-ms/v1/users",
+  "timestamp": "2026-08-06T12:00:00.000Z",
   "fieldErrors": [
     { "field": "name", "message": "Name is required" },
     { "field": "username", "message": "Username is required" }
@@ -36,7 +112,7 @@
 }
 ```
 
-### Unauthorized (401)
+### Unauthorized (401) — token yoxdur / keçərsiz
 
 ```json
 {
@@ -47,11 +123,11 @@
   "instance": "trace:xxx",
   "key": "COMMON_4001",
   "path": "/api/organization-ms/v1/organizations",
-  "timestamp": "2026-07-30T12:00:00.000Z"
+  "timestamp": "2026-08-06T12:00:00.000Z"
 }
 ```
 
-### Forbidden (403)
+### Forbidden (403) — permission yoxdur
 
 ```json
 {
@@ -61,8 +137,8 @@
   "detail": "Access is denied",
   "instance": "trace:xxx",
   "key": "COMMON_4003",
-  "path": "/api/role-ms/v1/roles/r2",
-  "timestamp": "2026-07-30T12:00:00.000Z"
+  "path": "/api/access-ms/v1/roles",
+  "timestamp": "2026-08-06T12:00:00.000Z"
 }
 ```
 
@@ -75,9 +151,9 @@
   "status": 404,
   "detail": "Organization with id org99 not found",
   "instance": "trace:xxx",
-  "key": "ORG_MS_3001",
+  "key": "ORG_3001",
   "path": "/api/organization-ms/v1/organizations/org99",
-  "timestamp": "2026-07-30T12:00:00.000Z"
+  "timestamp": "2026-08-06T12:00:00.000Z"
 }
 ```
 
@@ -92,7 +168,7 @@
   "instance": "trace:xxx",
   "key": "TABLE_MS_2001",
   "path": "/api/table-ms/v1/tables/t2",
-  "timestamp": "2026-07-30T12:00:00.000Z"
+  "timestamp": "2026-08-06T12:00:00.000Z"
 }
 ```
 
@@ -107,9 +183,112 @@
   "instance": "trace:xxx",
   "key": "MENU_MS_9999",
   "path": "/api/menu-ms/v1/items",
-  "timestamp": "2026-07-30T12:00:00.000Z"
+  "timestamp": "2026-08-06T12:00:00.000Z"
 }
 ```
+
+### Service key cədvəli
+
+| Servis | `service-key` | Error key prefiksi |
+|---|---|---|
+| auth-gateway | `AUTH` | `AUTH_001`… |
+| access-service | `ACCESS_MS` | `ACCESS_MS_3001`… |
+| organization-service | `ORG` | `ORG_3001`… |
+| menu-service | `MENU_MS` | `MENU_MS_3001`… |
+| table-service | `TABLE_MS` | `TABLE_MS_3001`… |
+| order-service | `ORDER_MS` | `ORDER_MS_3001`… |
+| kitchen-service | `KITCHEN_MS` | (yoxdur — upstream `ORDER_MS_*` / ümumi) |
+| waiter-service | `WAITER_MS` | `WAITER_MS_3003`, `WAITER_MS_9001/9002` |
+| customer-service | `CUSTOMER_MS` | (yoxdur — ümumi + upstream `*_MS_*`) |
+| setting-service | `SETTING_MS` | `SETTING_MS_3001`, `SETTING_MS_4001` |
+| dashboard-service | `DASHBOARD_MS` | (yoxdur — upstream `ORDER_MS_*` / ümumi) |
+| report-service | `REPORT_MS` | (yoxdur — upstream `ORDER_MS_*` / ümumi) |
+| gateway (auth filter) | — | `COMMON_4001`, `COMMON_4003` |
+
+---
+
+## RBAC & Keycloak
+
+### Rol–Permission modeli
+
+- DB-də (`resto_access` schema): `modules`, `ui_groups`, `permissions`, `roles`, `role_permissions`, `users` cədvəlləri.
+- **Rol** `ui_scope` daşıyır (hansı panelə aid olduğu) və istənilən sayda permission-a bağlanır (`role_permissions` many-to-many cədvəli).
+- **Permission** kataloqu sabitdir (code-lar); kataloqdan kənar kod istifadə olunmur.
+- İstifadəçi **bir rola** aiddir (`users.role_id`). Rol dəyişəndə/perm dəyişəndə **Keycloak** sinxronlaşır ki, növbəti token yeni claim-ləri gətirsin.
+
+### JWT Claim Cədvəli
+
+| Claim | Tip | Mənbə | Açıqlama |
+|---|---|---|---|
+| `sub` | string | Keycloak (user id) | `X-User-Id` header-inə gedir |
+| `roles` | string[] | `resto-auth` client rolları | DB rolun `code`-u; `X-Roles` header-i. `SUPER_ADMIN` varsa → platform admin |
+| `dbRoles` | string[] | `roles` user attribute | DB rol kodu (client rol ilə eynidir; sync üçün) |
+| `permissions` | string[] | `permissions` user attribute | DB-dəki `role_permissions`-dan gələn kodlar; `X-Permissions` header-i |
+| `uiScope` | string | `uiScope` user attribute | Panel: `SUPER_ADMIN_PANEL`/`ADMIN_PANEL`/`WAITER_PANEL`/`KITCHEN_PANEL` |
+| `organizationId` | string | `organizationId` user attribute | Org UUID; `X-Org-Id` header-i |
+| `email` | string | Keycloak | — |
+
+### Realm Mappers (resto-realm.json, client `resto-auth`)
+
+| Mapper adı | Protokol mapper | Claim | Qeyd |
+|---|---|---|---|
+| `sub` | `oidc-usermodel-property-mapper` | `sub` | id token + access token |
+| `organizationId` | `oidc-usermodel-attribute-mapper` | `organizationId` | user attribute `organizationId` |
+| `client roles` | `oidc-usermodel-client-role-mapper` | `roles` | `resto-auth` client rolları |
+| `roles attribute` | `oidc-usermodel-attribute-mapper` | `dbRoles` | user attribute `roles`, multivalued |
+| `permissions` | `oidc-usermodel-attribute-mapper` | `permissions` | user attribute `permissions`, multivalued |
+| `uiScope` | `oidc-usermodel-attribute-mapper` | `uiScope` | user attribute `uiScope` |
+
+> **Vacib:** `permissions`, `uiScope`, `dbRoles` Keycloak **user attributes** olaraq saxlanılır. Backend rol/perm dəyişikliklərində bu attribute-ları sinxronlayır (`KeycloakSyncService`).
+
+### UiScope dəyərləri
+
+| Dəyər | Panel | Tipik istifadəçi |
+|---|---|---|
+| `SUPER_ADMIN_PANEL` | Platform admin paneli | `SUPER_ADMIN` rol |
+| `ADMIN_PANEL` | Restoran admin paneli | `ORG_ADMIN`, `ADMIN_DEFAULT` |
+| `WAITER_PANEL` | Ofisiant paneli | `WAITER_DEFAULT` |
+| `KITCHEN_PANEL` | Mətbəx paneli | `KITCHEN_DEFAULT` |
+
+Login cavabındakı `uiScope`-ə görə front müvafiq panelə redirect etməlidir.
+
+### Permission Kataloqu (bütün kodlar)
+
+| Modul | Permission | Açıqlama |
+|---|---|---|
+| `dashboard` | `dashboard.view` | Dashboard səhifəsini görüntülə |
+| `menu` | `menu.view`, `menu.create`, `menu.edit`, `menu.delete` | Menyu / kateqoriya CRUD + şəkil yükləmə |
+| `table` | `table.view`, `table.create`, `table.edit`, `table.delete`, `table.status`, `table.reserve` | Masalar/seksiyalar + status + rezerv |
+| `order` | `order.view`, `order.create`, `order.manage`, `order.cancel`, `order.payment` | Sifariş baxmaq/yaratmaq/idarə/ləğv/ödəniş |
+| `kitchen` | `kitchen.view`, `kitchen.manage` | Mətbəx paneli |
+| `waiter` | `waiter.view`, `waiter.manage` | Ofisiant paneli |
+| `staff` | `staff.view`, `staff.create`, `staff.edit`, `staff.delete` | İşçilər |
+| `roles` | `role.view`, `role.create`, `role.edit`, `role.delete`, `role.assign`, `permission.view`, `permission.manage` | Rollar + icazələr |
+| `settings` | `settings.view`, `settings.edit` | Tənzimləmələr |
+| `reports` | `report.view` | Hesabatlar |
+| `organization` | `organization.view`, `organization.create`, `organization.edit`, `organization.delete` | Təşkilat |
+
+> Kod `001-003`-cü migration (`003-insert-access-data.yml`) ilə `resto_access.permissions` cədvəlinə yazılıb. **Front yalnız bu kodları istifadə etməlidir.**
+
+### Sistem rolları və default permissionları (seed)
+
+| Rol | `ui_scope` | `isSystem` | Permission-lar |
+|---|---|---|---|
+| `SUPER_ADMIN` | `SUPER_ADMIN_PANEL` | true | bütün 38 perm |
+| `ORG_ADMIN` | `ADMIN_PANEL` | true | bütün 38 perm |
+| `ADMIN_DEFAULT` | `ADMIN_PANEL` | false | `organization.*` xaric bütün perm-lar |
+| `WAITER_DEFAULT` | `WAITER_PANEL` | false | `dashboard.view`, `table.view`, `table.status`, `order.view`, `order.create`, `order.manage`, `waiter.view`, `waiter.manage` |
+| `KITCHEN_DEFAULT` | `KITCHEN_PANEL` | false | `kitchen.view`, `kitchen.manage`, `order.view` |
+
+> Bu seed-lər **demo org** (`01234567-89ab-cdef-0123-456789abcdef`) üçündür. Yeni org yaradılanda `ORG_ADMIN` rol yaradılan admin-ə avtomatik assign olunur (aşağıda Organization bölməsinə bax).
+
+### Login axını (auth-gateway)
+
+1. Front `POST /api/auth-ms/v1/auth/login` → `KeycloakClient.login()` Keycloak token endpoint-i çağırır.
+2. `JwtTokenValidator.extractClaims()` access token-i decode edib claim-ləri oxuyur.
+3. `uiScope` belə həll olunur: JWT-də `uiScope` claim-i (düzgün dəyər varsa) → yoxsa `roles` claim-ində platform admin rol varsa `SUPER_ADMIN_PANEL` → əks halda `ADMIN_PANEL`.
+4. Cavabda `permissions` claim-i olduğu kimi verilir (boş ola bilər, boşdursa backend DB-dən yoxlayacaq).
+5. Front token-i saxlayır, bütün istəklərdə `Authorization: Bearer` göndərir.
 
 ---
 
@@ -117,17 +296,18 @@
 
 > API prefix: `/api/auth-ms/v1/auth/...`
 > Response: **birbaşa DTO** (`ApiResponse` wrapper-i yoxdur)
-> Error: Spring `ProblemDetail` (yuxarıdakı format)
+> Error: Spring `ProblemDetail`; key prefiksi `AUTH_`
+> Context path: `/api/auth-ms`; gateway marşrutu: `/api/auth-ms/**` → `http://localhost:8002`
 
 ### `POST /api/auth-ms/v1/auth/login`
 
-**Giriş.** Backend Keycloak üzərindən autentifikasiya edir.
+**Giriş.** Backend Keycloak üzərindən autentifikasiya edir və cavabda token-lər + `uiScope` + `permissions` qaytarır.
 
-Request:
+Request body:
 ```json
 {
-  "username": "admin",
-  "password": "admin123"
+  "username": "demo.admin",
+  "password": "demo12345"
 }
 ```
 
@@ -137,21 +317,30 @@ Success (200):
   "accessToken": "eyJhbGciOiJSUzI1NiIs...",
   "refreshToken": "dGhpcyBpcyBhIHJlZnJl...",
   "expiresIn": 300,
-  "roles": ["SUPER_ADMIN"],
-  "uiScope": "ADMIN_PANEL"
+  "tokenType": "Bearer",
+  "user": {
+    "username": "demo.admin",
+    "roles": ["ORG_ADMIN"]
+  },
+  "uiScope": "ADMIN_PANEL",
+  "permissions": ["dashboard.view", "menu.view", "menu.create", "..."]
 }
 ```
 
-**`uiScope`:**
-
-| Dəyər | Redirect | İstifadəçi |
+| Sahə | Tip | Açıqlama |
 |---|---|---|
-| `ADMIN_PANEL` | `/super-admin` | Super admin (`SUPER_ADMIN` rol) |
-| `USER_PANEL` | `/admin` | Org admin, ofisant, aşpaz |
+| `accessToken` | string | Keycloak JWT (~5 dəq etibarlıdır) |
+| `refreshToken` | string | Refresh üçün |
+| `expiresIn` | long | saniyə |
+| `tokenType` | string | `Bearer` |
+| `user.username` | string | giriş istifadəçisi |
+| `user.roles` | string[] | DB rolları (client rolları) |
+| `uiScope` | `SUPER_ADMIN_PANEL`/`ADMIN_PANEL`/`WAITER_PANEL`/`KITCHEN_PANEL` | Panel seçimi üçün |
+| `permissions` | string[] | İstifadəçinin permission kodları |
 
-> **Qeyd:** Hal-hazırda `SUPER_ADMIN` roluna `ADMIN_PANEL`, qalanlarına `USER_PANEL` təyin olunur. Gələcəkdə `org_admin`, `waiter`, `chef` üçün ayrıca redirect əlavə olunacaq.
+> **Front:** `uiScope`-ə görə redirect; `permissions` array-i ilə menyu/hide elementləri. Token ~5 dəq etibarlı olduğundan front 401 alanda `/refresh` çağırmalıdır.
 
-Error (401):
+Error (401 — yanlış kredensial):
 ```json
 {
   "type": "about:blank",
@@ -161,25 +350,11 @@ Error (401):
   "instance": "/api/auth-ms/v1/auth/login",
   "key": "AUTH_001",
   "path": "/api/auth-ms/v1/auth/login",
-  "timestamp": "2026-07-30T12:00:00.000Z"
+  "timestamp": "2026-08-06T12:00:00.000Z"
 }
 ```
 
-Error (502 — Keycloak unavailable):
-```json
-{
-  "type": "about:blank",
-  "title": "Service Unavailable",
-  "status": 502,
-  "detail": "Authentication service is temporarily unavailable. Please try again later.",
-  "instance": "/api/auth-ms/v1/auth/login",
-  "key": "AUTH_005",
-  "path": "/api/auth-ms/v1/auth/login",
-  "timestamp": "2026-07-30T12:00:00.000Z"
-}
-```
-
----
+Error (502 — Keycloak əlçatan deyil): `AUTH_005`.
 
 ### `POST /api/auth-ms/v1/auth/refresh`
 
@@ -201,21 +376,7 @@ Success (200):
 }
 ```
 
-Error (401):
-```json
-{
-  "type": "about:blank",
-  "title": "Token Expired",
-  "status": 401,
-  "detail": "The access token has expired. Please refresh or login again.",
-  "instance": "/api/auth-ms/v1/auth/refresh",
-  "key": "AUTH_002",
-  "path": "/api/auth-ms/v1/auth/refresh",
-  "timestamp": "2026-07-30T12:00:00.000Z"
-}
-```
-
----
+Error (401 — token expired/invalid): `AUTH_002`, `AUTH_003`.
 
 ### `POST /api/auth-ms/v1/auth/logout`
 
@@ -230,762 +391,658 @@ Request:
 
 Success (200): *empty body*
 
-Error (502):
+Error (502): `AUTH_004`.
+
+---
+
+## 2. Access — `access-service` (port 8120)
+
+> API prefix: `/api/access-ms/v1/...`
+> Response: `ApiResponse<T>` wrapper
+> Error: Spring `ProblemDetail`; key prefiksi `ACCESS_MS_`
+> Context path: `/api/access-ms`; gateway marşrutu: `/api/access-ms/**` → `http://localhost:8120`
+>
+> Bu servis köhnə **user-service (8103)** və **role-service (8104)**-ü birləşdirir: İstifadəçilər (staff), rollar, permission kataloqu, modullar və ui-groups burada yaşayır.
+
+### Tenant & Giriş Qaydaları
+
+- Bütün endpoint-lər `Authorization: Bearer` tələb edir və `@PreAuthorize` permission kodu ilə qorunur.
+- Non-platform-admin istifadəçi **yalnız öz org-unun** user/rol data-sını görür; başqa org-a aid ID sorğulasa → **403**.
+- `GET /v1/permissions/my` istisnadır — yalnız autentifikasiya tələb edir (`isAuthenticated()`), heç bir perm kod yoxdur.
+- User yaradılarkən həm **Keycloak**-da istifadəçi + rol + attribute-lar, həm DB-də istifadəçi yaradılır; Keycloak əlçatan olmasa → **502/`ACCESS_MS_3003`**.
+- User/rol silmə soft-delete-dir.
+
+### Access-servis Error Kodları
+
+| Kod | HTTP | Açıqlama |
+|---|---|---|
+| `ACCESS_MS_1000` | 400 | Validation xətası (+ `fieldErrors`) |
+| `ACCESS_MS_3001` | 404 | User/Rol tapılmadı |
+| `ACCESS_MS_3002` | 409 | Username/rol code unikald deyil (duplicate) |
+| `ACCESS_MS_3003` | 502 | Keycloak əlçatan deyil |
+| `ACCESS_MS_3004` | 404 | Permission tapılmadı |
+| `ACCESS_MS_4001` | 401 | Autentifikasiya tələb olunur |
+| `ACCESS_MS_4003` | 403 | Permission yoxdur / sistem rol redaktə oluna bilməz (`ROLE_IS_SYSTEM`) / rol başqa org-a aiddir (`ROLE_ORG_MISMATCH`) |
+| `ACCESS_MS_4004` | 403 | User başqa org-a aiddir (`USER_ORG_MISMATCH`) |
+| `ACCESS_MS_9999` | 500 | Daxili xəta |
+
+### Data Modelləri
+
+**`UserDto`** (user cavabları):
+
+| Sahə | Tip | Açıqlama |
+|---|---|---|
+| `id` | UUID | DB user id |
+| `keycloakId` | string | Keycloak user id (null ola bilər) |
+| `name` | string | Ad |
+| `username` | string | Login |
+| `email` | string | null ola bilər |
+| `phone` | string | null ola bilər |
+| `orgId` | UUID | Tenant |
+| `role` | `RoleBriefDto` | Rol (null ola bilər — rol silinəndə) |
+| `isActive` | boolean | Aktivlik |
+
+**`RoleBriefDto`**: `id`, `code`, `name`, `uiScope`.
+
+**`RoleResponse`**:
+
+| Sahə | Tip |
+|---|---|
+| `id` | UUID |
+| `code` | string |
+| `name` | string |
+| `uiScope` | UiScope |
+| `isSystem` | boolean |
+| `isActive` | boolean |
+| `orgId` | UUID (sistem rollarda null) |
+| `permissionIds` | UUID[] |
+| `permissions` | `PermissionDto[]` |
+
+**`PermissionDto`**:
+
+| Sahə | Tip |
+|---|---|
+| `id` | UUID |
+| `code` | string |
+| `name` | string |
+| `description` | string |
+| `module` | `ModuleRefDto` (`id`,`code`,`name`) |
+| `uiGroup` | `UiGroupRefDto` (`id`,`code`,`name`) |
+| `sortOrder` | int |
+| `isActive` | boolean |
+
+**`ModuleDto`**: `id`, `code`, `name`, `sortOrder`, `uiGroups: UiGroupDto[]`.
+**`UiGroupDto`**: `id`, `code`, `name`, `sortOrder`, `permissions: PermissionDto[]`.
+**`ModuleTreeDto`**: `id`, `code`, `name`, `sortOrder`, `uiGroups: UiGroupDto[]`.
+
+> Seed ID nümunələri (001-003 migration): modullar `50000000-0000-4000-8000-...001..00b`, ui-groups `60000000-...`, permissions `70000000-...001..026`, rollar `aaaaaaaa-0000-4000-8000-0000000000XX`, userlər `bbbbbbbb-0000-4000-8000-0000000000XX`. Front bunları hardcode etməməli, API-dan oxumalıdır.
+
+---
+
+### Users (staff)
+
+#### `GET /api/access-ms/v1/users`
+
+**İstifadəçi siyahısı (paginasiya ilə).**
+
+- **Auth:** `Authorization: Bearer {token}`
+- **Permission:** `staff.view`
+
+Query parametrləri: `orgId` (optional), `roleId` (optional), `q` (optional), `page`, `size`.
+
+Success (200):
 ```json
 {
-  "type": "about:blank",
-  "title": "Logout Failed",
-  "status": 502,
-  "detail": "Failed to revoke the session. Please try again.",
-  "instance": "/api/auth-ms/v1/auth/logout",
-  "key": "AUTH_004",
-  "path": "/api/auth-ms/v1/auth/logout",
-  "timestamp": "2026-07-30T12:00:00.000Z"
+  "success": true,
+  "message": "Success",
+  "errorCode": null,
+  "data": {
+    "content": [
+      {
+        "id": "bbbbbbbb-0000-4000-8000-000000000001",
+        "keycloakId": "aa11bb22-...",
+        "name": "Demo Admin",
+        "username": "demo.admin",
+        "email": "admin@flowix.az",
+        "phone": "+994501234567",
+        "orgId": "01234567-89ab-cdef-0123-456789abcdef",
+        "role": {
+          "id": "aaaaaaaa-0000-4000-8000-000000000002",
+          "code": "ORG_ADMIN",
+          "name": "Organizasiya Admini",
+          "uiScope": "ADMIN_PANEL"
+        },
+        "isActive": true
+      }
+    ],
+    "page": 0,
+    "size": 20,
+    "totalElements": 3,
+    "totalPages": 1,
+    "first": true,
+    "last": true,
+    "empty": false
+  }
+}
+```
+
+Error (403): `ACCESS_MS_4003` — `staff.view` yoxdursa.
+
+#### `GET /api/access-ms/v1/users/{id}`
+
+**Bir istifadəçi.**
+
+- **Auth:** Bearer
+- **Permission:** `staff.view`
+
+Success (200): yuxarıdakı `UserDto` (array deyil, obyekt).
+
+#### `POST /api/access-ms/v1/users`
+
+**Yeni istifadəçi.** DB + Keycloak-da yaradılır, Keycloak-a rol atributu yazılır.
+
+- **Auth:** Bearer
+- **Permission:** `staff.create`
+
+Request:
+```json
+{
+  "name": "Nigar Hüseynova",
+  "username": "nigar",
+  "password": "Nigar1234",
+  "roleId": "aaaaaaaa-0000-4000-8000-000000000004",
+  "orgId": "01234567-89ab-cdef-0123-456789abcdef",
+  "email": "nigar@flowix.az",
+  "phone": "+994 55 999 88 77"
+}
+```
+
+Success (201): `UserDto`.
+
+Error (409): `ACCESS_MS_3002` — username artıq mövcuddur.
+Error (403): `ACCESS_MS_4004` — başqa org-a user yaratmaq.
+Error (502): `ACCESS_MS_3003` — Keycloak əlçatan deyil (DB-də rollback olunur).
+
+#### `PUT /api/access-ms/v1/users/{id}`
+
+**İstifadəçini redaktə et** (name, phone, isActive). Dəyişənlər Keycloak-a da yazılır.
+
+- **Auth:** Bearer
+- **Permission:** `staff.edit`
+
+Request:
+```json
+{
+  "name": "Nigar Hüseynova",
+  "phone": "+994 55 111 22 33",
+  "isActive": false
+}
+```
+
+Success (200): `UserDto`.
+Error (403): `ACCESS_MS_4004`, Error (502): `ACCESS_MS_3003`.
+
+#### `DELETE /api/access-ms/v1/users/{id}`
+
+**İstifadəçini sil (soft-delete).** Keycloak-da user deaktiv edilir.
+
+- **Auth:** Bearer
+- **Permission:** `staff.delete`
+
+Success (204): *empty body*.
+Error (403): `ACCESS_MS_4004`.
+
+#### `DELETE /api/access-ms/v1/users/{id}/role`
+
+**İstifadəçidən rolu geri al (unassign).** Rol `null` edilir, Keycloak-dan rol atributu silinir.
+
+- **Auth:** Bearer
+- **Permission:** `role.assign`
+
+Success (204): *empty body*.
+
+#### `GET /api/access-ms/v1/users/staff-performance`
+
+**İşçi performans siyahısı.** Hal-hazırda order statistikası `0` dəyərləri ilə gəlir (placeholder).
+
+- **Auth:** Bearer
+- **Permission:** `staff.view`
+
+Query: `orgId` (required), `roleId` (optional).
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Success",
+  "errorCode": null,
+  "data": [
+    {
+      "userId": "bbbbbbbb-0000-4000-8000-000000000001",
+      "name": "Demo Admin",
+      "role": "ORG_ADMIN",
+      "totalOrders": 0,
+      "completedOrders": 0,
+      "revenue": 0,
+      "activeOrders": 0
+    }
+  ]
 }
 ```
 
 ---
 
-## 2. Organization — `organization-service` (port 8102)
+### Roles
+
+#### `GET /api/access-ms/v1/roles`
+
+**Rol siyahısı (paginasiya).** Non-admin öz org-unun rollarını + sistem rolları görür.
+
+- **Auth:** Bearer
+- **Permission:** `role.view`
+
+Query: `q`, `page`, `size`.
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Success",
+  "errorCode": null,
+  "data": {
+    "content": [
+      {
+        "id": "aaaaaaaa-0000-4000-8000-000000000002",
+        "code": "ORG_ADMIN",
+        "name": "Organizasiya Admini",
+        "uiScope": "ADMIN_PANEL",
+        "isSystem": true,
+        "isActive": true,
+        "orgId": null,
+        "permissionIds": ["70000000-0000-4000-8000-000000000001", "..."],
+        "permissions": [
+          {
+            "id": "70000000-0000-4000-8000-000000000001",
+            "code": "dashboard.view",
+            "name": "Dashboard görüntülə",
+            "description": "Dashboard səhifəsini görüntüləmək",
+            "module": { "id": "50000000-0000-4000-8000-000000000001", "code": "dashboard", "name": "Dashboard" },
+            "uiGroup": { "id": "60000000-0000-4000-8000-000000000001", "code": "dashboard", "name": "Dashboard" },
+            "sortOrder": 1,
+            "isActive": true
+          }
+        ]
+      }
+    ],
+    "page": 0,
+    "size": 20,
+    "totalElements": 5,
+    "totalPages": 1,
+    "first": true,
+    "last": true,
+    "empty": false
+  }
+}
+```
+
+Error (403): `ACCESS_MS_4003`.
+
+#### `GET /api/access-ms/v1/roles/{id}`
+
+**Bir rol (permission-ları ilə).**
+
+- **Auth:** Bearer
+- **Permission:** `role.view`
+
+Success (200): `RoleResponse` (yuxarıdakı kimi, array deyil).
+
+#### `POST /api/access-ms/v1/roles`
+
+**Yeni rol yarat.** `orgId` boş saxlanarsa non-admin üçün cari org götürülür; platform admin xaricdə başqa org seçə bilər.
+
+- **Auth:** Bearer
+- **Permission:** `role.create`
+
+Request:
+```json
+{
+  "code": "CASHIER",
+  "name": "Kassir",
+  "uiScope": "ADMIN_PANEL",
+  "permissionIds": ["70000000-0000-4000-8000-00000000000c", "70000000-0000-4000-8000-00000000000d"]
+}
+```
+
+Success (201): `RoleResponse`.
+Error (409): `ACCESS_MS_3002` — code duplicate.
+Error (403): `ACCESS_MS_4003` — başqa org üçün rol yaratmaq (non-admin).
+Error (404): `ACCESS_MS_3004` — `permissionIds` içində tapılmayan ID.
+
+#### `PUT /api/access-ms/v1/roles/{id}`
+
+**Rolun adını/uiScope-nu dəyiş.** Sistem rol üzərində işləməz (403). Dəyişiklikdən sonra həmin roldakı userlərin Keycloak attribute-ları sinxronlaşır.
+
+- **Auth:** Bearer
+- **Permission:** `role.edit`
+
+Request:
+```json
+{
+  "name": "Baş Kassir",
+  "uiScope": "ADMIN_PANEL"
+}
+```
+
+Success (200): `RoleResponse`.
+Error (403): `ACCESS_MS_4003` — `isSystem=true` olan rol (`ROLE_IS_SYSTEM`) və ya başqa org rolu.
+
+#### `DELETE /api/access-ms/v1/roles/{id}`
+
+**Rolu sil (soft-delete).** Roldakı userlərin rolu `null` olur, Keycloak sinxronlaşır.
+
+- **Auth:** Bearer
+- **Permission:** `role.delete`
+
+Success (204): *empty body*.
+Error (403): `ACCESS_MS_4003` — sistem rol silinə bilməz.
+
+#### `POST /api/access-ms/v1/roles/{id}/permissions`
+
+**Rola permission-ları əlavə et (add).**
+
+- **Auth:** Bearer
+- **Permission:** `role.edit`
+
+Request:
+```json
+{
+  "permissionIds": ["70000000-0000-4000-8000-000000000013"]
+}
+```
+
+Success (200): `RoleResponse`.
+
+#### `PUT /api/access-ms/v1/roles/{id}/permissions`
+
+**Rolun permission-larını tam əvəz et (set).**
+
+- **Auth:** Bearer
+- **Permission:** `role.edit`
+
+Request:
+```json
+{
+  "permissionIds": ["70000000-0000-4000-8000-000000000002", "70000000-0000-4000-8000-000000000003"]
+}
+```
+
+Success (200): `RoleResponse`.
+
+#### `DELETE /api/access-ms/v1/roles/{id}/permissions/{permissionId}`
+
+**Bir permission-u roldan çıxar.**
+
+- **Auth:** Bearer
+- **Permission:** `role.edit`
+
+Success (204): *empty body*.
+
+#### `POST /api/access-ms/v1/roles/{id}/users`
+
+**İstifadəçilərə rol təyin et (assign).**
+
+- **Auth:** Bearer
+- **Permission:** `role.assign`
+
+Request:
+```json
+{
+  "userIds": ["bbbbbbbb-0000-4000-8000-000000000002"]
+}
+```
+
+Success (201): *empty body*.
+Error (404): `ACCESS_MS_3001` — user tapılmadı.
+Error (403): `ACCESS_MS_4004` — başqa org user-inə rol təyin etmək.
+
+#### `GET /api/access-ms/v1/roles/{id}/users`
+
+**Roldakı istifadəçilər (paginasiya).**
+
+- **Auth:** Bearer
+- **Permission:** `role.view`
+
+Query: `q`, `page`, `size`.
+
+Success (200): `PageDto<UserDto>`.
+
+#### `DELETE /api/access-ms/v1/roles/{id}/users/{userId}`
+
+**Bir istifadəçidən rolu geri al.**
+
+- **Auth:** Bearer
+- **Permission:** `role.assign`
+
+Success (204): *empty body*.
+
+#### `GET /api/access-ms/v1/roles/system/{code}`
+
+**Sistem rolu code ilə əldə et** (məsələn `ORG_ADMIN`). Yalnız `isSystem` rollar.
+
+- **Auth:** Bearer
+- **Permission:** `role.view`
+
+Success (200): `RoleResponse`.
+Error (404): `ACCESS_MS_3001`.
+
+---
+
+### Permissions (kataloq)
+
+#### `GET /api/access-ms/v1/permissions/my`
+
+**Cari istifadəçinin permission kodları.** Yalnız autentifikasiya tələb edir — login sonrası front menyu/hide üçün istifadə edə bilər. Gateway bu marşrutu public edib (`permitAll`), amma token varsa principal-dan oxunur.
+
+- **Auth:** Bearer (tələb olunmur, amma varsa istifadə olunur)
+- **Permission:** — (`isAuthenticated()`)
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Success",
+  "errorCode": null,
+  "data": [
+    { "code": "dashboard.view" },
+    { "code": "menu.view" },
+    { "code": "menu.create" }
+  ]
+}
+```
+
+> **Qeyd:** cavab yalnız `code` ilə sadə `PermissionDto` obyektlərindən ibarətdir (digər sahələr null).
+
+#### `GET /api/access-ms/v1/permissions`
+
+**Permission kataloqu (paginasiya + filtrlər).**
+
+- **Auth:** Bearer
+- **Permission:** `permission.view`
+
+Query: `q`, `module` (modul code, məs. `menu`), `uiGroup` (ui-group code, məs. `menu`), `page`, `size`.
+
+Success (200): `PageDto<PermissionDto>` (modul/uiGroup ref-ləri dolu).
+
+#### `GET /api/access-ms/v1/permissions/tree`
+
+**Modul → ui-group → permission ağacı.** Rol formu üçün ən rahat endpoint.
+
+- **Auth:** Bearer
+- **Permission:** `permission.view`
+
+Query: `q` (optional).
+
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Success",
+  "errorCode": null,
+  "data": [
+    {
+      "id": "50000000-0000-4000-8000-000000000002",
+      "code": "menu",
+      "name": "Menyu",
+      "sortOrder": 2,
+      "uiGroups": [
+        {
+          "id": "60000000-0000-4000-8000-000000000002",
+          "code": "menu",
+          "name": "Menyu",
+          "sortOrder": 2,
+          "permissions": [
+            {
+              "id": "70000000-0000-4000-8000-000000000002",
+              "code": "menu.view",
+              "name": "Menyu görüntülə",
+              "description": "Menyu və kateqoriyaları görüntüləmək",
+              "module": { "id": "...", "code": "menu", "name": "Menyu" },
+              "uiGroup": { "id": "...", "code": "menu", "name": "Menyu" },
+              "sortOrder": 1,
+              "isActive": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+#### `GET /api/access-ms/v1/permissions/by-module`
+
+**Modul code ilə permission siyahısı** (məs. `?module=order`).
+
+- **Auth:** Bearer
+- **Permission:** `permission.view`
+
+Query: `module` (required), `q` (optional).
+
+Success (200): `PermissionDto[]`.
+
+#### `GET /api/access-ms/v1/permissions/by-ui-group`
+
+**UI-group code ilə permission siyahısı** (məs. `?uiGroup=orders`).
+
+- **Auth:** Bearer
+- **Permission:** `permission.view`
+
+Query: `uiGroup` (required), `q` (optional).
+
+Success (200): `PermissionDto[]`.
+
+---
+
+### Modules
+
+#### `GET /api/access-ms/v1/modules`
+
+**Modul siyahısı (hər modulun ui-groups + permissions ilə).**
+
+- **Auth:** Bearer
+- **Permission:** `permission.view`
+
+Query: `q` (optional).
+
+Success (200): `ModuleDto[]` (`id`, `code`, `name`, `sortOrder`, `uiGroups[]`).
+
+---
+
+### UI Groups
+
+#### `GET /api/access-ms/v1/ui-groups`
+
+**UI-group siyahısı (permissions ilə).**
+
+- **Auth:** Bearer
+- **Permission:** `permission.view`
+
+Query: `q` (optional), `module` (optional, modul code).
+
+Success (200): `UiGroupDto[]`.
+
+---
+
+## 3. Organization — `organization-service` (port 8102)
 
 > API prefix: `/api/organization-ms/v1/...`
 > Response: `ApiResponse<T>` wrapper
-> Error: Spring `ProblemDetail`
+> Error: Spring `ProblemDetail`; key prefiksi `ORG_`
+> Context path: `/api/organization-ms`; gateway marşrutu: `/api/organization-ms/**` → `http://localhost:8102`
 
-### `GET /api/organization-ms/v1/organizations`
+### Auth & Tenant Qaydaları
 
-**Bütün təşkilatların siyahısı. Super admin üçün.**
+- `GET /v1/organizations` (list) və `POST /v1/organizations` (create) **yalnız platform admin** üçündür: `hasRole('SUPER_ADMIN') and @perm.has('organization.view'/'organization.create')`.
+- `GET /v1/organizations/{orgId}` və qr-code: `@perm.has('organization.view')` — non-admin yalnız öz org-u ilə çağıra bilər (backend yoxlayır).
+- **`ORG_ADMIN` rolunun avtomatik assign-ı:** `POST /v1/organizations` zamanı orchestrator yeni org üçün admin istifadəçi yaradır və ona sistem `ORG_ADMIN` rolunu təyin edir. Ayrıca "rol yarat" endpoint-i bu ssenaridə **yoxdur** (silməklə/əvəz edilib) — rol idarəsi `access-service` (bölmə 2) üzərindən aparılır.
+- Org yaradılarkən access-service, setting-service, table-service, order-service müvafiq konfiqurasiyalarla sinxronlaşır.
 
-Headers: `Authorization: Bearer {token}`
+### Organization-servis Error Kodları
 
-Success (200):
+> `OrganizationErrorCode` enum-ından; ümumi kodlar (`*_1000`, `*_4001`, `*_4003`, `*_9999`) bölmə 15-dədir.
+
+| Kod | HTTP | Açıqlama |
+|---|---|---|
+| `ORG_3001` | 404 | Org tapılmadı (`ORGANIZATION_NOT_FOUND`) |
+| `ORG_3002` | 409 | Org `slug` unikald deyil (`ORGANIZATION_SLUG_DUPLICATE`) |
+| `ORG_3003` | 500 | Org yaradılmadı — Keycloak/admin/rol xətası (`ORGANIZATION_CREATION_FAILED`) |
+| `ORG_3004` | 409 | Org silinə bilməz — aktiv sifarişlər var (`ORGANIZATION_HAS_ACTIVE_ORDERS`) |
+| `ORG_3005` | 403 | Giriş qadağandır (`ORGANIZATION_ACCESS_DENIED`) |
+
+### Data Modelləri
+
+**`OrganizationDto`**: `id`, `name`, `slug`, `adminName`, `adminEmail`, `logoUrl`, `phone`, `address`, `createdAt`.
+
+**`CreateOrganizationRequest`**:
+
+| Sahə | Tip | Validasiya |
+|---|---|---|
+| `name` | string | 3–100 simvol |
+| `adminName` | string | 2–100 simvol |
+| `adminEmail` | string | email formatı, max 254 |
+| `adminPassword` | string | 8–72 simvol, ən azı 1 hərf + 1 rəqəm |
+
+**`CreateOrganizationResponse`**:
 ```json
 {
-  "success": true,
-  "message": "Success",
-  "errorCode": null,
-  "data": [
-    {
-      "id": "550e8400-e29b-41d4-a716-446655440001",
-      "name": "Nərimanov Restoranı",
-      "slug": "nerimanov-restoran",
-      "adminName": "Orxan Əliyev",
-      "adminEmail": "orxan@nerimanov.az",
-      "logoUrl": null,
-      "phone": "+994501234567",
-      "address": "Nərimanov, Bakı",
-      "createdAt": "2026-07-23T12:00:00.000Z"
-    }
-  ]
-}
-```
-
-Error (401): *yuxarıdakı ümumi 401 formatı*
-
----
-
-### `POST /api/organization-ms/v1/organizations`
-
-**Yeni təşkilat yarat. Arxada avtomatik:**
-- `org_admin` user-i (Keycloak + local DB)
-- Org-a aid rol (permissions: `dashboard.view`, `menu.*`, `tables.*`, `orders.*`, `kitchen.*`)
-- Default `OrgSetting` (`orderMode=customer`, `paymentTiming=after`, `customerTheme=classic`)
-- Default `Zal 1` section
-
-Headers: `Authorization: Bearer {token}` (super admin)
-
-Request:
-```json
-{
-  "name": "Nərimanov Restoranı",
-  "adminName": "Orxan Əliyev",
-  "adminEmail": "orxan@nerimanov.az",
-  "adminPassword": "orxan123"
-}
-```
-
-Success (201):
-```json
-{
-  "success": true,
-  "message": "Organization created",
-  "errorCode": null,
-  "data": {
-    "organization": {
-      "id": "550e8400-e29b-41d4-a716-446655440001",
-      "name": "Nərimanov Restoranı",
-      "slug": "nerimanov-restoran",
-      "adminName": "Orxan Əliyev",
-      "adminEmail": "orxan@nerimanov.az",
-      "logoUrl": null,
-      "phone": null,
-      "address": null,
-      "createdAt": "2026-07-30T12:00:00.000Z"
-    },
-    "adminUser": {
-      "id": "550e8400-e29b-41d4-a716-446655440005",
-      "name": "Orxan Əliyev",
-      "username": "orxan@nerimanov.az",
-      "email": "orxan@nerimanov.az",
-      "role": "ORG_ADMIN",
-      "roleId": "550e8400-e29b-41d4-a716-4466554400a1",
-      "orgId": "550e8400-e29b-41d4-a716-446655440001"
-    },
-    "adminRole": {
-      "id": "550e8400-e29b-41d4-a716-4466554400a1",
-      "name": "Nərimanov Restoranı Admin",
-      "permissions": [
-        "dashboard.view",
-        "menu.view", "menu.create", "menu.edit", "menu.delete",
-        "tables.view", "tables.manage", "tables.status",
-        "orders.view", "orders.manage", "orders.cancel",
-        "kitchen.view", "kitchen.manage"
-      ],
-      "isSystem": false,
-      "orgId": "550e8400-e29b-41d4-a716-446655440001"
-    }
-  }
-}
-```
-
-Error (400):
-```json
-{
-  "type": "about:blank",
-  "title": "Validation Failed",
-  "status": 400,
-  "detail": "Validation failed for one or more fields",
-  "instance": "trace:xxx",
-  "key": "ORG_MS_1000",
-  "path": "/api/organization-ms/v1/organizations",
-  "timestamp": "2026-07-30T12:00:00.000Z",
-  "fieldErrors": [
-    { "field": "name", "message": "Name is required" },
-    { "field": "adminEmail", "message": "Invalid email format" }
-  ]
-}
-```
-
----
-
-### `GET /api/organization-ms/v1/organizations/{orgId}`
-
-**Tək təşkilat məlumatı.**
-
-Headers: `Authorization: Bearer {token}`
-
-Success (200):
-```json
-{
-  "success": true,
-  "message": "Success",
-  "errorCode": null,
-  "data": {
-    "id": "550e8400-e29b-41d4-a716-446655440001",
-    "name": "Nərimanov Restoranı",
-    "slug": "nerimanov-restoran",
-    "adminName": "Orxan Əliyev",
-    "adminEmail": "orxan@nerimanov.az",
-    "logoUrl": null,
-    "phone": "+994501234567",
-    "address": "Nərimanov, Bakı",
-    "createdAt": "2026-07-23T12:00:00.000Z"
-  }
-}
-```
-
-Error (404):
-```json
-{
-  "type": "about:blank",
-  "title": "Not Found",
-  "status": 404,
-  "detail": "Organization with id org99 not found",
-  "instance": "trace:xxx",
-  "key": "ORG_MS_3001",
-  "path": "/api/organization-ms/v1/organizations/org99",
-  "timestamp": "2026-07-30T12:00:00.000Z"
-}
-```
-
----
-
-### `GET /api/organization-ms/v1/organizations/{orgId}/qr-code`
-
-**QR kod (müştəri menyusu üçün).**
-
-Headers: `Authorization: Bearer {token}`
-
-Success (200):
-```json
-{
-  "success": true,
-  "message": "Success",
-  "errorCode": null,
-  "data": {
-    "qrCodeUrl": "https://api.qrserver.com/v1/create-qr-code/?size=512x512&data=https%3A%2F%2Fresto.az%2Forg%2F550e8400-e29b-41d4-a716-446655440001%2Fmenu"
-  }
-}
-```
-
-> Frontend hazırda `api.qrserver.com` istifadə edir. Backend öz QR generatoru əlavə edə bilər.
-
----
-
-## 3. User / Staff — `user-service` (port 8103)
-
-> API prefix: `/api/user-ms/v1/...`
-> Response: `ApiResponse<T>` wrapper
-> Error: Spring `ProblemDetail`
-
-### `GET /api/user-ms/v1/users`
-
-**Bütün istifadəçilər.**
-
-Headers: `Authorization: Bearer {token}`
-
-Query:
-| Parameter | Tip | Məcburi | İzah |
-|---|---|---|---|
-| `orgId` | UUID | X | Org-a görə filtr |
-| `role` | String | X | Role adına görə filtr (`waiter`, `chef`) |
-
-Success (200):
-```json
-{
-  "success": true,
-  "message": "Success",
-  "errorCode": null,
-  "data": [
-    {
-      "id": "550e8400-e29b-41d4-a716-446655440010",
-      "keycloakId": "k123-keycloak-uuid",
-      "name": "Leyla Hüseynova",
-      "username": "waiter1",
-      "email": null,
-      "phone": "+994501112233",
-      "role": "WAITER",
-      "roleId": "550e8400-e29b-41d4-a716-446655440030",
-      "orgId": "550e8400-e29b-41d4-a716-446655440001",
-      "avatar": "",
-      "isActive": true,
-      "createdAt": "2026-07-24T10:00:00.000Z"
-    }
-  ]
-}
-```
-
-> `password` field-i heç vaxt response-da qayıtmır.
-
----
-
-### `GET /api/user-ms/v1/users/{id}`
-
-**Tək istifadəçi.**
-
-Headers: `Authorization: Bearer {token}`
-
-Success (200):
-```json
-{
-  "success": true,
-  "message": "Success",
-  "errorCode": null,
-  "data": {
-    "id": "550e8400-e29b-41d4-a716-446655440010",
-    "name": "Leyla Hüseynova",
-    "username": "waiter1",
-    "email": null,
-    "role": "WAITER",
-    "roleId": "550e8400-e29b-41d4-a716-446655440030",
-    "orgId": "550e8400-e29b-41d4-a716-446655440001",
-    "avatar": "",
-    "isActive": true,
-    "createdAt": "2026-07-24T10:00:00.000Z"
-  }
-}
-```
-
-Error (404):
-```json
-{
-  "type": "about:blank",
-  "title": "Not Found",
-  "status": 404,
-  "detail": "User with id u99 not found",
-  "instance": "trace:xxx",
-  "key": "USER_MS_3001",
-  "path": "/api/user-ms/v1/users/u99",
-  "timestamp": "2026-07-30T12:00:00.000Z"
-}
-```
-
----
-
-### `POST /api/user-ms/v1/users`
-
-**Yeni istifadəçi yarat (personal əlavə et). Keycloak-da da user yaranır.**
-
-Headers: `Authorization: Bearer {token}`
-
-Request:
-```json
-{
-  "name": "Leyla Hüseynova",
-  "username": "waiter1",
-  "password": "waiter123",
-  "roleId": "550e8400-e29b-41d4-a716-446655440030",
-  "orgId": "550e8400-e29b-41d4-a716-446655440001",
-  "email": null,
-  "phone": "+994501112233"
-}
-```
-
-> `phone` **Qlobal telefon formatına** tabedir (bütün servislərdə ortaq `@ValidPhone`): yalnız `0-9`, `+ - ( ) .` və boşluq; 7–15 rəqəm olmalıdır; maks 30 simvol. Saxlanarkən yalnız rəqəmlərə normalizasiya olunur (`+994 50 123 45 67` → `994501234567`). Field optionaldır.
-
-Success (201):
-```json
-{
-  "success": true,
-  "message": "User created",
-  "errorCode": null,
-  "data": {
-    "id": "550e8400-e29b-41d4-a716-446655440010",
-    "name": "Leyla Hüseynova",
-    "username": "waiter1",
-    "email": null,
-    "role": "WAITER",
-    "roleId": "550e8400-e29b-41d4-a716-446655440030",
-    "orgId": "550e8400-e29b-41d4-a716-446655440001",
-    "avatar": "",
-    "isActive": true
-  }
-}
-```
-
-**Business rule — `role` field-i `roleId`-dən avtomatik təyin edilir:**
-
-| Role xüsusiyyəti | Nəticə `role` |
-|---|---|
-| `isSystem=true` | `ADMIN` |
-| `kitchen.view` + `kitchen.manage` icazələri var | `CHEF` |
-| Yuxarıdakılar yoxdur | `WAITER` |
-
----
-
-### `PUT /api/user-ms/v1/users/{id}`
-
-**İstifadəçini redaktə et.**
-
-Headers: `Authorization: Bearer {token}`
-
-Request:
-```json
-{
-  "name": "Leyla H.",
-  "username": "waiter1",
-  "password": "yeniParol123",
-  "roleId": "550e8400-e29b-41d4-a716-446655440031",
-  "phone": "+994501112233",
-  "isActive": true
-}
-```
-
-> `password` göndərilməsə, köhnə şifrə qalır. Bütün field-lar optionaldır (partial update). Keycloak-da da məlumatlar yenilənir.
-
-Success (200):
-```json
-{
-  "success": true,
-  "message": "User updated",
-  "errorCode": null,
-  "data": { "...User..." }
-}
-```
-
----
-
-### `DELETE /api/user-ms/v1/users/{id}`
-
-**İstifadəçini sil. Keycloak-da da user deaktiv edilir.**
-
-Headers: `Authorization: Bearer {token}`
-
-Success (200):
-```json
-{
-  "success": true,
-  "message": "User deleted",
-  "errorCode": null,
-  "data": null
-}
-```
-
----
-
-### `GET /api/user-ms/v1/users/staff-performance`
-
-**Personal performans statistikası.**
-
-Headers: `Authorization: Bearer {token}`
-
-Query: `?orgId=550e8400-e29b-41d4-a716-446655440001`
-
-Success (200):
-```json
-{
-  "success": true,
-  "message": "Success",
-  "errorCode": null,
-  "data": [
-    {
-      "userId": "550e8400-e29b-41d4-a716-446655440010",
-      "name": "Leyla Hüseynova",
-      "role": "WAITER",
-      "totalOrders": 25,
-      "completedOrders": 20,
-      "revenue": 450.00,
-      "activeOrders": 3
-    }
-  ]
-}
-```
-
-> `role` dəyəri enum formatındadır (`WAITER`, `CHEF`). Frontend öz `t('role.waiter')` tərcüməsini istifadə edir.
-
----
-
-## 4. Role — `role-service` (port 8104)
-
-> API prefix: `/api/role-ms/v1/...`
-> Response: `ApiResponse<T>` wrapper
-> Error: Spring `ProblemDetail`
-
-### `GET /api/role-ms/v1/roles`
-
-**Bütün rollar.**
-
-Headers: `Authorization: Bearer {token}`
-
-Query: `?orgId=550e8400-e29b-41d4-a716-446655440001`
-
-Success (200):
-```json
-{
-  "success": true,
-  "message": "Success",
-  "errorCode": null,
-  "data": [
-    {
-      "id": "550e8400-e29b-41d4-a716-446655440020",
-      "name": "Süper Admin",
-      "permissions": [
-        "dashboard.view", "menu.view", "menu.create", "menu.edit", "menu.delete",
-        "tables.view", "tables.manage", "tables.status",
-        "orders.view", "orders.manage", "orders.cancel",
-        "reports.view",
-        "staff.view", "staff.create", "staff.edit", "staff.delete",
-        "roles.view", "roles.create", "roles.edit", "roles.delete",
-        "kitchen.view", "kitchen.manage",
-        "settings.view", "settings.edit"
-      ],
-      "isSystem": true,
-      "orgId": null
-    }
-  ]
-}
-```
-
----
-
-### `GET /api/role-ms/v1/roles/{id}`
-
-**Tək rol.**
-
-Headers: `Authorization: Bearer {token}`
-
-Success (200):
-```json
-{
-  "success": true,
-  "message": "Success",
-  "errorCode": null,
-  "data": {
-    "id": "550e8400-e29b-41d4-a716-446655440020",
-    "name": "Süper Admin",
-    "permissions": [
-      "dashboard.view", "menu.view", "menu.create", "menu.edit", "menu.delete",
-      "tables.view", "tables.manage", "tables.status",
-      "orders.view", "orders.manage", "orders.cancel",
-      "reports.view",
-      "staff.view", "staff.create", "staff.edit", "staff.delete",
-      "roles.view", "roles.create", "roles.edit", "roles.delete",
-      "kitchen.view", "kitchen.manage",
-      "settings.view", "settings.edit"
-    ],
+  "organization": { ...OrganizationDto... },
+  "adminUser": {
+    "id": "...",
+    "name": "...",
+    "username": "...",
+    "email": "...",
+    "role": "ORG_ADMIN",
+    "roleId": "aaaaaaaa-0000-4000-8000-000000000002",
+    "orgId": "..."
+  },
+  "adminRole": {
+    "id": "aaaaaaaa-0000-4000-8000-000000000002",
+    "name": "Organizasiya Admini",
+    "permissions": ["dashboard.view", "menu.view", "..."],
     "isSystem": true,
     "orgId": null
   }
 }
 ```
 
-Error (404):
-```json
-{
-  "type": "about:blank",
-  "title": "Not Found",
-  "status": 404,
-  "detail": "Role not found",
-  "instance": "trace:xxx",
-  "key": "ROLE_MS_3001",
-  "path": "/api/role-ms/v1/roles/r99",
-  "timestamp": "2026-07-30T12:00:00.000Z"
-}
-```
+**`QrCodeResponse`**: `qrCodeUrl` (string).
 
----
+### `GET /api/organization-ms/v1/organizations`
 
-### `POST /api/role-ms/v1/roles`
+**Bütün təşkilatların siyahısı. Yalnız platform admin.**
 
-**Yeni rol yarat.**
-
-Headers: `Authorization: Bearer {token}`
-
-Request:
-```json
-{
-  "name": "Menecer",
-  "permissions": [
-    "dashboard.view", "menu.view", "menu.create", "menu.edit",
-    "tables.view", "tables.manage",
-    "orders.view", "orders.manage"
-  ],
-  "orgId": "550e8400-e29b-41d4-a716-446655440001"
-}
-```
-
-> `isSystem` həmişə `false` olur. `orgId` məcburidir.
-
-Success (201):
-```json
-{
-  "success": true,
-  "message": "Role created",
-  "errorCode": null,
-  "data": {
-    "id": "550e8400-e29b-41d4-a716-446655440032",
-    "name": "Menecer",
-    "permissions": ["dashboard.view", "menu.view", "menu.create", "menu.edit", "tables.view", "tables.manage", "orders.view", "orders.manage"],
-    "isSystem": false,
-    "orgId": "550e8400-e29b-41d4-a716-446655440001"
-  }
-}
-```
-
----
-
-### `PUT /api/role-ms/v1/roles/{id}`
-
-**Rol redaktə et.**
-
-Headers: `Authorization: Bearer {token}`
-
-Request:
-```json
-{
-  "name": "Menecer+",
-  "permissions": [
-    "dashboard.view", "menu.view", "menu.create", "menu.edit", "menu.delete",
-    "tables.view", "tables.manage", "tables.status",
-    "orders.view", "orders.manage"
-  ]
-}
-```
-
-> `isSystem=true` olan rollar redaktə edilə bilməz.
-
-Success (200):
-```json
-{
-  "success": true,
-  "message": "Role updated",
-  "errorCode": null,
-  "data": { "...Role..." }
-}
-```
-
-Error (403):
-```json
-{
-  "type": "about:blank",
-  "title": "Access Denied",
-  "status": 403,
-  "detail": "System role cannot be modified",
-  "instance": "trace:xxx",
-  "key": "ROLE_MS_4003",
-  "path": "/api/role-ms/v1/roles/r1",
-  "timestamp": "2026-07-30T12:00:00.000Z"
-}
-```
-
----
-
-### `DELETE /api/role-ms/v1/roles/{id}`
-
-**Rol sil.**
-
-Headers: `Authorization: Bearer {token}`
-
-**Business rules:**
-- `isSystem=true` olan rollar silinə bilməz → 403
-- Rola aid istifadəçilər varsa, onların `roleId`-si `null` olur
-
-Success (200):
-```json
-{
-  "success": true,
-  "message": "Role deleted",
-  "errorCode": null,
-  "data": null
-}
-```
-
----
-
-### `GET /api/role-ms/v1/roles/permissions`
-
-**Bütün mövcud icazələrin siyahısı (frontend checkbox list üçün).**
-
-Headers: `Authorization: Bearer {token}`
-
-Success (200):
-```json
-{
-  "success": true,
-  "message": "Success",
-  "errorCode": null,
-  "data": {
-    "groups": {
-      "dashboard": ["dashboard.view"],
-      "menu": ["menu.view", "menu.create", "menu.edit", "menu.delete"],
-      "tables": ["tables.view", "tables.manage", "tables.status"],
-      "orders": ["orders.view", "orders.manage", "orders.cancel"],
-      "reports": ["reports.view"],
-      "staff": ["staff.view", "staff.create", "staff.edit", "staff.delete"],
-      "roles": ["roles.view", "roles.create", "roles.edit", "roles.delete"],
-      "kitchen": ["kitchen.view", "kitchen.manage"],
-      "settings": ["settings.view", "settings.edit"]
-    }
-  }
-}
-```
-
----
-
-## 5. Menu — `menu-service` (port 8105)
-
-> API prefix: `/api/menu-ms/v1/...`
-> Gateway: `http://localhost:8001` → `/api/menu-ms/...` (bütün sorğular gateway-dən keçir)
-> Auth: bütün endpoint-lər `Authorization: Bearer {token}` tələb edir (yalnız statik şəkil GET-i publicdir)
-> Response: `ApiResponse<T>` wrapper → `{ success, message, errorCode, data }`
-> Error: Spring `ProblemDetail` (RFC 9457) → `key`, `path`, `timestamp`, bəzi hallarda `fieldErrors`
-
-### Tenant & Giriş Qaydaları
-
-- Hər kateqoriya və menu maddəsi bir `orgId`-yə aiddir.
-- Adi istifadəçi yalnız öz `organizationId`-nə aid data oxuya/yaza bilər:
-  - **Read** (GET): sorğudakı `orgId` principal-in org-u ilə uyğun olmalıdır, əks halda `403 MENU_MS_3003`.
-  - **Write** (POST/PUT/DELETE): hədəf entity-nin `orgId`-si principal-in org-u ilə uyğun olmalıdır.
-  - Create zamanı `orgId` client tərəfindən "seçilə" bilməz — adi user üçün token-dəki org ilə uyğun gəlməzsə 403 qayıdır (servis həmişə token-dəki org-u əsas götürür).
-- **SUPER_ADMIN** (platform admin) bütün org-lara tam girişə malikdir; create zamanı istədiyi `orgId`-ni verə bilər.
-- Internal microservice çağrıları (`X-Internal-Auth` header-i ilə) bütün data-ya oxuya bilər.
-
-### Lokalizasiya (`LocalizedString`)
-
-`name` və `description` sahələri JSON obyektidir, 3 dil açarı var:
-```json
-{
-  "az": "Pomidor Şorbası",
-  "en": "Tomato Soup",
-  "ru": "Томатный суп"
-}
-```
-
-| Açar | Məcburi | İzah |
-|---|---|---|
-| `az` | Bəli (name üçün) | Boş ola bilməz |
-| `en` | X | Opsional, boş ola bilər |
-| `ru` | X | Opsional, boş ola bilər |
-
-Ümumi qaydalar:
-- Null character (`\u0000`) qəti qadağandır.
-- Uzunluq limiti aşılırsa 400 + `fieldErrors` qayıdır.
-- Dəyərlər servis tərəfində trim olunur.
-
-### Menu-servis Error Kodları
-
-| HTTP | `key` | Səbəb |
-|---|---|---|
-| 400 | `MENU_MS_1000` | Validation failed (DTO/field) |
-| 400 | `MENU_MS_1001` | JSON parse error |
-| 400 | `MENU_MS_3004` | Kateqoriya silərkən `moveItemsTo` özü ilə eyni id-dir |
-| 401 | `COMMON_4001` | Token yoxdur / etibarsız |
-| 403 | `COMMON_4003` | Security layer tərəfindən qadağan |
-| 403 | `MENU_MS_3003` | Başqa org-un datasına giriş cəhdi / icazəsiz əməliyyat |
-| 404 | `MENU_MS_3001` | Kateqoriya tapılmadı (silinib və ya mövcud deyil) |
-| 404 | `MENU_MS_3002` | Menu maddəsi tapılmadı (silinib və ya mövcud deyil) |
-| 500 | `MENU_MS_9999` | Daxili xəta |
-
-> Qeyd: `MENU_MS_3002` kodu "menu item not found" üçündür. (Common `METHOD_NOT_ALLOWED` kodu da `3002`-dir, amma menu-servis 405 qaytarmır.)
-
-> **Soft-delete:** silinən entity `deleted` bayrağı ilə işarələnir və GET-lərdə geri qayıtmır.
-
----
-
-### Data Modelləri
-
-**MenuItem**
-
-| Field | Tip | Qeyd |
-|---|---|---|
-| `id` | UUID | |
-| `name` | LocalizedString | |
-| `description` | LocalizedString \| null | |
-| `price` | BigDecimal | |
-| `categoryId` | UUID | |
-| `imageUrl` | String \| null | Şəklin tam URL-i (public) |
-| `isAvailable` | Boolean | |
-| `preparationTime` | Integer \| null | dəqiqə ilə |
-| `orgId` | UUID | |
-| `createdAt` | String (ISO-8601) | məs. `2026-07-25T12:00:00.000Z` |
-
-**MenuCategory**
-
-| Field | Tip | Qeyd |
-|---|---|---|
-| `id` | UUID | |
-| `name` | LocalizedString | |
-| `icon` | String \| null | Lucide React ikon adı (məs. `soup`, `beef`, `salad`, `pizza`, `hamburger`, `cup-soda`, `cake`, `cookie`) |
-| `sortOrder` | Integer \| null | Menyuda sıralama |
-| `orgId` | UUID | |
-
----
-
-### `GET /api/menu-ms/v1/items`
-
-**Menu maddələrinin siyahısı** (filterlərlə).
-
-Headers: `Authorization: Bearer {token}`
-
-Query:
-
-| Parametr | Tip | Məcburi | İzah |
-|---|---|---|---|
-| `orgId` | UUID | Bəli (real user) | Org filter; verilməsə boş list qayıdır |
-| `categoryId` | UUID | X | Kateqoriya filter |
-| `available` | Boolean | X | `true` = yalnız aktiv, `false` = yalnız qeyri-aktiv |
-
-> Real istifadəçi üçün `orgId` öz org-u ilə uyğun olmalıdır (əks halda 403). SUPER_ADMIN istənilən `orgId` verə bilər.
+- **Auth:** Bearer
+- **Permission:** `organization.view` + `hasRole('SUPER_ADMIN')`
 
 Success (200):
 ```json
@@ -995,194 +1052,286 @@ Success (200):
   "errorCode": null,
   "data": [
     {
-      "id": "550e8400-e29b-41d4-a716-446655440040",
-      "name": { "az": "Pomidor Şorbası", "en": "Tomato Soup", "ru": "Томатный суп" },
-      "description": { "az": "Klassik pomidor şorbası, krem ilə", "en": "Classic tomato soup with cream", "ru": "Классический томатный суп со сливками" },
-      "price": 8.00,
-      "categoryId": "550e8400-e29b-41d4-a716-446655440050",
-      "imageUrl": "http://localhost:8001/api/menu-ms/v1/images/550e8400-e29b-41d4-a716-446655440040.jpg",
-      "isAvailable": true,
-      "preparationTime": 10,
-      "orgId": "550e8400-e29b-41d4-a716-446655440001",
-      "createdAt": "2026-07-25T12:00:00.000Z"
+      "id": "01234567-89ab-cdef-0123-456789abcdef",
+      "name": "Demo Restoran",
+      "slug": "demo-restoran",
+      "adminName": "Demo Admin",
+      "adminEmail": "admin@flowix.az",
+      "logoUrl": null,
+      "phone": "+994 50 123 45 67",
+      "address": null,
+      "createdAt": "2026-08-01T10:00:00Z"
     }
   ]
 }
 ```
 
-Error (403) — başqa org-a giriş cəhdi:
+Error (403): `COMMON_4003` — platform admin deyilsə.
+
+### `POST /api/organization-ms/v1/organizations`
+
+**Yeni təşkilat yarat + admin + ORG_ADMIN rol assign et. Yalnız platform admin.**
+
+- **Auth:** Bearer
+- **Permission:** `organization.create` + `hasRole('SUPER_ADMIN')`
+
+Request:
 ```json
 {
-  "type": "about:blank",
-  "title": "Access Denied",
-  "status": 403,
-  "detail": "Access is denied",
-  "instance": "trace:xxx",
-  "key": "MENU_MS_3003",
-  "path": "/api/menu-ms/v1/items",
-  "timestamp": "2026-07-30T12:00:00.000Z"
+  "name": "İstanbul Restoran",
+  "adminName": "Əli Əliyev",
+  "adminEmail": "ali@istanbul.az",
+  "adminPassword": "Ali12345"
 }
 ```
 
----
+Success (201): `CreateOrganizationResponse` (yuxarıdakı kimi).
 
-### `GET /api/menu-ms/v1/items/{id}`
+Error (409): email/username mövcuddur → Feign vasitəsilə `ACCESS_MS_3002`.
+Error (502): Keycloak əlçatan deyil → `ACCESS_MS_3003`.
 
-**Tək menu maddəsi.**
+### `GET /api/organization-ms/v1/organizations/{orgId}`
 
-Headers: `Authorization: Bearer {token}`
+**Bir təşkilatın məlumatı.**
 
-Success (200): *yuxarıdakı kimi tək element*
+- **Auth:** Bearer
+- **Permission:** `organization.view`
 
-Error (404):
-```json
-{
-  "type": "about:blank",
-  "title": "Not Found",
-  "status": 404,
-  "detail": "Menu item not found",
-  "instance": "trace:xxx",
-  "key": "MENU_MS_3002",
-  "path": "/api/menu-ms/v1/items/550e8400-e29b-41d4-a716-446655440040",
-  "timestamp": "2026-07-30T12:00:00.000Z"
-}
-```
+Success (200): `OrganizationDto`.
+Error (403): `ORG_3005` — başqa org sorğulanırsa (`ORGANIZATION_ACCESS_DENIED`).
+Error (404): `ORG_3001`.
 
-Error (403): item başqa org-a aiddirsə → `MENU_MS_3003`
+### `GET /api/organization-ms/v1/organizations/{orgId}/qr-code`
 
----
+**Customer menyu üçün QR kod linki.**
 
-### `POST /api/menu-ms/v1/items`
+- **Auth:** Bearer
+- **Permission:** `organization.view`
 
-**Yeni menu maddəsi yarat.**
-
-Headers: `Authorization: Bearer {token}`
-
-Request body:
-```json
-{
-  "name": { "az": "Pomidor Şorbası", "en": "Tomato Soup", "ru": "Томатный суп" },
-  "description": { "az": "Klassik pomidor şorbası, krem ilə", "en": "Classic tomato soup with cream", "ru": "Классический томатный суп со сливками" },
-  "price": 8.00,
-  "categoryId": "550e8400-e29b-41d4-a716-446655440050",
-  "preparationTime": 10,
-  "isAvailable": true,
-  "imageUrl": "https://cdn.example.com/images/soup.jpg",
-  "orgId": "550e8400-e29b-41d4-a716-446655440001"
-}
-```
-
-| Field | Məcburi | Validasiya |
-|---|---|---|
-| `name` | ✅ | `LocalizedString`; `az` mütləq, hər dil maks 100 simvol; null char qadağan |
-| `description` | ✗ | `LocalizedString`; hər dil maks 500 simvol |
-| `price` | ✅ | `> 0`; maks 8 tam + 2 kəsr rəqəm (maks `99999999.99`) |
-| `categoryId` | ✅ | UUID; kateqoriya **eyni org-da** olmalıdır (yoxdursa 404 `MENU_MS_3001`, başqa org-dadırsa 403 `MENU_MS_3003`) |
-| `preparationTime` | ✗ | `0..10080` (dəqiqə) |
-| `isAvailable` | ✗ | Boolean; default `true` |
-| `imageUrl` | ✗ | Maks 512 simvol; **`http(s)://...` və ya `/` ilə başlayan relative path** olmalıdır; control char qadağan. **Base64 `data:` URL qəbul OLUNMUR.** Boş string `""` → `null` saxlanılır |
-| `orgId` | ✅ | UUID; adi user üçün token-dəki org ilə uyğun olmalıdır (403); SUPER_ADMIN istədiyini verə bilər |
-
-> **imageUrl qaydası:** şəkil ya bu modulun upload endpoint-i ilə yüklənir (cavabda tam URL), ya da istənilən xarici `http(s)` link verilir (Google Drive, CDN və s.). `data:` base64 URL-lər rədd edilir.
-
-Success (201):
+Success (200):
 ```json
 {
   "success": true,
-  "message": "Menu item created",
+  "message": "Success",
   "errorCode": null,
-  "data": { "id": "...", "name": { ... }, "price": 8.00, "...": "..." }
+  "data": {
+    "qrCodeUrl": "https://qr.example.com/menu?org=01234567-89ab-cdef-0123-456789abcdef"
+  }
 }
 ```
 
-Error (400) — validation:
+Error (403): `ORG_3005` — başqa org.
+
+---
+
+## 4. Menu — `menu-service` (port 8105)
+
+> API prefix: `/api/menu-ms/v1/...`
+> Response: `ApiResponse<T>` wrapper
+> Error: Spring `ProblemDetail`; key prefiksi `MENU_MS_`
+> Context path: `/api/menu-ms`; gateway marşrutu: `/api/menu-ms/**` → `http://localhost:8105`
+
+### Tenant & Giriş Qayraları
+
+- Bütün endpoint-lər `Authorization: Bearer` tələb edir və `@PreAuthorize` permission kodu ilə qorunur.
+- Non-admin istifadəçi yalnız öz org-unun menyusuna girişir; başqa org `orgId` → **403** (`MENU_MS_3003`).
+- `GET /api/menu-ms/v1/images/**` — **public** (gateway permitAll), token tələb etmir. Şəkillərin base URL-i: `http://localhost:8001` (gateway).
+
+### Lokalizasiya (`LocalizedString`)
+
+Bütün ad/təsvir sahələri üç dildədir:
+```json
+"name": { "az": "Doner", "en": "Kebab", "ru": "Донер" }
+```
+Request-də ən azı `az` doldurulmalıdır; boş dillər `null` kimi saxlanılır.
+
+### Menu-servis Error Kodları
+
+| Kod | HTTP | Açıqlama |
+|---|---|---|
+| `MENU_MS_1000` | 400 | Validation (+`fieldErrors`) |
+| `MENU_MS_3001` | 404 | Kateqoriya tapılmadı |
+| `MENU_MS_3002` | 404 | Menyu elementi tapılmadı |
+| `MENU_MS_3003` | 403 | Giriş qadağandır (başqa org) |
+| `MENU_MS_3004` | 400 | `moveItemsTo` özü ilə üst-üstə düşür (`CATEGORY_SELF_MOVE`) |
+| `MENU_MS_4001` | 401 | Token tələb olunur |
+| `MENU_MS_4003` | 403 | Permission yoxdur |
+| `MENU_MS_9999` | 500 | Daxili xəta |
+
+### Data Modelləri
+
+**`CategoryResponse`**: `id`, `name` (LocalizedString), `icon`, `sortOrder`, `orgId`.
+**`MenuItemResponse`**: `id`, `name`, `description`, `price`, `categoryId`, `imageUrl`, `isAvailable`, `preparationTime`, `orgId`, `createdAt`.
+**`ImageUploadResponse`**: `imageUrl`.
+
+### Kateqoriyalar
+
+#### `GET /api/menu-ms/v1/categories`
+
+- **Auth:** Bearer
+- **Permission:** `menu.view`
+- Query: `orgId` (required)
+
+Success (200):
 ```json
 {
-  "type": "about:blank",
-  "title": "Validation Failed",
-  "status": 400,
-  "detail": "Validation failed for one or more fields",
-  "instance": "trace:xxx",
-  "key": "MENU_MS_1000",
-  "path": "/api/menu-ms/v1/items",
-  "timestamp": "2026-07-30T12:00:00.000Z",
-  "fieldErrors": [
-    { "field": "name", "message": "Value must be provided for locale 'az'" },
-    { "field": "price", "message": "must be greater than 0" },
-    { "field": "imageUrl", "message": "imageUrl must be a valid http(s) URL or a relative path" }
+  "success": true,
+  "message": "Success",
+  "errorCode": null,
+  "data": [
+    {
+      "id": "aaaaaaaa-0000-4000-8000-000000000001",
+      "name": { "az": "Pərciklər", "en": "Starters", "ru": "Закуски" },
+      "icon": "🍢",
+      "sortOrder": 1,
+      "orgId": "01234567-89ab-cdef-0123-456789abcdef"
+    }
   ]
 }
 ```
 
----
+#### `GET /api/menu-ms/v1/categories/{id}`
 
-### `PUT /api/menu-ms/v1/items/{id}`
+- **Auth:** Bearer
+- **Permission:** `menu.view`
 
-**Menu maddəsini redaktə et (partial update).**
+Success (200): `CategoryResponse`. Error (404): `MENU_MS_3001`.
 
-Headers: `Authorization: Bearer {token}`
+#### `POST /api/menu-ms/v1/categories`
 
-Request body:
+- **Auth:** Bearer
+- **Permission:** `menu.create`
+
+Request:
 ```json
 {
-  "name": { "az": "Pomidor Şorbası", "en": "Tomato Soup", "ru": "Томатный суп" },
-  "description": { "az": "...", "en": "...", "ru": "..." },
-  "price": 9.00,
-  "categoryId": "550e8400-e29b-41d4-a716-446655440051",
-  "preparationTime": 12,
-  "isAvailable": false,
-  "imageUrl": "https://cdn.example.com/images/soup2.jpg"
+  "name": { "az": "İçkilər", "en": "Drinks", "ru": "Напитки" },
+  "icon": "🥤",
+  "sortOrder": 2,
+  "orgId": "01234567-89ab-cdef-0123-456789abcdef"
 }
 ```
 
-- **Bütün field-lar optionaldır** — göndərilməyən (və ya `null`) field dəyişmir.
-- `name`/`description` `null` ilə **silinə bilməz** (`null` = "dəyişmə").
-- **Şəkli təmizləmək üçün** `imageUrl: ""` göndər → DB-də `null` olur.
-- `categoryId` dəyişərsə, yeni kateqoriya eyni org-da olmalıdır.
-- Validasiyalar `POST /items` ilə eynidir (yalnız göndərilən field-lar üçün).
+Success (201): `CategoryResponse`.
+
+#### `PUT /api/menu-ms/v1/categories/{id}`
+
+- **Auth:** Bearer
+- **Permission:** `menu.edit`
+
+Request:
+```json
+{
+  "name": { "az": "Sərin İçkilər", "en": "Cold Drinks", "ru": "Холодные напитки" },
+  "icon": "🧊",
+  "sortOrder": 2
+}
+```
+
+Success (200): `CategoryResponse`.
+
+#### `DELETE /api/menu-ms/v1/categories/{id}`
+
+Kateqoriyanı silir. İçindəki elementlər `moveItemsTo` kateqoriyasına köçürülə bilər (boş saxlanarsa elementlər silinir).
+
+- **Auth:** Bearer
+- **Permission:** `menu.delete`
+
+Request body (optional):
+```json
+{ "moveItemsTo": "aaaaaaaa-0000-4000-8000-000000000001" }
+```
+
+Success (200): `{ "success": true, "message": "Category deleted", "data": null }`.
+Error (400): `MENU_MS_3004` — `moveItemsTo` hədəf kateqoriya ilə eynidirsə.
+
+### Menyu Elementləri
+
+#### `GET /api/menu-ms/v1/items`
+
+- **Auth:** Bearer
+- **Permission:** `menu.view`
+- Query: `orgId` (optional), `categoryId` (optional), `available` (optional boolean)
 
 Success (200):
 ```json
 {
   "success": true,
-  "message": "Menu item updated",
+  "message": "Success",
   "errorCode": null,
-  "data": { "...MenuItem..." }
+  "data": [
+    {
+      "id": "bbbbbbbb-0000-4000-8000-000000000101",
+      "name": { "az": "Toyuq Doner", "en": "Chicken Kebab", "ru": "Куриный донер" },
+      "description": { "az": "Lavaş, toyuq, tərəvəz", "en": "Wrap, chicken, veg", "ru": "Лаваш, курица, овощи" },
+      "price": 9.50,
+      "categoryId": "aaaaaaaa-0000-4000-8000-000000000001",
+      "imageUrl": "http://localhost:8001/api/menu-ms/v1/images/items/bbbbbbbb-0000-4000-8000-000000000101.png",
+      "isAvailable": true,
+      "preparationTime": 15,
+      "orgId": "01234567-89ab-cdef-0123-456789abcdef",
+      "createdAt": "2026-08-01T10:00:00Z"
+    }
+  ]
 }
 ```
 
----
+#### `GET /api/menu-ms/v1/items/{id}`
 
-### `DELETE /api/menu-ms/v1/items/{id}`
+- **Auth:** Bearer
+- **Permission:** `menu.view`
 
-**Menu maddəsini sil (soft delete).**
+Success (200): `MenuItemResponse`. Error (404): `MENU_MS_3002`.
 
-Headers: `Authorization: Bearer {token}`
+#### `POST /api/menu-ms/v1/items`
 
-Success (200):
+- **Auth:** Bearer
+- **Permission:** `menu.create`
+
+Request:
 ```json
 {
-  "success": true,
-  "message": "Menu item deleted",
-  "errorCode": null,
-  "data": null
+  "name": { "az": "Qarışıq Doner", "en": "Mixed Kebab", "ru": "Смешанный донер" },
+  "description": { "az": "Mal + toyuq", "en": "Beef + chicken", "ru": "Говядина + курица" },
+  "price": 11.00,
+  "categoryId": "aaaaaaaa-0000-4000-8000-000000000001",
+  "preparationTime": 20,
+  "isAvailable": true,
+  "orgId": "01234567-89ab-cdef-0123-456789abcdef"
 }
 ```
 
----
+Success (201): `MenuItemResponse`.
 
-### `POST /api/menu-ms/v1/items/{id}/image`
+#### `PUT /api/menu-ms/v1/items/{id}`
 
-**Şəkil yüklə (multipart).** Köhnə şəkil avtomatik silinir, yenisi əvəz edir.
+- **Auth:** Bearer
+- **Permission:** `menu.edit`
 
-Headers: `Authorization: Bearer {token}`
+Request (yalnız dəyişən sahələr):
+```json
+{
+  "price": 12.00,
+  "isAvailable": false
+}
+```
 
-Request: `Content-Type: multipart/form-data`, field adı: `file`
+Success (200): `MenuItemResponse`.
 
-Validasiyalar:
-- Maks fayl ölçüsü: **2MB**
-- Yalnız **JPEG / PNG / WebP** — tip **faylın faktiki başlanğıc baytlarından (magic bytes)** təyin olunur, `Content-Type` header-i nəzərə alınmır. Başqa format (o cümlədən SVG) → 400.
-- Fayl adı server tərəfindən `{itemId}.{ext}` kimi qurulur (user input yoxdur).
+#### `DELETE /api/menu-ms/v1/items/{id}`
+
+- **Auth:** Bearer
+- **Permission:** `menu.delete`
+
+Success (200): `{ "success": true, "message": "Menu item deleted", "data": null }`.
+
+#### `POST /api/menu-ms/v1/items/{id}/image`
+
+Şəkil yükləyir (multipart/form-data). Public URL qaytarılır.
+
+- **Auth:** Bearer
+- **Permission:** `menu.edit`
+- Content-Type: `multipart/form-data`; field adı: `file` (max 2MB)
 
 Success (200):
 ```json
@@ -1191,321 +1340,121 @@ Success (200):
   "message": "Image uploaded",
   "errorCode": null,
   "data": {
-    "imageUrl": "http://localhost:8001/api/menu-ms/v1/images/550e8400-e29b-41d4-a716-446655440040.jpg"
+    "imageUrl": "http://localhost:8001/api/menu-ms/v1/images/items/bbbbbbbb-0000-4000-8000-000000000101.png"
   }
 }
 ```
 
-> Qaytarılan `imageUrl` birbaşa `<img src>` kimi istifadə oluna bilər — **public GET, auth tələb etmir** (həm gateway, həm menu-service səviyyəsində). Şəkli silmək üçün `DELETE /items/{id}/image`, yalnız URL-i təmizləmək üçün isə `PUT /items/{id}` ilə `imageUrl: ""` göndərilir.
+#### `DELETE /api/menu-ms/v1/items/{id}/image`
 
-Error (400) — yanlış tip / boş fayl / 2MB-dan böyük:
-```json
-{
-  "type": "about:blank",
-  "title": "Validation Failed",
-  "status": 400,
-  "detail": "Validation failed for one or more fields",
-  "instance": "trace:xxx",
-  "key": "MENU_MS_1000",
-  "path": "/api/menu-ms/v1/items/550e8400-e29b-41d4-a716-446655440040/image",
-  "timestamp": "2026-07-30T12:00:00.000Z"
-}
-```
+- **Auth:** Bearer
+- **Permission:** `menu.edit`
+
+Success (200): `{ "success": true, "message": "Image deleted", "data": null }`.
 
 ---
 
-### `DELETE /api/menu-ms/v1/items/{id}/image`
-
-**Item-ın şəklini sil.** Fayl diskdən silinir və `imageUrl` `null` olur.
-
-Headers: `Authorization: Bearer {token}`
-
-Success (200):
-```json
-{
-  "success": true,
-  "message": "Image deleted",
-  "errorCode": null,
-  "data": null
-}
-```
-
----
-
-### `GET /api/menu-ms/v1/categories`
-
-**Bütün kateqoriyalar (`sortOrder`-a görə artan sırada).**
-
-Headers: `Authorization: Bearer {token}`
-
-Query:
-
-| Parametr | Tip | Məcburi | İzah |
-|---|---|---|---|
-| `orgId` | UUID | ✅ | Org filter; başqa org-a baxış → 403 `MENU_MS_3003` |
-
-Success (200):
-```json
-{
-  "success": true,
-  "message": "Success",
-  "errorCode": null,
-  "data": [
-    {
-      "id": "550e8400-e29b-41d4-a716-446655440050",
-      "name": { "az": "Şorbalar", "en": "Soups", "ru": "Супы" },
-      "icon": "soup",
-      "sortOrder": 1,
-      "orgId": "550e8400-e29b-41d4-a716-446655440001"
-    }
-  ]
-}
-```
-
-> `icon` field-ı Lucide React ikon adıdır (bu siyahı ilə məhdud deyil): `soup`, `beef`, `salad`, `pizza`, `hamburger`, `cup-soda`, `cake`, `cookie`.
-
----
-
-### `GET /api/menu-ms/v1/categories/{id}`
-
-**Tək kateqoriya.**
-
-Headers: `Authorization: Bearer {token}`
-
-Success (200):
-```json
-{
-  "success": true,
-  "message": "Success",
-  "errorCode": null,
-  "data": {
-    "id": "550e8400-e29b-41d4-a716-446655440050",
-    "name": { "az": "Şorbalar", "en": "Soups", "ru": "Супы" },
-    "icon": "soup",
-    "sortOrder": 1,
-    "orgId": "550e8400-e29b-41d4-a716-446655440001"
-  }
-}
-```
-
-Error (404): `MENU_MS_3001` (yuxarıdakı format ilə, `title: "Not Found"`)
-Error (403): başqa org-a aiddirsə → `MENU_MS_3003`
-
----
-
-### `POST /api/menu-ms/v1/categories`
-
-**Yeni kateqoriya yarat.**
-
-Headers: `Authorization: Bearer {token}`
-
-Request body:
-```json
-{
-  "name": { "az": "Şorbalar", "en": "Soups", "ru": "Супы" },
-  "icon": "soup",
-  "sortOrder": 1,
-  "orgId": "550e8400-e29b-41d4-a716-446655440001"
-}
-```
-
-| Field | Məcburi | Validasiya |
-|---|---|---|
-| `name` | ✅ | `LocalizedString`; `az` mütləq, maks 100 simvol |
-| `icon` | ✗ | Maks 50 simvol; control char qadağan; boş string `""` → `null` |
-| `sortOrder` | ✗ | `0..10000` |
-| `orgId` | ✅ | UUID; adi user üçün token-dəki org ilə uyğun (403); SUPER_ADMIN istədiyini verə bilər |
-
-Success (201):
-```json
-{
-  "success": true,
-  "message": "Category created",
-  "errorCode": null,
-  "data": { "...MenuCategory..." }
-}
-```
-
----
-
-### `PUT /api/menu-ms/v1/categories/{id}`
-
-**Kateqoriyanı redaktə et (partial update).**
-
-Headers: `Authorization: Bearer {token}`
-
-Request body (bütün field-lar optional):
-```json
-{
-  "name": { "az": "Soyuq Şorbalar", "en": "Cold Soups", "ru": "Холодные супы" },
-  "icon": "soup",
-  "sortOrder": 2
-}
-```
-
-Success (200):
-```json
-{
-  "success": true,
-  "message": "Category updated",
-  "errorCode": null,
-  "data": { "...MenuCategory..." }
-}
-```
-
----
-
-### `DELETE /api/menu-ms/v1/categories/{id}`
-
-**Kateqoriyanı sil.**
-
-Headers: `Authorization: Bearer {token}`
-
-Request body (opsional):
-```json
-{
-  "moveItemsTo": "550e8400-e29b-41d4-a716-446655440051"
-}
-```
-
-**Business rules:**
-- `moveItemsTo` verilərsə → kateqoriyadakı **bütün maddələr** həmin kateqoriyaya köçürülür, sonra kateqoriya silinir.
-  - `moveItemsTo == {id}` (özünə köçürmə) → **400 `MENU_MS_3004`**
-  - Hədəf kateqoriya mövcud olmalıdır (404 `MENU_MS_3001`) və **eyni org-da** olmalıdır (403 `MENU_MS_3003`)
-- `moveItemsTo` verilmirsə → kateqoriyadakı **bütün maddələr də silinir** (soft delete).
-
-Success (200):
-```json
-{
-  "success": true,
-  "message": "Category deleted",
-  "errorCode": null,
-  "data": null
-}
-```
-
----
-
-## 6. Table — `table-service` (port 8106)
+## 5. Table — `table-service` (port 8106)
 
 > API prefix: `/api/table-ms/v1/...`
-> Gateway: `http://localhost:8001` → `/api/table-ms/...` (bütün sorğular gateway-dən keçir)
-> Auth: bütün endpoint-lər `Authorization: Bearer {token}` tələb edir (public endpoint yoxdur)
-> Response: `ApiResponse<T>` wrapper → `{ success, message, errorCode, data }`
-> Error: Spring `ProblemDetail` (RFC 9457) → `key`, `path`, `timestamp`, bəzi hallarda `fieldErrors`
+> Response: `ApiResponse<T>` wrapper
+> Error: Spring `ProblemDetail`; key prefiksi `TABLE_MS_`
+> Context path: `/api/table-ms`; gateway marşrutu: `/api/table-ms/**` → `http://localhost:8106`
 
-### Tenant & Giriş Qaydaları
+### Tenant & Giriş Qayraları
 
-- Hər masa (`restaurant_tables`) və bölmə (`sections`) bir `orgId`-yə aiddir.
-- Adi istifadəçi yalnız öz `organizationId`-nə aid data oxuya/yaza bilər:
-  - **Read** (GET): sorğudakı `orgId` principal-in org-u ilə uyğun olmalıdır, əks halda `403 TABLE_MS_3003`.
-  - **Write** (POST/PUT/DELETE): hədəf entity-nin `orgId`-si principal-in org-u ilə uyğun olmalıdır.
-  - Create zamanı `orgId` client tərəfindən "seçilə" bilməz — adi user üçün token-dəki org ilə uyğun gəlməzsə 403 qayıdır (servis həmişə token-dəki org-u əsas götürür).
-- **SUPER_ADMIN** (platform admin) bütün org-lara tam girişə malikdir; create zamanı istədiyi `orgId`-ni verə bilər.
-- Internal microservice çağrıları (`X-Internal-Auth` header-i ilə) bütün data-ya oxuya bilər.
-- `{id}` ilə işləyən endpoint-lər (GET/PUT/DELETE) entity-ni əvvəlcə tapır, sonra org-u yoxlayır. Başqa org-un entity `id`-si göndərsən → `404` yox, `403 TABLE_MS_3003` qayıdır (məlumatın mövcudluğu belə "sızdırılmır").
+- Bütün endpoint-lər `Authorization: Bearer` tələb edir və `@PreAuthorize` permission kodu ilə qorunur.
+- Non-admin istifadəçi yalnız öz org-unun masa/seksiyalarına girişir; başqa org → **403** (`TABLE_MS_3003`).
 
 ### Status Maşını
 
-Masalar `AVAILABLE | OCCUPIED | RESERVED | CLEANING` statuslarından birindədir. Status keçidləri yalnız aşağıdakı qaydada mümkündür:
-
-| Cari \\ Hədəf | `AVAILABLE` | `OCCUPIED` | `RESERVED` | `CLEANING` |
-|---|---|---|---|---|
-| `AVAILABLE` | ✓ | ✓ | ✗ | ✓ |
-| `OCCUPIED` | ✓ | ✓ | ✗ | ✓ |
-| `RESERVED` | ✗* | ✓ | ✗ | ✗ |
-| `CLEANING` | ✓ | ✗ | ✗ | ✓ |
-
-> `✗*` — status endpoint-i ilə qadağandır; `RESERVED` → `AVAILABLE` yalnız `DELETE /tables/{id}/reservation` vasitəsilə baş verir.
-
-Qaydalar:
-- **`RESERVED` statusu yalnız rezervasiya endpoint-ləri ilə idarə olunur** — `PUT /tables/{id}/reservation` (qoyur) və `DELETE /tables/{id}/reservation` (sıfırlayır). Status endpoint-i ilə `status: RESERVED` göndərmək → `409 TABLE_MS_2003`.
-- **`OCCUPIED`-ə keçid üçün `currentOrderId` mütləqdir** — göndərilməzsə → `400 TABLE_MS_4003`. Masa artıq `OCCUPIED`-dirsə və yeni `currentOrderId` verilməyibsə, mövcud order qorunur.
-- **`OCCUPIED`-dan çıxanda** (→ `AVAILABLE`/`CLEANING`) `currentOrderId` avtomatik `null` olur.
-- **`RESERVED` → `OCCUPIED`** keçidində rezervasiya avtomatik təmizlənir (qonaq gəlib oturdu).
-- `OCCUPIED` masaya rezervasiya qoymaq/rezervasiyanı silmək olmaz → `409 TABLE_MS_2004`.
-- Yeni masa yaradılanda status həmişə `AVAILABLE` olur.
+`AVAILABLE` → `OCCUPIED` → `CLEANING` → `AVAILABLE`; `RESERVED` ayrıca (rezerv vaxtı). Status dəyişmələri yalnız icazə verilən keçidlərdir (`TABLE_MS_2003`).
 
 ### Table-servis Error Kodları
 
-| HTTP | `key` | Səbəb |
+| Kod | HTTP | Açıqlama |
 |---|---|---|
-| 400 | `TABLE_MS_1000` | Validation failed (DTO/field) |
-| 400 | `TABLE_MS_1001` | JSON parse error |
-| 400 | `TABLE_MS_4001` | `status` query param-i yanlışdır (filter-də) |
-| 400 | `TABLE_MS_4003` | `OCCUPIED`-ə keçiddə `currentOrderId` verilməyib |
-| 401 | `COMMON_4001` | Token yoxdur / etibarsız |
-| 403 | `COMMON_4003` | Security layer tərəfindən qadağan |
-| 403 | `TABLE_MS_3003` | Başqa org-un datasına giriş cəhdi / icazəsiz əməliyyat |
-| 404 | `TABLE_MS_3001` | Masa tapılmadı (silinib və ya mövcud deyil) |
-| 404 | `TABLE_MS_3002` | Bölmə tapılmadı (silinib və ya mövcud deyil) |
-| 409 | `TABLE_MS_2001` | Masada aktiv sifariş var → silmək olmaz |
-| 409 | `TABLE_MS_2002` | Tək qalan bölmə → silmək olmaz |
-| 409 | `TABLE_MS_2003` | Status keçidi qadağandır (RESERVED üçün rezerv endpoint-i istifadə edin) |
-| 409 | `TABLE_MS_2004` | Masa OCCUPIED-dir → rezervasiya əməliyyatı qadağandır |
-| 409 | `TABLE_MS_2005` | Masanın gələcəkdə rezervasiyası var → silmək olmaz |
-| 409 | `TABLE_MS_3004` | Bu stol nömrəsi artıq org-da mövcuddur |
-| 409 | `TABLE_MS_3005` | Bu bölmə adı artıq org-da mövcuddur |
-| 409 | `TABLE_MS_4002` | Qonaq sayı masanın tutumundan çoxdur |
-| 409 | `TABLE_MS_2006` | DB səviyyəsində başqa uyğunsuzluq (unikallıq indeksi və s.) |
-| 500 | `TABLE_MS_9999` | Daxili xəta |
+| `TABLE_MS_3001` | 404 | Masa tapılmadı |
+| `TABLE_MS_3002` | 404 | Seksiya tapılmadı |
+| `TABLE_MS_3003` | 403 | Giriş qadağandır (başqa org) |
+| `TABLE_MS_3004` | 409 | Masa nömrəsi artıq istifadə olunur |
+| `TABLE_MS_3005` | 409 | Seksiya adı artıq istifadə olunur |
+| `TABLE_MS_2001` | 409 | Masa aktiv sifarişlidir, silmək olmaz |
+| `TABLE_MS_2002` | 409 | Son seksiya silinə bilməz |
+| `TABLE_MS_2003` | 400 | Qeyri-keçərli status keçidi |
+| `TABLE_MS_2004` | 409 | Masa doludur (OCCUPIED) |
+| `TABLE_MS_2005` | 409 | Masada rezerv var |
+| `TABLE_MS_2006` | 409 | Ümumi conflict |
+| `TABLE_MS_4001` | 400 | `INVALID_STATUS` |
+| `TABLE_MS_4002` | 400 | Rezerv qonaq sayı masanın tutumunu keçir |
+| `TABLE_MS_4003` | 400 | OCCUPIED statusu üçün `currentOrderId` tələb olunur |
 
-> **Soft-delete:** silinən entity `deleted` bayrağı ilə işarələnir və GET-lərdə geri qayıtmır. Silinmiş masanın stol nömrəsi və silinmiş bölmənin adı yenidən istifadə oluna bilər.
-
-> **Unikallıq DB səviyyəsində də qorunur:** `(org_id, LOWER(name))` və `(org_id, table_number)` üçün partial unique indekslər mövcuddur. Eyni anda göndərilən iki eyni sorğudan biri də `409` alır.
-
----
+> `401` / `403` / `4000` (validation) ümumi error kodları bölmə 15-dədir.
 
 ### Data Modelləri
 
-**RestaurantTable** (masa cavabı)
+**`TableResponse`**: `id`, `tableNumber`, `capacity`, `status`, `sectionId`, `currentOrderId`, `reservation`, `orgId`.
 
-| Field | Tip | Qeyd |
-|---|---|---|
-| `id` | UUID | |
-| `tableNumber` | Integer | Org daxilində unikal |
-| `capacity` | Integer | Qonaq sayı |
-| `status` | String | `AVAILABLE` \| `OCCUPIED` \| `RESERVED` \| `CLEANING` |
-| `sectionId` | UUID \| null | Aid olduğu bölmə |
-| `currentOrderId` | UUID \| null | Aktiv sifariş (yalnız `OCCUPIED`-də olur) |
-| `reservation` | TableReservation \| null | Aktiv rezervasiya |
-| `orgId` | UUID | |
+**`TableReservation`** (nested): `guestName`, `phone`, `time` (ISO instant), `guestCount`, `notes`.
 
-**Section** (bölmə)
+**`SectionResponse`**: `id`, `name`, `orgId`.
 
-| Field | Tip | Qeyd |
-|---|---|---|
-| `id` | UUID | |
-| `name` | String | Org daxilində unikal (case-insensitive) |
-| `orgId` | UUID | |
+### Seksiyalar
 
-**TableReservation** (`reservation` obyekti)
+#### `GET /api/table-ms/v1/sections`
 
-| Field | Tip | Qeyd |
-|---|---|---|
-| `guestName` | String | |
-| `phone` | String | |
-| `time` | String (ISO-8601) | məs. `2026-07-30T19:00:00.000Z` |
-| `guestCount` | Integer | Masanın tutumundan böyük ola bilməz |
-| `notes` | String \| null | |
+- **Auth:** Bearer
+- **Permission:** `table.view`
+- Query: `orgId` (required)
 
----
+Success (200):
+```json
+{
+  "success": true,
+  "message": "Success",
+  "errorCode": null,
+  "data": [
+    { "id": "aaaaaaaa-0000-4000-8000-000000000001", "name": "Salon", "orgId": "01234567-89ab-cdef-0123-456789abcdef" }
+  ]
+}
+```
 
-### `GET /api/table-ms/v1/tables`
+#### `POST /api/table-ms/v1/sections`
 
-**Masaların siyahısı** (filterlərlə).
+- **Auth:** Bearer
+- **Permission:** `table.create`
 
-Headers: `Authorization: Bearer {token}`
+Request:
+```json
+{ "name": "Terras", "orgId": "01234567-89ab-cdef-0123-456789abcdef" }
+```
 
-Query:
+Success (201): `SectionResponse`. Error (409): `TABLE_MS_3005`.
 
-| Parametr | Tip | Məcburi | İzah |
-|---|---|---|---|
-| `orgId` | UUID | ✅ | Org filter; başqa org-a baxış → 403 `TABLE_MS_3003` |
-| `sectionId` | UUID | ✗ | Bölmə filter |
-| `status` | String | ✗ | Status filter; dəyərlər case-insensitive-dir (`available` də olar): `AVAILABLE`, `OCCUPIED`, `RESERVED`, `CLEANING`. Yanlış dəyər → 400 `TABLE_MS_4001` |
+#### `PUT /api/table-ms/v1/sections/{id}`
 
-> Filterlər birlikdə də işləyir (`orgId`+`sectionId`+`status`).
+- **Auth:** Bearer
+- **Permission:** `table.edit`
+
+Request: `{ "name": "Açıq Terras" }`
+
+Success (200): `SectionResponse`.
+
+#### `DELETE /api/table-ms/v1/sections/{id}`
+
+- **Auth:** Bearer
+- **Permission:** `table.delete`
+
+Success (200): `{ "success": true, "message": "Section deleted", "data": null }`.
+Error (409): `TABLE_MS_2002` (son seksiya).
+
+### Masalar
+
+#### `GET /api/table-ms/v1/tables`
+
+- **Auth:** Bearer
+- **Permission:** `table.view`
+- Query: `orgId` (required), `sectionId` (optional), `status` (optional: `AVAILABLE`/`OCCUPIED`/`RESERVED`/`CLEANING`)
 
 Success (200):
 ```json
@@ -1515,1305 +1464,374 @@ Success (200):
   "errorCode": null,
   "data": [
     {
-      "id": "550e8400-e29b-41d4-a716-446655440060",
+      "id": "bbbbbbbb-0000-4000-8000-000000000201",
       "tableNumber": 1,
-      "capacity": 2,
-      "status": "AVAILABLE",
-      "sectionId": "550e8400-e29b-41d4-a716-446655440070",
-      "currentOrderId": null,
-      "reservation": null,
-      "orgId": "550e8400-e29b-41d4-a716-446655440001"
-    },
-    {
-      "id": "550e8400-e29b-41d4-a716-446655440061",
-      "tableNumber": 2,
-      "capacity": 2,
-      "status": "OCCUPIED",
-      "sectionId": "550e8400-e29b-41d4-a716-446655440070",
-      "currentOrderId": "550e8400-e29b-41d4-a716-446655440080",
-      "reservation": null,
-      "orgId": "550e8400-e29b-41d4-a716-446655440001"
-    },
-    {
-      "id": "550e8400-e29b-41d4-a716-446655440062",
-      "tableNumber": 4,
       "capacity": 4,
-      "status": "RESERVED",
-      "sectionId": "550e8400-e29b-41d4-a716-446655440070",
+      "status": "AVAILABLE",
+      "sectionId": "aaaaaaaa-0000-4000-8000-000000000001",
       "currentOrderId": null,
-      "reservation": {
-        "guestName": "Əli Həsənov",
-        "phone": "994501234567",
-        "time": "2026-07-30T19:00:00.000Z",
-        "guestCount": 4,
-        "notes": "Ad gününə həsr olunub"
-      },
-      "orgId": "550e8400-e29b-41d4-a716-446655440001"
+      "reservation": null,
+      "orgId": "01234567-89ab-cdef-0123-456789abcdef"
     }
   ]
 }
 ```
 
-Error (403) — başqa org-a giriş cəhdi:
+#### `GET /api/table-ms/v1/tables/{id}`
+
+- **Auth:** Bearer
+- **Permission:** `table.view`
+
+Success (200): `TableResponse`. Error (404): `TABLE_MS_3001`.
+
+#### `POST /api/table-ms/v1/tables`
+
+- **Auth:** Bearer
+- **Permission:** `table.create`
+
+Request:
 ```json
 {
-  "type": "about:blank",
-  "title": "Forbidden",
-  "status": 403,
-  "detail": "You do not have permission to access this resource",
-  "instance": "trace:xxx",
-  "key": "TABLE_MS_3003",
-  "path": "/api/table-ms/v1/tables",
-  "timestamp": "2026-07-30T12:00:00.000Z"
-}
-```
-
----
-
-### `GET /api/table-ms/v1/tables/{id}`
-
-**Tək masa.**
-
-Headers: `Authorization: Bearer {token}`
-
-Success (200): *yuxarıdakı kimi tək element*
-
-Error (404):
-```json
-{
-  "type": "about:blank",
-  "title": "Not Found",
-  "status": 404,
-  "detail": "Table not found",
-  "instance": "trace:xxx",
-  "key": "TABLE_MS_3001",
-  "path": "/api/table-ms/v1/tables/550e8400-e29b-41d4-a716-446655440060",
-  "timestamp": "2026-07-30T12:00:00.000Z"
-}
-```
-
-Error (403): masa başqa org-a aiddirsə → `TABLE_MS_3003`
-
----
-
-### `POST /api/table-ms/v1/tables`
-
-**Yeni masa yarat.**
-
-Headers: `Authorization: Bearer {token}`
-
-Request body:
-```json
-{
-  "tableNumber": 11,
-  "capacity": 4,
-  "sectionId": "550e8400-e29b-41d4-a716-446655440070",
-  "orgId": "550e8400-e29b-41d4-a716-446655440001"
-}
-```
-
-| Field | Məcburi | Validasiya |
-|---|---|---|
-| `tableNumber` | ✅ | `1..9999`; **org daxilində unikal** → təkrarda 409 `TABLE_MS_3004` |
-| `capacity` | ✅ | `1..500` |
-| `sectionId` | ✗ | UUID; bölmə **eyni org-da** olmalıdır (yoxdursa 404 `TABLE_MS_3002`, başqa org-dadırsa 403 `TABLE_MS_3003`) |
-| `orgId` | ✅ | UUID; adi user üçün token-dəki org ilə uyğun olmalıdır (403); SUPER_ADMIN istədiyini verə bilər |
-
-> `status` həmişə `AVAILABLE` olaraq yaradılır (request-dən qəbul edilmir).
-
-Success (201):
-```json
-{
-  "success": true,
-  "message": "Table created",
-  "errorCode": null,
-  "data": { "...RestaurantTable..." }
-}
-```
-
-Error (409) — stol nömrəsi təkrardır:
-```json
-{
-  "type": "about:blank",
-  "title": "Conflict",
-  "status": 409,
-  "detail": "A table with this number already exists in this organization",
-  "instance": "trace:xxx",
-  "key": "TABLE_MS_3004",
-  "path": "/api/table-ms/v1/tables",
-  "timestamp": "2026-07-30T12:00:00.000Z"
-}
-```
-
----
-
-### `PUT /api/table-ms/v1/tables/{id}`
-
-**Masanı redaktə et (partial update).**
-
-Headers: `Authorization: Bearer {token}`
-
-Request body (bütün field-lar optional):
-```json
-{
-  "tableNumber": 11,
+  "tableNumber": 12,
   "capacity": 6,
-  "sectionId": "550e8400-e29b-41d4-a716-446655440071",
-  "status": "AVAILABLE"
+  "sectionId": "aaaaaaaa-0000-4000-8000-000000000001",
+  "orgId": "01234567-89ab-cdef-0123-456789abcdef"
 }
 ```
 
-| Field | Məcburi | Validasiya |
-|---|---|---|
-| `tableNumber` | ✗ | `1..9999`; unikal → təkrarda 409 `TABLE_MS_3004` |
-| `capacity` | ✗ | `1..500`; masanın **aktiv rezervasiyasının qonaq sayından aşağı** endirilə bilməz → 409 `TABLE_MS_4002` |
-| `sectionId` | ✗ | UUID; yeni bölmə eyni org-da olmalıdır |
-| `status` | ✗ | Status maşınına tabedir (yuxarıdakı cədvəl). `OCCUPIED` yalnız masanın artıq `currentOrderId`-si varsa mümkündür — yeni order ilə masanı tutmaq üçün `PUT /tables/{id}/status` istifadə edin (400 `TABLE_MS_4003` istisnası) |
+Success (201): `TableResponse`. Error (409): `TABLE_MS_3004`.
 
-Success (200):
+#### `PUT /api/table-ms/v1/tables/{id}`
+
+- **Auth:** Bearer
+- **Permission:** `table.edit`
+
+Request (yalnız dəyişənlər):
 ```json
-{
-  "success": true,
-  "message": "Table updated",
-  "errorCode": null,
-  "data": { "...RestaurantTable..." }
-}
+{ "tableNumber": 13, "capacity": 8, "sectionId": "aaaaaaaa-0000-4000-8000-000000000001", "status": "AVAILABLE" }
 ```
 
----
+Success (200): `TableResponse`.
 
-### `DELETE /api/table-ms/v1/tables/{id}`
+#### `DELETE /api/table-ms/v1/tables/{id}`
 
-**Masanı sil (soft delete).**
+- **Auth:** Bearer
+- **Permission:** `table.delete`
 
-Headers: `Authorization: Bearer {token}`
+Success (200): `{ "success": true, "message": "Table deleted", "data": null }`.
+Error (409): `TABLE_MS_2001` — aktiv sifarişli masa.
 
-**Business rules:**
-- Aktiv sifarişi olan masa silinə bilməz → `409 TABLE_MS_2001`.
-- **Gələcəkdə rezervasiyası olan masa silinə bilməz** → `409 TABLE_MS_2005` (rezervasiya vaxtı keçibsə silmək olar).
-- Silinmiş masanın stol nömrəsi yenidən istifadə oluna bilər.
+#### `PUT /api/table-ms/v1/tables/{id}/status`
 
-Error (409) — aktiv sifariş:
+- **Auth:** Bearer
+- **Permission:** `table.status`
+
+Request:
 ```json
-{
-  "type": "about:blank",
-  "title": "Conflict",
-  "status": 409,
-  "detail": "Table has an active order and cannot be deleted",
-  "instance": "trace:xxx",
-  "key": "TABLE_MS_2001",
-  "path": "/api/table-ms/v1/tables/550e8400-e29b-41d4-a716-446655440060",
-  "timestamp": "2026-07-30T12:00:00.000Z"
-}
+{ "status": "OCCUPIED", "currentOrderId": "order-000001" }
 ```
 
-Error (409) — gələcəkdə rezervasiya:
+> `currentOrderId` `OCCUPIED` keçidində tələb olunur (`TABLE_MS_4003`).
+
+Success (200): `TableResponse`. Error (400): `TABLE_MS_2003`.
+
+#### `PUT /api/table-ms/v1/tables/{id}/reservation`
+
+- **Auth:** Bearer
+- **Permission:** `table.reserve`
+
+Request:
 ```json
 {
-  "type": "about:blank",
-  "title": "Conflict",
-  "status": 409,
-  "detail": "Table has an upcoming reservation and cannot be deleted",
-  "instance": "trace:xxx",
-  "key": "TABLE_MS_2005",
-  "path": "/api/table-ms/v1/tables/550e8400-e29b-41d4-a716-446655440060",
-  "timestamp": "2026-07-30T12:00:00.000Z"
-}
-```
-
-Success (200):
-```json
-{
-  "success": true,
-  "message": "Table deleted",
-  "errorCode": null,
-  "data": null
-}
-```
-
----
-
-### `PUT /api/table-ms/v1/tables/{id}/status`
-
-**Masasının statusunu dəyiş** (rezervasiya xaric).
-
-Headers: `Authorization: Bearer {token}`
-
-Request body:
-```json
-{
-  "status": "CLEANING",
-  "currentOrderId": "550e8400-e29b-41d4-a716-446655440080"
-}
-```
-
-| Field | Məcburi | Validasiya |
-|---|---|---|
-| `status` | ✅ | `AVAILABLE` \| `OCCUPIED` \| `RESERVED` \| `CLEANING` (case-insensitive). `RESERVED` bu endpoint ilə QƏBUL EDİLMİR → 409 `TABLE_MS_2003`. Yanlış dəyər → 400 `TABLE_MS_1000` |
-| `currentOrderId` | ✗ | **`OCCUPIED`-ə keçid üçün mütləqdir** (yoxdursa və masanın mövcud order-i də yoxdursa → 400 `TABLE_MS_4003`). Masa artıq `OCCUPIED`-dirsə və verilməyibsə, mövcud order qorunur |
-
-**Status maşını** yuxarıdakı cədvələ tabedir. Keçid qadağandırsa → `409 TABLE_MS_2003`.
-
-Success (200):
-```json
-{
-  "success": true,
-  "message": "Table status updated",
-  "errorCode": null,
-  "data": { "...RestaurantTable..." }
-}
-```
-
-Error (409) — qadağan keçid (masa AVAILABLE, hədəf RESERVED):
-```json
-{
-  "type": "about:blank",
-  "title": "Conflict",
-  "status": 409,
-  "detail": "Invalid table status transition. To manage reservations use the reservation endpoints",
-  "instance": "trace:xxx",
-  "key": "TABLE_MS_2003",
-  "path": "/api/table-ms/v1/tables/550e8400-e29b-41d4-a716-446655440060/status",
-  "timestamp": "2026-07-30T12:00:00.000Z"
-}
-```
-
----
-
-### `PUT /api/table-ms/v1/tables/{id}/reservation`
-
-**Rezervasiya əlavə et / yenilə.** Status avtomatik `RESERVED` olur.
-
-Headers: `Authorization: Bearer {token}`
-
-Request body:
-```json
-{
-  "guestName": "Əli Həsənov",
-  "phone": "+994501234567",
-  "time": "2026-07-30T19:00:00.000Z",
+  "guestName": "Səbinə",
+  "phone": "+994 55 222 33 44",
+  "time": "2026-08-07T19:00:00Z",
   "guestCount": 4,
-  "notes": "Ad gününə həsr olunub"
+  "notes": "Pəncərə yanı"
 }
 ```
 
-| Field | Məcburi | Validasiya |
-|---|---|---|
-| `guestName` | ✅ | Maks 100 simvol; control char (`\u0000` və s.) qadağan; trim olunur |
-| `phone` | ✅ | **Qlobal telefon formatı** (bütün servislərdə ortaq `@ValidPhone`): yalnız `0-9`, `+ - ( ) .` və boşluq; 7–15 rəqəm olmalıdır; maks 30 simvol. Saxlanarkən yalnız rəqəmlərə normalizasiya olunur (`+994 50 123 45 67` → `994501234567`) |
-| `time` | ✅ | ISO-8601; **gələcək zaman** olmalıdır (keçmiş → 400 `TABLE_MS_1000`) |
-| `guestCount` | ✅ | `1..100`; masanın tutumundan böyük ola bilməz → 409 `TABLE_MS_4002` |
-| `notes` | ✗ | Maks 500 simvol; control char qadağan; trim olunur |
+Success (200): `TableResponse` (rezerv dolu). Error (400): `TABLE_MS_4002`, `TABLE_MS_2005`.
 
-**Business rules:**
-- `OCCUPIED` masaya rezervasiya qoymaq olmaz → `409 TABLE_MS_2004`.
-- `AVAILABLE`, `CLEANING` və ya artıq `RESERVED` masada rezervasiya qoyula/yenilənə bilər.
+#### `DELETE /api/table-ms/v1/tables/{id}/reservation`
 
-Success (200):
-```json
-{
-  "success": true,
-  "message": "Reservation updated",
-  "errorCode": null,
-  "data": { "...RestaurantTable (status: RESERVED)..." }
-}
-```
+- **Auth:** Bearer
+- **Permission:** `table.reserve`
 
-Error (409) — qonaq sayı tutumdan çox:
-```json
-{
-  "type": "about:blank",
-  "title": "Conflict",
-  "status": 409,
-  "detail": "Number of guests exceeds the table capacity",
-  "instance": "trace:xxx",
-  "key": "TABLE_MS_4002",
-  "path": "/api/table-ms/v1/tables/550e8400-e29b-41d4-a716-446655440060/reservation",
-  "timestamp": "2026-07-30T12:00:00.000Z"
-}
-```
+Success (200): `TableResponse` (rezerv silinmiş).
 
 ---
 
-### `DELETE /api/table-ms/v1/tables/{id}/reservation`
-
-**Rezervasiyanı sil.**
-
-Headers: `Authorization: Bearer {token}`
-
-**Business rules:**
-- `OCCUPIED` masada rezervasiya silmək olmaz → `409 TABLE_MS_2004`.
-- Rezervasiya `null` olur. Masa `RESERVED` idisə status `AVAILABLE` olur; başqa statusda (məs. `CLEANING`) status dəyişmir.
-
-Success (200):
-```json
-{
-  "success": true,
-  "message": "Reservation cancelled",
-  "errorCode": null,
-  "data": { "...RestaurantTable (reservation: null)..." }
-}
-```
-
----
-
-### `GET /api/table-ms/v1/sections`
-
-**Bölmələrin siyahısı** (yaradılma tarixinə görə).
-
-Headers: `Authorization: Bearer {token}`
-
-Query:
-
-| Parametr | Tip | Məcburi | İzah |
-|---|---|---|---|
-| `orgId` | UUID | ✅ | Org filter; başqa org-a baxış → 403 `TABLE_MS_3003` |
-
-Success (200):
-```json
-{
-  "success": true,
-  "message": "Success",
-  "errorCode": null,
-  "data": [
-    {
-      "id": "550e8400-e29b-41d4-a716-446655440070",
-      "name": "Zal 1",
-      "orgId": "550e8400-e29b-41d4-a716-446655440001"
-    },
-    {
-      "id": "550e8400-e29b-41d4-a716-446655440071",
-      "name": "Zal 2",
-      "orgId": "550e8400-e29b-41d4-a716-446655440001"
-    }
-  ]
-}
-```
-
----
-
-### `POST /api/table-ms/v1/sections`
-
-**Yeni bölmə yarat.**
-
-Headers: `Authorization: Bearer {token}`
-
-Request body:
-```json
-{
-  "name": "Bağ evi",
-  "orgId": "550e8400-e29b-41d4-a716-446655440001"
-}
-```
-
-| Field | Məcburi | Validasiya |
-|---|---|---|
-| `name` | ✅ | Boş ola bilməz; maks 100 simvol; control char qadağan; trim olunur; **org daxilində unikal (case-insensitive)** → təkrarda 409 `TABLE_MS_3005` |
-| `orgId` | ✅ | UUID; adi user üçün token-dəki org ilə uyğun olmalıdır (403); SUPER_ADMIN istədiyini verə bilər |
-
-Success (201):
-```json
-{
-  "success": true,
-  "message": "Section created",
-  "errorCode": null,
-  "data": { "...Section..." }
-}
-```
-
-Error (409) — eyni adlı bölmə:
-```json
-{
-  "type": "about:blank",
-  "title": "Conflict",
-  "status": 409,
-  "detail": "A section with this name already exists in this organization",
-  "instance": "trace:xxx",
-  "key": "TABLE_MS_3005",
-  "path": "/api/table-ms/v1/sections",
-  "timestamp": "2026-07-30T12:00:00.000Z"
-}
-```
-
----
-
-### `PUT /api/table-ms/v1/sections/{id}`
-
-**Bölmənin adını dəyiş.**
-
-Headers: `Authorization: Bearer {token}`
-
-Request body:
-```json
-{
-  "name": "Bağ Evi"
-}
-```
-
-| Field | Məcburi | Validasiya |
-|---|---|---|
-| `name` | ✅ | Boş ola bilməz; maks 100 simvol; control char qadağan; trim olunur; **org daxilində unikal (case-insensitive)** → təkrarda 409 `TABLE_MS_3005` |
-
-Success (200):
-```json
-{
-  "success": true,
-  "message": "Section renamed",
-  "errorCode": null,
-  "data": { "...Section..." }
-}
-```
-
----
-
-### `DELETE /api/table-ms/v1/sections/{id}`
-
-**Bölməni sil (soft delete).**
-
-Headers: `Authorization: Bearer {token}`
-
-**Business rules:**
-- Bölmədəki bütün masalar avtomatik **qalan ilk bölməyə** köçürülür.
-- Org-da **tək bölmə qalıbsa silmək olmaz** → `409 TABLE_MS_2002`.
-- Silinmiş bölmənin adı yenidən istifadə oluna bilər.
-
-Error (409) — son bölmə:
-```json
-{
-  "type": "about:blank",
-  "title": "Conflict",
-  "status": 409,
-  "detail": "Cannot delete the last section",
-  "instance": "trace:xxx",
-  "key": "TABLE_MS_2002",
-  "path": "/api/table-ms/v1/sections/550e8400-e29b-41d4-a716-446655440070",
-  "timestamp": "2026-07-30T12:00:00.000Z"
-}
-```
-
-Success (200):
-```json
-{
-  "success": true,
-  "message": "Section deleted",
-  "errorCode": null,
-  "data": null
-}
-```
-
----
-
-## 7. Order — `order-service` (port 8107)
+## 6. Order — `order-service` (port 8107)
 
 > API prefix: `/api/order-ms/v1/...`
-> Gateway: `http://localhost:8001` → `/api/order-ms/...` (bütün sorğular gateway-dən keçir)
-> Auth: bütün endpoint-lər `Authorization: Bearer {token}` tələb edir (public endpoint yoxdur)
-> Response: `ApiResponse<T>` wrapper → `{ success, message, errorCode, data }`
-> Error: Spring `ProblemDetail` (RFC 9457) → `key`, `path`, `timestamp`, bəzi hallarda `fieldErrors`
+> Response: `ApiResponse<T>` wrapper
+> Error: Spring `ProblemDetail`; key prefiksi `ORDER_MS_`
+> Context path: `/api/order-ms`; gateway marşrutu: `/api/order-ms/**` → `http://localhost:8107`
 
-### Tenant & Giriş Qaydaları
+### Tenant & Giriş Qayraları
 
-- Hər sifariş və sifariş maddəsi bir `orgId`-yə aiddir.
-- **Read** (GET): `orgId` query parametri məcburidir; bütün filterlər həmin org daxilində tətbiq olunur. `orgId` verilməzsə → 400 `ORDER_MS_1003`.
-- **Write**: `orgId` request body-də məcburidir. Sifarişin maddələri yalnız həmin org-un menyusundan (menu-servis), masası isə yalnız həmin org-a aid masalardan (table-servis) seçilə bilər — hər iki yoxlama aidiyyatı servisin səviyyəsində aparılır.
-- **SUPER_ADMIN** (platform admin) bütün org-lara tam girişə malikdir.
-- Internal microservice çağrıları (`X-Internal-Auth` header-i ilə) bütün data-ya oxuya bilər.
+- Bütün endpoint-lər `Authorization: Bearer` tələb edir və `@PreAuthorize` permission kodu ilə qorunur.
+- `orderId` formatı **string**-dir (order nömrəsi, məs. `ORDER-000123`).
 
-> ⚠️ **Qeyd (tenant yoxlaması yarımçıqdır):** menu-ms və table-ms-dən fərqli olaraq order-ms hələ tam tenant yoxlaması tətbiq etmir — `GET /orders/{id}` kimi id-əsaslı endpoint-lərdə sifarişin `orgId`-si principal ilə yoxlanılmır, `orgId` əsasən filter kimi istifadə olunur. Servis table-ms/waiter-ms kimi bərkidilməli, `ORDER_MS_3003` kodu əlavə edilməlidir (yol xəritəsində).
+### Sifariş Status Maşını
 
-### Sifariş Status Maşını (Lifecycle)
+`PENDING` → `CONFIRMED` → `PREPARING` → `READY` → `SERVED` → `COMPLETED`
+`PENDING`/`CONFIRMED` vəziyyətindən `CANCELLED` mümkündür (ödəniş edilmiş sifariş ləğv oluna bilməz).
 
-`/status` endpoint-i ilə yalnız irəli keçidlər mümkündür (geriyə keçid yoxdur):
+**`OrderStatus`**: `PENDING`, `CONFIRMED`, `PREPARING`, `READY`, `SERVED`, `COMPLETED`, `CANCELLED`.
+**`PaymentStatus`**: `PENDING`, `PAID`. **`PaymentMethod`**: `CASH`, `CARD`. **`OrderSource`**: `WAITER`, `CUSTOMER`.
 
-```
-PENDING → CONFIRMED → PREPARING → READY → SERVED → COMPLETED
-```
-
-Qaydalar:
-- `PENDING` → `CONFIRMED`; `CONFIRMED` → `PREPARING`; `PREPARING` → `READY`; `READY` → `SERVED`; `SERVED` → `COMPLETED`.
-- Eyni statusa keçid də qadağandır (məs. `CONFIRMED` → `CONFIRMED`) → 400 `ORDER_MS_4001`.
-- `CANCELLED` `/status` endpoint-i ilə **QƏBUL EDİLMİR** → 400 `ORDER_MS_4009`. Ləğv üçün mütləq `POST /orders/{id}/cancel` istifadə olunur.
-- **Ləğv edilə bilən statuslar:** `PENDING`, `CONFIRMED`, `PREPARING`, `READY`. `SERVED`-dən sonra ləğv mümkün deyil → 400 `ORDER_MS_4009`.
-- `COMPLETED` və `CANCELLED` terminal statuslardır — heç bir keçid yoxdur.
-- `COMPLETED` olmaq üçün sifariş `SERVED` olmalıdır (yoxdursa 400 `ORDER_MS_4001`); ödəniş `PAID` olanda sifariş avtomatik `COMPLETED` olur.
-
-**Maddə (item) status maşını:**
-
-| Cari \\ Hədəf | `PREPARING` | `READY` | `SERVED` | `CANCELLED` |
-|---|---|---|---|---|
-| `PENDING` | ✓ | ✗ | ✗ | ✓ |
-| `CONFIRMED` | ✓ | ✗ | ✗ | ✓ |
-| `PREPARING` | ✗ | ✓ | ✗ | ✓ |
-| `READY` | ✗ | ✗ | ✓ | ✓ |
-| `SERVED` | ✗ | ✗ | ✗ | ✗ |
-| `CANCELLED` | ✗ | ✗ | ✗ | ✗ |
-
-- Eyni status yenidən göndərilə bilər (idempotent); digər qadağan keçid → 400 `ORDER_MS_4007`.
-- Maddə statusu dəyişəndə sifariş statusu avtomatik yenilənə bilər:
-  - Bütün aktiv maddələr `READY`/`SERVED` və sifariş `PREPARING` → sifariş `READY`
-  - Bütün aktiv maddələr `SERVED` və sifariş `READY` → sifariş `SERVED`
+> `request-payment` sifarişi `paymentRequested=true` edir (ofisiant tərəfindən təsdiq gözləyir); `complete-payment` ilə `paymentStatus=PAID` olur.
 
 ### Order-servis Error Kodları
 
-| HTTP | `key` | Səbəb |
+| Kod | HTTP | Açıqlama |
 |---|---|---|
-| 400 | `ORDER_MS_1000` | Validation failed (DTO/field) / yanlış enum dəyəri (`status`, `method` və s.) |
-| 400 | `ORDER_MS_1001` | JSON parse error |
-| 400 | `ORDER_MS_1003` | Parametr tipi yanlış (məs. UUID olmayan `{id}`) / məcburi parametr verilməyib |
-| 401 | `COMMON_4001` | Token yoxdur / etibarsız |
-| 403 | `COMMON_4003` | Security layer tərəfindən qadağan |
-| 404 | `ORDER_MS_3001` | Sifariş tapılmadı (silinib və ya mövcud deyil) |
-| 404 | `ORDER_MS_4006` | Sifariş maddəsi tapılmadı (bu sifarişə aid deyil) |
-| 400 | `ORDER_MS_4001` | Sifariş status keçidi qadağandır |
-| 400 | `ORDER_MS_4004` | Yalnız `PENDING` sifariş təsdiqlənə bilər (waiter-confirm) |
-| 400 | `ORDER_MS_4005` | Tamamlanmış/ləğv olunmuş sifarişə maddə əlavə etmək olmaz |
-| 400 | `ORDER_MS_4007` | Maddə status keçidi qadağandır |
-| 409 | `ORDER_MS_4008` | Ödəniş artıq tamamlanıb (`PAID`) |
-| 400 | `ORDER_MS_4009` | Sifariş cari statusda ləğv oluna bilməz |
-| 400 | `ORDER_MS_4011` | Masa `AVAILABLE` deyil (boş deyil) |
-| 400 | `ORDER_MS_4012` | Menu maddəsi org-un menyusunda yoxdur |
-| 400 | `ORDER_MS_4013` | Menu maddəsi qeyri-aktivdir (`isAvailable=false`) |
-| 500 | `ORDER_MS_9999` | Daxili xəta |
-
-> `ORDER_MS_4002` (completed order ləğvi) və `ORDER_MS_4003` (paid order ləğvi) enum-da mövcuddur, amma hazırki kodda istifadə edilmir (ləğv qadağası `ORDER_MS_4009` ilə əhatə olunur).
-> Masa mövcud deyilsə, table-servis öz xətasını (məs. `TABLE_MS_3001` 404) qaytarır və o, olduğu kimi ötürülür.
-
----
+| `ORDER_MS_3001` | 404 | Sifariş tapılmadı |
+| `ORDER_MS_4001` | 400 | Qeyri-keçərli status keçidi |
+| `ORDER_MS_4002` | 400 | Tamamlanmış sifariş ləğv oluna bilməz |
+| `ORDER_MS_4003` | 400 | Ödənilmiş sifariş ləğv oluna bilməz |
+| `ORDER_MS_4004` | 400 | Sifariş PENDING deyil (waiter-confirm) |
+| `ORDER_MS_4005` | 400 | Sifariş aktiv deyil |
+| `ORDER_MS_4006` | 404 | Sifarişdəki item tapılmadı |
+| `ORDER_MS_4007` | 400 | Qeyri-keçərli item statusu |
+| `ORDER_MS_4008` | 409 | Ödəniş artıq tamamlanıb |
+| `ORDER_MS_4009` | 400 | Sifariş ləğv oluna bilməz |
+| `ORDER_MS_4010` | 400 | Masa tapılmadı |
+| `ORDER_MS_4011` | 400 | Masa mövcud deyil (dolu/silinmiş) |
+| `ORDER_MS_4012` | 400 | Menyu elementi tapılmadı |
+| `ORDER_MS_4013` | 400 | Menyu elementi mövcud deyil (qeyri-aktiv) |
 
 ### Data Modelləri
 
-**Order** (sifariş cavabı)
+**`OrderResponse`**: `id`(String), `tableId`, `tableNumber`, `items[]`, `status`, `paymentStatus`, `totalAmount`, `waiterId`, `waiterName`, `orderSource`, `waiterConfirmed`, `confirmedBy`, `customerPhoto`, `paymentMethod`, `paymentRequested`, `cancelReason`, `orgId`, `createdAt`, `updatedAt`.
 
-| Field | Tip | Qeyd |
-|---|---|---|
-| `id` | String (UUID) | |
-| `tableId` | UUID | |
-| `tableNumber` | Integer | Masa yaradılanda table-servisdən götürülür |
-| `items` | List\<OrderItem\> | |
-| `status` | String | `PENDING` \| `CONFIRMED` \| `PREPARING` \| `READY` \| `SERVED` \| `COMPLETED` \| `CANCELLED` |
-| `paymentStatus` | String | `PENDING` \| `PAID` |
-| `totalAmount` | BigDecimal | Σ (price × quantity) |
-| `waiterId` | UUID \| null | |
-| `waiterName` | String \| null | |
-| `orderSource` | String | `WAITER` \| `CUSTOMER` |
-| `waiterConfirmed` | Boolean | |
-| `confirmedBy` | String \| null | Ofisant təsdiqi (`waiter-confirm` ilə) |
-| `customerPhoto` | String \| null | |
-| `paymentMethod` | String \| null | `CASH` \| `CARD` |
-| `paymentRequested` | Boolean | |
-| `cancelReason` | String \| null | |
-| `orgId` | UUID | |
-| `createdAt` | String (ISO-8601) | məs. `2026-07-30T14:30:00Z` |
-| `updatedAt` | String (ISO-8601) | |
+**`OrderItemResponse`**: `id`(String), `menuItemId`, `menuItemName`, `quantity`, `price`, `notes`, `status`.
 
-**OrderItem** (maddə)
-
-| Field | Tip | Qeyd |
-|---|---|---|
-| `id` | String (UUID) | |
-| `menuItemId` | UUID | |
-| `menuItemName` | String | Yaradılma anında request-dən alınır |
-| `quantity` | Integer | |
-| `price` | BigDecimal | |
-| `notes` | String \| null | |
-| `status` | String | `PENDING` \| `CONFIRMED` \| `PREPARING` \| `READY` \| `SERVED` \| `CANCELLED` |
-
----
-
-### `GET /api/order-ms/v1/orders`
-
-**Sifariş siyahısı** (filterlərlə).
-
-Headers: `Authorization: Bearer {token}`
-
-Query:
-
-| Parametr | Tip | Məcburi | İzah |
-|---|---|---|---|
-| `orgId` | UUID | ✅ | Org filter; verilməzsə → 400 `ORDER_MS_1003` |
-| `status` | String | ✗ | Status filter (case-insensitive): `PENDING`, `CONFIRMED`, `PREPARING`, `READY`, `SERVED`, `COMPLETED`, `CANCELLED`. Yanlış dəyər → 400 `ORDER_MS_1000` |
-| `tableId` | UUID | ✗ | Masa filter |
-| `waiterId` | UUID | ✗ | Ofisant filter |
-
-> **Filterlərin işləmə qaydası:** `status`+`tableId` birlikdə işləyir; `status`+`waiterId` birlikdə verilərsə `waiterId` nəzərə alınmır (status əsas götürülür). `waiterId` tək verilərsə həmin ofisantın sifarişləri qayıdır.
-
-Success (200):
+**`OrderRequest`**:
 ```json
 {
-  "success": true,
-  "message": "Success",
-  "errorCode": null,
-  "data": [
-    {
-      "id": "550e8400-e29b-41d4-a716-446655440080",
-      "tableId": "550e8400-e29b-41d4-a716-446655440061",
-      "tableNumber": 2,
-      "items": [
-        {
-          "id": "550e8400-e29b-41d4-a716-446655440090",
-          "menuItemId": "550e8400-e29b-41d4-a716-446655440040",
-          "menuItemName": "Pomidor Şorbası",
-          "quantity": 2,
-          "price": 8.00,
-          "notes": "",
-          "status": "READY"
-        }
-      ],
-      "status": "CONFIRMED",
-      "paymentStatus": "PENDING",
-      "totalAmount": 16.00,
-      "waiterId": "550e8400-e29b-41d4-a716-446655440010",
-      "waiterName": "Leyla Hüseynova",
-      "orderSource": "WAITER",
-      "waiterConfirmed": true,
-      "confirmedBy": null,
-      "customerPhoto": null,
-      "paymentMethod": null,
-      "paymentRequested": false,
-      "cancelReason": null,
-      "orgId": "550e8400-e29b-41d4-a716-446655440001",
-      "createdAt": "2026-07-30T18:30:00.000Z",
-      "updatedAt": "2026-07-30T18:32:00.000Z"
-    }
-  ]
-}
-```
-
-Error (400) — yanlış `status` dəyəri:
-```json
-{
-  "type": "about:blank",
-  "title": "Validation Failed",
-  "status": 400,
-  "detail": "Validation failed for one or more fields",
-  "instance": "trace:xxx",
-  "key": "ORDER_MS_1000",
-  "path": "/api/order-ms/v1/orders",
-  "timestamp": "2026-07-30T12:00:00.000Z"
-}
-```
-
----
-
-### `GET /api/order-ms/v1/orders/{id}`
-
-**Tək sifariş.**
-
-Headers: `Authorization: Bearer {token}`
-
-Success (200): *yuxarıdakı kimi tək element*
-
-Error (404):
-```json
-{
-  "type": "about:blank",
-  "title": "Not Found",
-  "status": 404,
-  "detail": "Order not found",
-  "instance": "trace:xxx",
-  "key": "ORDER_MS_3001",
-  "path": "/api/order-ms/v1/orders/550e8400-e29b-41d4-a716-446655440080",
-  "timestamp": "2026-07-30T12:00:00.000Z"
-}
-```
-
----
-
-### `POST /api/order-ms/v1/orders`
-
-**Yeni sifariş yarat.** (Ofisant paneli və müştəri axını üçün; müştəri axını adətən customer-servis vasitəsilə internal çağrılır.)
-
-Headers: `Authorization: Bearer {token}`
-
-**Request (waiter):**
-```json
-{
-  "orgId": "550e8400-e29b-41d4-a716-446655440001",
-  "tableId": "550e8400-e29b-41d4-a716-446655440061",
-  "waiterId": "550e8400-e29b-41d4-a716-446655440010",
-  "waiterName": "Leyla Hüseynova",
+  "orgId": "01234567-89ab-cdef-0123-456789abcdef",
+  "tableId": "bbbbbbbb-0000-4000-8000-000000000201",
+  "waiterId": "bbbbbbbb-0000-4000-8000-000000000002",
+  "waiterName": "Aysel Məmmədova",
   "orderSource": "WAITER",
   "items": [
-    { "menuItemId": "550e8400-e29b-41d4-a716-446655440040", "menuItemName": "Pomidor Şorbası", "quantity": 2, "price": 8.00, "notes": "" },
-    { "menuItemId": "550e8400-e29b-41d4-a716-446655440041", "menuItemName": "Lülə Kebab", "quantity": 1, "price": 28.00, "notes": "Az bişmiş" }
-  ]
-}
-```
-
-**Request (customer):**
-```json
-{
-  "orgId": "550e8400-e29b-41d4-a716-446655440001",
-  "tableId": "550e8400-e29b-41d4-a716-446655440063",
-  "orderSource": "CUSTOMER",
-  "items": [
-    { "menuItemId": "550e8400-e29b-41d4-a716-446655440042", "menuItemName": "Margarita Pizza", "quantity": 1, "price": 18.00, "notes": "" }
+    {
+      "menuItemId": "bbbbbbbb-0000-4000-8000-000000000101",
+      "menuItemName": "Toyuq Doner",
+      "quantity": 2,
+      "price": 9.50,
+      "notes": "Çox ədviyyatlı olmasın"
+    }
   ],
-  "customerPhoto": "data:image/jpeg;base64,...",
+  "customerPhoto": null,
   "paymentMethod": "CASH"
 }
 ```
 
-| Field | Məcburi | Validasiya |
-|---|---|---|
-| `orgId` | ✅ | UUID |
-| `tableId` | ✅ | UUID; masa **eyni org-da** və `AVAILABLE` olmalıdır → deyilsə 400 `ORDER_MS_4011` |
-| `orderSource` | ✅ | `WAITER` \| `CUSTOMER` (case-insensitive) |
-| `items` | ✅ | Ən azı 1 maddə; hər maddədə: `menuItemId` (UUID, org menyusunda olmalıdır → 400 `ORDER_MS_4012`, `isAvailable=true` olmalıdır → 400 `ORDER_MS_4013`), `menuItemName` (non-blank), `quantity` (required integer), `price` (required decimal), `notes` (opsional) |
-| `waiterId` | ✗ | UUID; WAITER axını üçün |
-| `waiterName` | ✗ | WAITER axını üçün |
-| `customerPhoto` | ✗ | CUSTOMER axını üçün |
-| `paymentMethod` | ✗ | `CASH` \| `CARD`; CUSTOMER axını üçün ilkin ödəniş metodu |
+### Endpoints
 
-**Status assignment rules (backend):**
+#### `GET /api/order-ms/v1/orders`
 
-| orderSource | orderMode (org setting) | waiterConfirmed | status |
-|---|---|---|---|
-| `WAITER` | — | `true` | `CONFIRMED` |
-| `CUSTOMER` | `CUSTOMER` | `true` | `CONFIRMED` |
-| `CUSTOMER` | `CUSTOMER_WAITER_CONFIRM` | `false` | `PENDING` |
+- **Auth:** Bearer
+- **Permission:** `order.view`
+- Query: `orgId` (required), `status` (optional), `tableId` (optional), `waiterId` (optional)
 
-**PaymentStatus rules (create):**
-- Org setting `paymentTiming=BEFORE` → `PAID`
-- Org setting `paymentTiming=AFTER` → `PENDING`
+Success (200): `OrderResponse[]` (yuxarıdakı modelə uyğun).
 
-**Business rules:**
-- Masa `AVAILABLE` deyilsə → 400 `ORDER_MS_4011`; masa mövcud deyilsə table-servis 404-ü ötürülür (`TABLE_MS_3001`).
-- Bütün maddələr org-un menyusunda olmalı və `isAvailable=true` olmalıdır.
-- Yaradılanda masa `OCCUPIED` olur və masanın `currentOrderId`-si set edilir (table-servis çağrılır).
-- Yeni maddələrin statusu `PENDING`, `paymentRequested=false` olur; `totalAmount` hesablanır.
+#### `GET /api/order-ms/v1/orders/{id}`
 
-Success (201):
-```json
-{
-  "success": true,
-  "message": "Order created",
-  "errorCode": null,
-  "data": {
-    "id": "550e8400-e29b-41d4-a716-446655440080",
-    "tableId": "550e8400-e29b-41d4-a716-446655440061",
-    "tableNumber": 2,
-    "items": [
-      { "id": "550e8400-e29b-41d4-a716-446655440081", "menuItemId": "550e8400-e29b-41d4-a716-446655440040", "menuItemName": "Pomidor Şorbası", "quantity": 2, "price": 8.00, "notes": "", "status": "PENDING" },
-      { "id": "550e8400-e29b-41d4-a716-446655440082", "menuItemId": "550e8400-e29b-41d4-a716-446655440041", "menuItemName": "Lülə Kebab", "quantity": 1, "price": 28.00, "notes": "Az bişmiş", "status": "PENDING" }
-    ],
-    "status": "CONFIRMED",
-    "paymentStatus": "PENDING",
-    "totalAmount": 44.00,
-    "waiterId": "550e8400-e29b-41d4-a716-446655440010",
-    "waiterName": "Leyla Hüseynova",
-    "orderSource": "WAITER",
-    "waiterConfirmed": true,
-    "confirmedBy": null,
-    "customerPhoto": null,
-    "paymentMethod": null,
-    "paymentRequested": false,
-    "cancelReason": null,
-    "orgId": "550e8400-e29b-41d4-a716-446655440001",
-    "createdAt": "2026-07-30T14:30:00.000Z",
-    "updatedAt": "2026-07-30T14:30:00.000Z"
-  }
-}
-```
+- **Auth:** Bearer
+- **Permission:** `order.view`
 
-> Müştəri axınında `orderMode=CUSTOMER_WAITER_CONFIRM` olan org-da status `PENDING`, `waiterConfirmed=false` qayıdır — təsdiq üçün `PUT /orders/{id}/waiter-confirm` istifadə olunur.
+Success (200): `OrderResponse`. Error (404): `ORDER_MS_3001`.
 
-Error (400) — masa boş deyil:
-```json
-{
-  "type": "about:blank",
-  "title": "Table Not Available",
-  "status": 400,
-  "detail": "Table is not available",
-  "instance": "trace:xxx",
-  "key": "ORDER_MS_4011",
-  "path": "/api/order-ms/v1/orders",
-  "timestamp": "2026-07-30T12:00:00.000Z"
-}
-```
+#### `POST /api/order-ms/v1/orders`
 
----
+- **Auth:** Bearer
+- **Permission:** `order.create`
 
-### `PUT /api/order-ms/v1/orders/{id}/status`
+Request: `OrderRequest` (yuxarıda).
 
-**Sifariş statusunu dəyiş** (status maşınına tabedir).
+Success (201): `OrderResponse` (status `PENDING`).
 
-Headers: `Authorization: Bearer {token}`
+#### `PUT /api/order-ms/v1/orders/{id}/status`
 
-Request body:
-```json
-{
-  "status": "PREPARING"
-}
-```
+- **Auth:** Bearer
+- **Permission:** `order.manage`
 
-| Field | Məcburi | Validasiya |
-|---|---|---|
-| `status` | ✅ | `PENDING` \| `CONFIRMED` \| `PREPARING` \| `READY` \| `SERVED` \| `COMPLETED` (case-insensitive). `CANCELLED` bu endpoint ilə **QƏBUL EDİLMİR** → 400 `ORDER_MS_4009` (bunun üçün `/cancel` var). Yanlış dəyər → 400 `ORDER_MS_1000` |
+Request: `{ "status": "CONFIRMED" }`
 
-**Status maşını** yuxarıdakı cədvələ tabedir; qadağan keçid → 400 `ORDER_MS_4001`.
+Success (200): `OrderResponse`. Error (400): `ORDER_MS_4001`.
 
-Success (200):
-```json
-{
-  "success": true,
-  "message": "Order status updated",
-  "errorCode": null,
-  "data": { "...Order (status: PREPARING)..." }
-}
-```
+#### `PUT /api/order-ms/v1/orders/{id}/items/{itemId}/status`
 
-Error (400) — qadağan keçid (məs. `PENDING` → `READY`):
-```json
-{
-  "type": "about:blank",
-  "title": "Invalid Status",
-  "status": 400,
-  "detail": "Invalid order status transition",
-  "instance": "trace:xxx",
-  "key": "ORDER_MS_4001",
-  "path": "/api/order-ms/v1/orders/550e8400-e29b-41d4-a716-446655440080/status",
-  "timestamp": "2026-07-30T12:00:00.000Z"
-}
-```
+- **Auth:** Bearer
+- **Permission:** `order.manage`
 
----
+Request: `{ "status": "READY" }`
 
-### `PUT /api/order-ms/v1/orders/{id}/items/{itemId}/status`
+Success (200): `OrderResponse`. Error (404): `ORDER_MS_4006`, Error (400): `ORDER_MS_4007`.
 
-**Tək maddənin statusunu dəyiş** (maddə status maşınına tabedir).
+#### `POST /api/order-ms/v1/orders/{id}/items`
 
-Headers: `Authorization: Bearer {token}`
+- **Auth:** Bearer
+- **Permission:** `order.manage`
 
-Request body:
-```json
-{
-  "status": "PREPARING"
-}
-```
-
-| Field | Məcburi | Validasiya |
-|---|---|---|
-| `status` | ✅ | Maddə maşınındakı hədəflərdən biri: `PREPARING` \| `READY` \| `SERVED` \| `CANCELLED` (case-insensitive). Eyni status yenidən göndərilə bilər. Qadağan keçid → 400 `ORDER_MS_4007` |
-
-**Business rules:**
-- Maddə bu sifarişə aid olmalıdır (aid deyilsə → 404 `ORDER_MS_4006`).
-- Yeniləmədən sonra sifariş statusu avtomatik hesablanır (bax: Maddə status maşını → avtomatik yenilənmə).
-
-Success (200):
-```json
-{
-  "success": true,
-  "message": "Item status updated",
-  "errorCode": null,
-  "data": { "...Order (həmin maddənin statusu yenilənib)..." }
-}
-```
-
-Error (404) — maddə tapılmadı / bu sifarişə aid deyil:
-```json
-{
-  "type": "about:blank",
-  "title": "Item Not Found",
-  "status": 404,
-  "detail": "Order item not found",
-  "instance": "trace:xxx",
-  "key": "ORDER_MS_4006",
-  "path": "/api/order-ms/v1/orders/550e8400-e29b-41d4-a716-446655440080/items/550e8400-e29b-41d4-a716-446655440090/status",
-  "timestamp": "2026-07-30T12:00:00.000Z"
-}
-```
-
----
-
-### `POST /api/order-ms/v1/orders/{id}/items`
-
-**Mövcud sifarişə yeni maddələr əlavə et.**
-
-Headers: `Authorization: Bearer {token}`
-
-Request body:
+Request:
 ```json
 {
   "items": [
-    { "menuItemId": "550e8400-e29b-41d4-a716-446655440043", "menuItemName": "Cola", "quantity": 2, "price": 4.00, "notes": "" }
+    { "menuItemId": "bbbbbbbb-0000-4000-8000-000000000102", "menuItemName": "Qarışıq Doner", "quantity": 1, "price": 11.00 }
   ]
 }
 ```
 
-| Field | Məcburi | Validasiya |
-|---|---|---|
-| `items` | ✅ | Ən azı 1 maddə; validasiyalar `POST /orders` ilə eynidir (`menuItemId`, `menuItemName`, `quantity`, `price`, `notes`) |
+Success (200): `OrderResponse`.
 
-**Business rules:**
-- Sifariş `COMPLETED` və ya `CANCELLED` statusundadırsa → 400 `ORDER_MS_4005`.
-- Yeni maddələrin statusu `PENDING` olur; `totalAmount` yenidən hesablanır.
+#### `PUT /api/order-ms/v1/orders/{id}/waiter-confirm`
 
-Success (200):
+- **Auth:** Bearer
+- **Permission:** `order.manage`
+
+Request:
 ```json
-{
-  "success": true,
-  "message": "Items added to order",
-  "errorCode": null,
-  "data": { "...Order (yeni maddələr əlavə olunub, totalAmount yenilənib)..." }
-}
+{ "waiterId": "bbbbbbbb-0000-4000-8000-000000000002", "waiterName": "Aysel Məmmədova" }
 ```
 
-Error (400) — tamamlanmış sifarişə əlavə:
-```json
-{
-  "type": "about:blank",
-  "title": "Not Active",
-  "status": 400,
-  "detail": "Cannot modify a completed or cancelled order",
-  "instance": "trace:xxx",
-  "key": "ORDER_MS_4005",
-  "path": "/api/order-ms/v1/orders/550e8400-e29b-41d4-a716-446655440080/items",
-  "timestamp": "2026-07-30T12:00:00.000Z"
-}
-```
+Success (200): `OrderResponse` (`waiterConfirmed=true`). Error (400): `ORDER_MS_4004`.
+
+#### `POST /api/order-ms/v1/orders/{id}/cancel`
+
+- **Auth:** Bearer
+- **Permission:** `order.cancel`
+
+Request (optional): `{ "reason": "Müştəri imtina etdi" }`
+
+Success (200): `OrderResponse` (`status=CANCELLED`, `cancelReason` dolu).
+Error (400): `ORDER_MS_4002`, `ORDER_MS_4003`, `ORDER_MS_4009`.
+
+#### `POST /api/order-ms/v1/orders/{id}/request-payment`
+
+- **Auth:** Bearer
+- **Permission:** `order.payment`
+
+Request: `{ "method": "CARD" }`
+
+Success (200): `OrderResponse` (`paymentRequested=true`).
+
+#### `POST /api/order-ms/v1/orders/{id}/complete-payment`
+
+- **Auth:** Bearer
+- **Permission:** `order.payment`
+
+Request: *empty body*
+
+Success (200): `OrderResponse` (`paymentStatus=PAID`). Error (409): `ORDER_MS_4008`.
+
+#### `POST /api/order-ms/v1/orders/{id}/start-preparing`
+
+- **Auth:** Bearer
+- **Permission:** `order.manage`
+
+Success (200): `OrderResponse` (`status=PREPARING`).
+
+#### `POST /api/order-ms/v1/orders/{id}/mark-all-ready`
+
+- **Auth:** Bearer
+- **Permission:** `order.manage`
+
+Success (200): `OrderResponse` (bütün item-lər `READY`, order `READY`).
 
 ---
 
-### `PUT /api/order-ms/v1/orders/{id}/waiter-confirm`
-
-**Ofisant müştəri sifarişini təsdiqləyir** (`orderMode=CUSTOMER_WAITER_CONFIRM` olan sifarişlər üçün).
-
-Headers: `Authorization: Bearer {token}`
-
-Request body:
-```json
-{
-  "waiterId": "550e8400-e29b-41d4-a716-446655440010",
-  "waiterName": "Leyla Hüseynova"
-}
-```
-
-| Field | Məcburi | Validasiya |
-|---|---|---|
-| `waiterId` | ✅ | UUID |
-| `waiterName` | ✅ | Non-blank |
-
-**Business rules:**
-- Sifariş statusu `PENDING` olmalıdır → deyilsə 400 `ORDER_MS_4004`.
-- Sifariş `orderSource=CUSTOMER` olmalıdır → deyilsə 400 `ORDER_MS_4001`.
-
-Result: `waiterConfirmed=true`, `confirmedBy=waiterName`, `waiterId`/`waiterName` yenilənir, status `CONFIRMED` olur.
-
-Success (200):
-```json
-{
-  "success": true,
-  "message": "Order confirmed",
-  "errorCode": null,
-  "data": { "...Order (status: CONFIRMED, waiterConfirmed: true)..." }
-}
-```
-
-Error (400) — sifariş PENDING deyil:
-```json
-{
-  "type": "about:blank",
-  "title": "Not Pending",
-  "status": 400,
-  "detail": "Only pending orders can be confirmed",
-  "instance": "trace:xxx",
-  "key": "ORDER_MS_4004",
-  "path": "/api/order-ms/v1/orders/550e8400-e29b-41d4-a716-446655440080/waiter-confirm",
-  "timestamp": "2026-07-30T12:00:00.000Z"
-}
-```
-
----
-
-### `POST /api/order-ms/v1/orders/{id}/cancel`
-
-**Sifarişi ləğv et.**
-
-Headers: `Authorization: Bearer {token}`
-
-Request body (opsional):
-```json
-{
-  "reason": "Müştəri imtina etdi"
-}
-```
-
-| Field | Məcburi | Validasiya |
-|---|---|---|
-| `reason` | ✗ | Opsional (uzunluq limiti servis tərəfindən tətbiq edilmir) |
-
-**Business rules:**
-- Yalnız `PENDING`, `CONFIRMED`, `PREPARING`, `READY` statuslarından ləğv oluna bilər → başqasından 400 `ORDER_MS_4009`.
-- Ləğvdən sonra masa statusu `CLEANING` olur və masanın `currentOrderId`-si təmizlənir (table-servis çağrılır).
-
-Success (200):
-```json
-{
-  "success": true,
-  "message": "Order cancelled",
-  "errorCode": null,
-  "data": { "...Order (status: CANCELLED, cancelReason set)..." }
-}
-```
-
-Error (400) — cari statusdan ləğv mümkün deyil:
-```json
-{
-  "type": "about:blank",
-  "title": "Not Cancellable",
-  "status": 400,
-  "detail": "This order cannot be cancelled in its current state",
-  "instance": "trace:xxx",
-  "key": "ORDER_MS_4009",
-  "path": "/api/order-ms/v1/orders/550e8400-e29b-41d4-a716-446655440080/cancel",
-  "timestamp": "2026-07-30T12:00:00.000Z"
-}
-```
-
----
-
-### `POST /api/order-ms/v1/orders/{id}/request-payment`
-
-**Ödəniş tələbi** (müştəri və ya ofisant). `paymentRequested=true` olur, `paymentMethod` set edilir.
-
-Headers: `Authorization: Bearer {token}`
-
-Request body:
-```json
-{
-  "method": "CASH"
-}
-```
-
-| Field | Məcburi | Validasiya |
-|---|---|---|
-| `method` | ✅ | `CASH` \| `CARD` (case-insensitive). Yanlış dəyər → 400 `ORDER_MS_1000` |
-
-> `paymentStatus` bu əməliyyatda dəyişmir (`PENDING` qalır) — `PAID` yalnız `complete-payment` ilə olur.
-
-Success (200):
-```json
-{
-  "success": true,
-  "message": "Payment requested",
-  "errorCode": null,
-  "data": { "...Order (paymentRequested: true, paymentMethod: CASH)..." }
-}
-```
-
----
-
-### `POST /api/order-ms/v1/orders/{id}/complete-payment`
-
-**Ödənişi qəbul et** (ofisant).
-
-Headers: `Authorization: Bearer {token}`
-
-Request body yoxdur.
-
-**Business rules:**
-- Sifariş statusu `SERVED` olmalıdır → deyilsə 400 `ORDER_MS_4001`.
-- Sifariş artıq `PAID`-dırsa → 409 `ORDER_MS_4008`.
-
-Result: `paymentStatus=PAID`, sifariş statusu `COMPLETED`, masa `AVAILABLE` olur (table-servis çağrılır).
-
-Success (200):
-```json
-{
-  "success": true,
-  "message": "Payment completed",
-  "errorCode": null,
-  "data": { "...Order (paymentStatus: PAID, status: COMPLETED)..." }
-}
-```
-
-Error (409) — ödəniş artıq tamamlanıb:
-```json
-{
-  "type": "about:blank",
-  "title": "Payment Completed",
-  "status": 409,
-  "detail": "Payment has already been completed for this order",
-  "instance": "trace:xxx",
-  "key": "ORDER_MS_4008",
-  "path": "/api/order-ms/v1/orders/550e8400-e29b-41d4-a716-446655440080/complete-payment",
-  "timestamp": "2026-07-30T12:00:00.000Z"
-}
-```
-
----
-
-### `POST /api/order-ms/v1/orders/{id}/start-preparing`
-
-**Bütün gözləyən maddələri `PREPARING` et.** Order status-u `PREPARING` olur.
-
-Headers: `Authorization: Bearer {token}`
-
-Request body yoxdur.
-
-**Business rules:**
-- Sifariş `CONFIRMED` və ya `PENDING` statusunda olmalıdır → deyilsə 400 `ORDER_MS_4001`.
-- `PENDING`/`CONFIRMED` maddələr `PREPARING` olur; `READY`/`SERVED`/`CANCELLED` maddələr dəyişmir.
-
-Success (200):
-```json
-{
-  "success": true,
-  "message": "Order is now being prepared",
-  "errorCode": null,
-  "data": { "...Order (status: PREPARING)..." }
-}
-```
-
----
-
-### `POST /api/order-ms/v1/orders/{id}/mark-all-ready`
-
-**Bütün maddələri `READY` et.** Order status-u `READY` olur.
-
-Headers: `Authorization: Bearer {token}`
-
-Request body yoxdur.
-
-**Business rules:**
-- `PREPARING` maddələr `READY` olur; digər maddələr dəyişmir.
-
-Success (200):
-```json
-{
-  "success": true,
-  "message": "All items are ready",
-  "errorCode": null,
-  "data": { "...Order (status: READY)..." }
-}
-```
-
----
-
-## 8. Kitchen — `kitchen-service` (port 8108)
+## 7. Kitchen — `kitchen-service` (port 8108)
 
 > API prefix: `/api/kitchen-ms/v1/...`
 > Response: `ApiResponse<T>` wrapper
-> **Order əməliyyatları** (`start-preparing`, `mark-all-ready`) `order-service`-də yerləşir (yuxarıya bax)
+> Error: Spring `ProblemDetail`; servis-specific `KitchenErrorCode` yoxdur — bütün xətalar **upstream** (`order-ms`, `ORDER_MS_*`) və ya ümumi kodlardan (`*_1000`, `*_4001`, `*_4003`, `*_9999`) gəlir
+> Context path: `/api/kitchen-ms`; gateway marşrutu: `/api/kitchen-ms/**` → `http://localhost:8108`
 
-### `GET /api/kitchen-ms/v1/orders`
+### Tenant & Giriş Qayraları
 
-**Mətbəx üçün sifarişlər, qruplaşdırılmış.**
+- Bütün endpoint-lər `Authorization: Bearer` tələb edir və `@PreAuthorize` permission kodu ilə qorunur.
+- Non-admin istifadəçi yalnız öz org-unun sifarişlərini görür; başqa org → **403** (`*_4003`).
 
-Headers: `Authorization: Bearer {token}`
+### Data Modelləri
 
-Query: `?orgId=550e8400-e29b-41d4-a716-446655440001`
+**`KitchenOrderResponse`**: `id`(String), `items[]`, `tableId`, `tableNumber`, `status`, `paymentStatus`, `totalAmount`, `waiterName`, `orderSource`, `createdAt`(Instant).
 
-Success (200):
+**`KitchenItemResponse`**: `id`(String), `menuItemId`, `menuItemName`, `quantity`, `price`, `notes`, `status`.
+
+**`KitchenOrderGroup`** (kitchen xüsusi): sifarişləri statusa görə qruplaşdırılmış wrapper.
+
+### Endpoints
+
+#### `GET /api/kitchen-ms/v1/orders`
+
+- **Auth:** Bearer
+- **Permission:** `kitchen.view`
+- Query: `orgId` (required)
+
+Məntiq: `order-ms`-dən **PREPARING / READY** sifarişlər götürülür, statusa görə qruplaşdırılır.
+
+Success (200): `KitchenOrderGroup`:
 ```json
 {
   "success": true,
   "message": "Success",
   "errorCode": null,
   "data": {
-    "new": [
-      {
-        "id": "550e8400-e29b-41d4-a716-446655440080",
-        "items": [
-          { "id": "uuid", "menuItemId": "uuid", "menuItemName": "Pomidor Şorbası", "quantity": 2, "price": 8.00, "notes": "", "status": "PENDING" }
-        ],
-        "tableId": "uuid", "tableNumber": 2, "status": "PENDING",
-        "paymentStatus": "PENDING", "totalAmount": 44.00,
-        "waiterName": "Leyla Hüseynova", "orderSource": "WAITER",
-        "createdAt": "2026-07-30T14:30:00Z"
-      },
-      {
-        "id": "550e8400-e29b-41d4-a716-446655440083",
-        "items": [
-          { "id": "uuid", "menuItemId": "uuid", "menuItemName": "Qızardılmış Balıq", "quantity": 1, "price": 18.00, "notes": "", "status": "CONFIRMED" }
-        ],
-        "tableId": "uuid", "tableNumber": 5, "status": "CONFIRMED",
-        "paymentStatus": "PENDING", "totalAmount": 18.00,
-        "waiterName": "Murad Əliyev", "orderSource": "WAITER",
-        "createdAt": "2026-07-30T14:35:00Z"
-      }
-    ],
-    "preparing": [
-      {
-        "id": "550e8400-e29b-41d4-a716-446655440084",
-        "items": [
-          { "id": "uuid", "menuItemId": "uuid", "menuItemName": "Margarita Pizza", "quantity": 2, "price": 18.00, "notes": "", "status": "PREPARING" }
-        ],
-        "tableId": "uuid", "tableNumber": 3, "status": "PREPARING",
-        "paymentStatus": "PENDING", "totalAmount": 36.00,
-        "waiterName": "Leyla Hüseynova", "orderSource": "CUSTOMER",
-        "createdAt": "2026-07-30T14:20:00Z"
-      }
-    ],
-    "ready": [
-      {
-        "id": "550e8400-e29b-41d4-a716-446655440085",
-        "items": [
-          { "id": "uuid", "menuItemId": "uuid", "menuItemName": "Cola", "quantity": 3, "price": 4.00, "notes": "", "status": "READY" }
-        ],
-        "tableId": "uuid", "tableNumber": 1, "status": "READY",
-        "paymentStatus": "PENDING", "totalAmount": 12.00,
-        "waiterName": "Murad Əliyev", "orderSource": "WAITER",
-        "createdAt": "2026-07-30T14:10:00Z"
-      }
-    ]
+    "preparing": [ /* KitchenOrderResponse[] */ ],
+    "ready": [ /* KitchenOrderResponse[] */ ]
   }
 }
 ```
 
-**Filter:**
-| Group | Status | Başlıq |
-|---|---|---|
-| `new` | `PENDING`, `CONFIRMED` | Yeni Sifarişlər |
-| `preparing` | `PREPARING` | Hazırlanır |
-| `ready` | `READY` | Hazırdır |
+> Qeyd: bu endpoint `KitchenService` vasitəsilə `order-ms`-ə **upstream** çağırış edir; `order-ms` əlçatmaz olarsa 502/503.
 
 ---
 
-## 9. Waiter — `waiter-service` (port 8109)
+## 8. Waiter — `waiter-service` (port 8109)
 
 > API prefix: `/api/waiter-ms/v1/...`
 > Response: `ApiResponse<T>` wrapper
-> **Not:** Aggregation service — öz DB-si yoxdur, digər servislərdən məlumatları birləşdirir.
-> Yalnız oxuma (GET) endpoint-ləri var; yazma əməliyyatı yoxdur.
+> Error: Spring `ProblemDetail`; key prefiksi `WAITER_MS_`
+> Context path: `/api/waiter-ms`; gateway marşrutu: `/api/waiter-ms/**` → `http://localhost:8109`
 
-### Auth & Tenant qaydaları
+### Tenant & Giriş Qayraları
 
-- Bütün endpoint-lər `Authorization: Bearer {token}` və ya gateway-dən ötürülən identity header-ları (`X-User-Id`, `X-Org-Id`, `X-Roles`, `X-Platform-Admin`, `X-Internal-Auth`) ilə işləyir.
-- Gateway müştəridən gələn bütün identity header-larını **silib** JWT-dən yenidən qoyur — kənar istifadəçi bu header-ları saxtalaşdıra bilməz; `X-Internal-Auth` secret-i yalnız gateway bilir.
-- `orgId` **tenant yoxlaması**: tələb olunur və autentifikasiya olunmuş istifadəçinin `orgId`-si ilə eyni olmalıdır.
-  - Uyğunsuzluq → **403** `WAITER_MS_3003` ACCESS_DENIED.
-  - `SUPER_ADMIN` (platform admin) istənilən `orgId`-ni oxuya bilər.
-  - Servislərarası (internal, `X-Internal-Auth`) çağrılar keçərlidir.
-- Upstream servis xətaları **səssiz boş cavab kimi yutulmur**:
-  - table-ms / order-ms əlçatmazdırsa (connect/timeout) → **503** `WAITER_MS_9001` UPSTREAM_UNAVAILABLE
-  - cavab formatı keçərsizdirsə (`success=false` və ya null data) → **502** `WAITER_MS_9002` UPSTREAM_ERROR
-  - table-ms / order-ms biznes xətası qaytararsa → onun öz error kodu olduğu kimi ötürülür (FeignClientException)
-- Nəticələr `createdAt` azalan sıra ilə, ən son **200** qeydlə məhdudlaşdırılır (memory/DoS qoruması).
+- Bütün endpoint-lər `Authorization: Bearer` tələb edir və `@PreAuthorize` permission kodu ilə qorunur.
+- Non-admin istifadəçi yalnız öz org-unun məlumatlarına girişir; başqa org → **403** (`WAITER_MS_3003`).
+- Bu servis yalnız **oxuma** (read) əməliyyatları edir; yazma əməliyyatları `order-ms`/`table-ms` üzərindədir.
 
-### Error kodları (WAITER_MS_*)
+### Waiter-servis Error Kodları
 
-| Code | HTTP | Mənası |
-|------|------|--------|
-| WAITER_MS_3003 | 403 | Başqa təşkilatın məlumatına giriş qadağandır |
-| WAITER_MS_9001 | 503 | Upstream servis müvəqqəti əlçatmazdır |
-| WAITER_MS_9002 | 502 | Upstream servis keçərsiz cavab qaytardı |
+| Kod | HTTP | Açıqlama |
+|---|---|---|
+| `WAITER_MS_3003` | 403 | Giriş qadağandır |
+| `WAITER_MS_9001` | 503 | Upstream servis əlçatmaz |
+| `WAITER_MS_9002` | 502 | Upstream servis xətası |
 
-### `GET /api/waiter-ms/v1/tables`
+### Data Modelləri
 
-**Ofisant paneli üçün masa məlumatları (aktiv sifarişlərlə).**
+**`WaiterTablesWrapper`**: masalar (status daxil) + tələb olunan köməkçi məlumat (məs. aktiv sifariş varlığı) ilə wrapper.
 
-Headers: `Authorization: Bearer {token}`
+**`WaiterOrderResponse`**: `id`(String), `tableId`, `tableNumber`, `items[]`, `status`, `paymentStatus`, `totalAmount`, `customerPhoto`, `paymentMethod`, `waiterConfirmed`, `paymentRequested`, `cancelReason`, `orgId`, `createdAt`, `updatedAt`.
 
-Query: `?orgId=550e8400-e29b-41d4-a716-446655440001`
+### Endpoints
 
-Davranış:
-- Masalar `tableNumber` artan sıra ilə qayıdır.
-- `orderSummary` yalnız masanın **cari sifarişindən** (`currentOrderId`) hesablanır — keçmiş/historiya sifarişlər deyil.
-- `section` section adıdır; tanınmayan/boş section üçün `""` qayıdır.
+#### `GET /api/waiter-ms/v1/tables`
 
-Success (200):
+- **Auth:** Bearer
+- **Permission:** `waiter.view`
+- Query: `orgId` (required)
+
+Məntiq: `table-ms`-dən masalar götürülür, hər masada aktiv sifariş varmı işarələnir.
+
+Success (200): `WaiterTablesWrapper`:
 ```json
 {
   "success": true,
@@ -2822,137 +1840,82 @@ Success (200):
   "data": {
     "tables": [
       {
-        "id": "550e8400-e29b-41d4-a716-446655440061",
-        "tableNumber": 2,
-        "capacity": 2,
-        "status": "OCCUPIED",
-        "section": "Zal 1",
-        "currentOrderId": "550e8400-e29b-41d4-a716-446655440080",
-        "orderSummary": {
-          "totalAmount": 44.00,
-          "itemCount": 3,
-          "status": "CONFIRMED"
-        }
-      },
-      {
-        "id": "550e8400-e29b-41d4-a716-446655440060",
+        "id": "bbbbbbbb-0000-4000-8000-000000000201",
         "tableNumber": 1,
-        "capacity": 2,
-        "status": "AVAILABLE",
-        "section": "Zal 1",
-        "currentOrderId": null,
-        "orderSummary": null
+        "capacity": 4,
+        "status": "OCCUPIED",
+        "sectionId": "aaaaaaaa-0000-4000-8000-000000000001",
+        "activeOrder": true,
+        "orgId": "01234567-89ab-cdef-0123-456789abcdef"
       }
     ]
   }
 }
 ```
 
-Error: 401 (token yox/keçərsiz), 403 `WAITER_MS_3003`, 503 `WAITER_MS_9001`, 502 `WAITER_MS_9002`.
+#### `GET /api/waiter-ms/v1/orders/pending-confirm`
+
+- **Auth:** Bearer
+- **Permission:** `waiter.view`
+- Query: `orgId` (required)
+
+Məntiq: `order-ms`-dən **PENDING + waiterConfirmed=false** sifarişlər (ofisiant təsdiqi gözləyənlər).
+
+Success (200): `WaiterOrderResponse[]`.
+
+#### `GET /api/waiter-ms/v1/orders/payment-requests`
+
+- **Auth:** Bearer
+- **Permission:** `waiter.view`
+- Query: `orgId` (required)
+
+Məntiq: `order-ms`-dən **paymentRequested=true + paymentStatus=PENDING** sifarişlər (müştəri hesab istəyib).
+
+Success (200): `WaiterOrderResponse[]`.
 
 ---
 
-### `GET /api/waiter-ms/v1/orders/pending-confirm`
-
-**Təsdiq gözləyən müştəri sifarişləri.**
-
-Headers: `Authorization: Bearer {token}`
-
-Query: `?orgId=550e8400-e29b-41d4-a716-446655440001`
-
-Filter: `waiterConfirmed=false`, `orderSource=CUSTOMER`, status `PENDING`. `createdAt` azalan sıra, maks 200.
-
-Success (200):
-```json
-{
-  "success": true,
-  "message": "Success",
-  "errorCode": null,
-  "data": [
-    { "id": "550e8400-e29b-41d4-a716-446655440080",
-    "items": [
-      { "id": "uuid", "menuItemId": "uuid", "menuItemName": "Pomidor Şorbası", "quantity": 2, "price": 8.00, "notes": "", "status": "PENDING" }
-    ],
-    "tableId": "uuid",
-    "tableNumber": 2,
-    "status": "PENDING",
-    "paymentStatus": "PENDING",
-    "totalAmount": 44.00,
-    "waiterId": null,
-    "waiterName": null,
-    "orderSource": "CUSTOMER",
-    "waiterConfirmed": false,
-    "confirmedBy": null,
-    "customerPhoto": "https://...",
-    "paymentMethod": null,
-    "paymentRequested": false,
-    "cancelReason": null,
-    "orgId": "550e8400-e29b-41d4-a716-446655440001",
-    "createdAt": "2026-07-30T14:30:00Z",
-    "updatedAt": "2026-07-30T14:30:00Z" }
-  ]
-}
-```
-
-Error: 401, 403 `WAITER_MS_3003`, 503 `WAITER_MS_9001`, 502 `WAITER_MS_9002`.
-
----
-
-### `GET /api/waiter-ms/v1/orders/payment-requests`
-
-**Ödəniş tələbi gözləyən sifarişlər.**
-
-Headers: `Authorization: Bearer {token}`
-
-Query: `?orgId=550e8400-e29b-41d4-a716-446655440001`
-
-Filter: `paymentRequested=true`, `paymentStatus=PENDING`. `createdAt` azalan sıra, maks 200.
-
-Success (200):
-```json
-{
-  "success": true,
-  "message": "Success",
-  "errorCode": null,
-  "data": [
-    { "id": "550e8400-e29b-41d4-a716-446655440080",
-    "items": [
-      { "id": "uuid", "menuItemId": "uuid", "menuItemName": "Pomidor Şorbası", "quantity": 2, "price": 8.00, "notes": "", "status": "PENDING" }
-    ],
-    "tableId": "uuid",
-    "tableNumber": 2,
-    "status": "CONFIRMED",
-    "paymentStatus": "PENDING",
-    "totalAmount": 44.00,
-    "waiterId": "uuid",
-    "waiterName": "Leyla Hüseynova",
-    "orderSource": "WAITER",
-    "waiterConfirmed": true,
-    "confirmedBy": "uuid",
-    "customerPhoto": null,
-    "paymentMethod": "CARD",
-    "paymentRequested": true,
-    "cancelReason": null,
-    "orgId": "550e8400-e29b-41d4-a716-446655440001",
-    "createdAt": "2026-07-30T14:30:00Z",
-    "updatedAt": "2026-07-30T14:30:00Z" }
-  ]
-}
-```
-
-Error: 401, 403 `WAITER_MS_3003`, 503 `WAITER_MS_9001`, 502 `WAITER_MS_9002`.
-
----
-
-## 10. Customer — `customer-service` (port 8110)
+## 9. Customer — `customer-service` (port 8110)
 
 > API prefix: `/api/customer-ms/v1/...`
 > Response: `ApiResponse<T>` wrapper
-> **Not:** Bu endpoint-lər AUTH TƏLƏB ETMİR. İctimai API-lərdir.
+> Error: Spring `ProblemDetail`; servis-specific `CustomerErrorCode` yoxdur — xətalar ümumi kodlardan (`*_1000` validation, `*_3001` 404, `*_9999` 500) və ya **upstream** (`MENU_MS_*`, `TABLE_MS_*`, `ORDER_MS_*`) gəlir
+> Context path: `/api/customer-ms`; gateway marşrutu: `/api/customer-ms/**` → `http://localhost:8110`
 
-### `GET /api/customer-ms/v1/{orgId}/menu`
+### Giriş Qayraları
 
-**Müştəri menyusu — kateqoriyalar + maddələr (yalnız `isAvailable=true`).**
+- **Auth tələb olunmur** — bu bölmə müştəri (QR skan edərək) tərəfindən istifadə olunur. Gateway-də `/api/customer-ms/**` **permitAll**.
+- Bütün əməliyyatlar `orgId` (path/query) üzərindən tenant-a bağlıdır.
+
+### Data Modelləri
+
+**`CustomerMenuResponse`**: `categories[]`, `items[]`.
+- **`CategoryResponse`** (customer): `id`, `name`(`LocalizedString`), `icon`.
+- **`ItemResponse`** (customer): `id`, `name`(`LocalizedString`), `description`(`LocalizedString`), `price`, `categoryId`, `imageUrl`, `@JsonProperty("isAvailable")`, `preparationTime`.
+
+**`CustomerOrderRequest`**:
+```json
+{
+  "orgId": "01234567-89ab-cdef-0123-456789abcdef",
+  "tableId": "bbbbbbbb-0000-4000-8000-000000000201",
+  "items": [
+    { "menuItemId": "bbbbbbbb-0000-4000-8000-000000000101", "menuItemName": "Toyuq Doner", "quantity": 2, "price": 9.50, "notes": "" }
+  ],
+  "customerPhoto": null,
+  "paymentMethod": "CARD"
+}
+```
+
+**`CustomerOrderResponse`**: müştəriyə qaytarılan yığcam sifariş modeli (`id`, `status`, `totalAmount`, `items[]`, ...).
+
+### Endpoints
+
+#### `GET /api/customer-ms/v1/{orgId}/menu`
+
+- **Auth:** public
+- Path: `orgId`
+
+Müştəri menyusu (yalnız **isAvailable=true** item-lər).
 
 Success (200):
 ```json
@@ -2961,184 +1924,80 @@ Success (200):
   "message": "Success",
   "errorCode": null,
   "data": {
-    "categories": [
-      {
-        "id": "550e8400-e29b-41d4-a716-446655440050",
-        "name": { "az": "Şorbalar", "en": "Soups", "ru": "Супы" },
-        "icon": "soup"
-      }
-    ],
-    "items": [
-      {
-        "id": "550e8400-e29b-41d4-a716-446655440040",
-        "name": { "az": "Pomidor Şorbası", "en": "Tomato Soup", "ru": "Томатный суп" },
-        "description": { "az": "Klassik pomidor şorbası", "en": "Classic tomato soup", "ru": "Классический томатный суп" },
-        "price": 8.00,
-        "categoryId": "550e8400-e29b-41d4-a716-446655440050",
-        "imageUrl": null,
-        "isAvailable": true,
-        "preparationTime": 10
-      }
-    ]
+    "categories": [ { "id": "aaaaaaaa-0000-4000-8000-000000000001", "name": { "az": "Qrilla", "en": "Grill", "ru": "Гриль" }, "icon": "🔥" } ],
+    "items": [ { "id": "bbbbbbbb-0000-4000-8000-000000000101", "name": { "az": "Toyuq Doner", "en": "Chicken Doner", "ru": "Куриный донер" }, "price": 9.50, "isAvailable": true, "preparationTime": 15 } ]
   }
 }
 ```
 
----
+#### `GET /api/customer-ms/v1/{orgId}/tables`
 
-### `GET /api/customer-ms/v1/{orgId}/tables`
+- **Auth:** public
+- Path: `orgId`
 
-**Müştəri üçün boş masalar (yalnız `status=AVAILABLE`).**
+QR-dakı masanın etibarlılığını yoxlamaq üçün. Success (200): `CustomerTableResponse[]` (yığcam masa modeli: `id`, `tableNumber`, `status`).
 
-Success (200):
-```json
-{
-  "success": true,
-  "message": "Success",
-  "errorCode": null,
-  "data": [
-    {
-      "id": "550e8400-e29b-41d4-a716-446655440060",
-      "tableNumber": 1,
-      "capacity": 2,
-      "sectionId": "550e8400-e29b-41d4-a716-446655440070"
-    }
-  ]
-}
-```
+#### `POST /api/customer-ms/v1/orders`
 
----
+- **Auth:** public
 
-### `POST /api/customer-ms/v1/orders`
+Müştəri sifarişi yaradır (`order-ms`-ə upstream, `orderSource=CUSTOMER`).
 
-**Müştəri sifarişi yarat.**
+Request: `CustomerOrderRequest`. Success (201): `CustomerOrderResponse` (`status=PENDING`).
+
+#### `GET /api/customer-ms/v1/orders/{orderId}`
+
+- **Auth:** public
+
+Müştəri sifarişinin statusunu izləyir. Success (200): `CustomerOrderResponse`.
+
+#### `POST /api/customer-ms/v1/orders/{orderId}/request-bill`
+
+- **Auth:** public
 
 Request:
 ```json
-{
-  "orgId": "550e8400-e29b-41d4-a716-446655440001",
-  "tableId": "550e8400-e29b-41d4-a716-446655440063",
-  "items": [
-    {
-      "menuItemId": "550e8400-e29b-41d4-a716-446655440042",
-      "menuItemName": "Margarita Pizza",
-      "quantity": 1,
-      "price": 18.00,
-      "notes": ""
-    }
-  ],
-  "customerPhoto": "data:image/jpeg;base64,...",
-  "paymentMethod": null
-}
+{ "method": "CASH" }
 ```
 
-> `paymentMethod` `paymentTiming=BEFORE` olduqda göndərilir (`CASH` və ya `CARD`), `AFTER` olduqda `null`.
-
-Success (201):
-```json
-{
-  "success": true,
-  "message": "Order placed",
-  "errorCode": null,
-  "data": { "id": "550e8400-e29b-41d4-a716-446655440080",
-    "items": [
-      { "id": "uuid", "menuItemId": "uuid", "menuItemName": "Pomidor Şorbası", "quantity": 2, "price": 8.00, "notes": "", "status": "PENDING" }
-    ],
-    "tableId": "uuid",
-    "tableNumber": 2,
-    "status": "PENDING",
-    "paymentStatus": "PENDING",
-    "totalAmount": 44.00,
-    "waiterId": "uuid",
-    "waiterName": "Leyla Hüseynova",
-    "orderSource": "WAITER",
-    "waiterConfirmed": false,
-    "confirmedBy": null,
-    "customerPhoto": null,
-    "paymentMethod": null,
-    "paymentRequested": false,
-    "cancelReason": null,
-    "orgId": "550e8400-e29b-41d4-a716-446655440001",
-    "createdAt": "2026-07-30T14:30:00Z",
-    "updatedAt": "2026-07-30T14:30:00Z" }
-}
-```
+Success (200): `CustomerOrderResponse` (`paymentRequested=true` — ofisiant təsdiqi gözləyir).
 
 ---
 
-### `GET /api/customer-ms/v1/orders/{orderId}`
-
-**Sifariş izləmə.**
-
-Headers: `Authorization: Bearer {token}` (opsional)
-
-Success (200):
-```json
-{
-  "success": true,
-  "message": "Success",
-  "errorCode": null,
-  "data": { "id": "550e8400-e29b-41d4-a716-446655440080",
-    "items": [
-      { "id": "uuid", "menuItemId": "uuid", "menuItemName": "Pomidor Şorbası", "quantity": 2, "price": 8.00, "notes": "", "status": "PENDING" }
-    ],
-    "tableId": "uuid",
-    "tableNumber": 2,
-    "status": "PENDING",
-    "paymentStatus": "PENDING",
-    "totalAmount": 44.00,
-    "waiterId": "uuid",
-    "waiterName": "Leyla Hüseynova",
-    "orderSource": "WAITER",
-    "waiterConfirmed": false,
-    "confirmedBy": null,
-    "customerPhoto": null,
-    "paymentMethod": null,
-    "paymentRequested": false,
-    "cancelReason": null,
-    "orgId": "550e8400-e29b-41d4-a716-446655440001",
-    "createdAt": "2026-07-30T14:30:00Z",
-    "updatedAt": "2026-07-30T14:30:00Z" }
-}
-```
-
----
-
-### `POST /api/customer-ms/v1/orders/{orderId}/request-bill`
-
-**Hesab tələbi.**
-
-Request:
-```json
-{
-  "method": "CASH"
-}
-```
-
-Success (200):
-```json
-{
-  "success": true,
-  "message": "Bill requested",
-  "errorCode": null,
-  "data": null
-}
-```
-
----
-
-## 11. Settings — `setting-service` (port 8111)
+## 10. Settings — `setting-service` (port 8111)
 
 > API prefix: `/api/setting-ms/v1/...`
 > Response: `ApiResponse<T>` wrapper
+> Error: Spring `ProblemDetail`; key prefiksi `SETTING_MS_`
+> Context path: `/api/setting-ms`; gateway marşrutu: `/api/setting-ms/**` → `http://localhost:8111`
 
-### `GET /api/setting-ms/v1/settings`
+### Tenant & Giriş Qayraları
 
-**Təşkilat parametrləri.**
+- Bütün endpoint-lər `Authorization: Bearer` tələb edir və `@PreAuthorize` permission kodu ilə qorunur.
+- Non-admin istifadəçi yalnız öz org-unun parametrlərini görür/dəyişir; başqa org → **403** (`*_4003`).
 
-Headers: `Authorization: Bearer {token}`
+### Setting-servis Error Kodları
 
-Query: `?orgId=550e8400-e29b-41d4-a716-446655440001`
+> `SettingErrorCode` enum-ından.
+
+| Kod | HTTP | Açıqlama |
+|---|---|---|
+| `SETTING_MS_3001` | 404 | Parametrlər tapılmadı (`SETTINGS_NOT_FOUND`) |
+| `SETTING_MS_4001` | 400 | Org tapılmadı (`ORGANIZATION_NOT_FOUND`) |
+
+### Data Modelləri
+
+**`SettingRequest`**: `orgId` (required), parametrlər (org başına yeganə sənəd) — məs. `restaurantName`, `currency`, `taxRate`, `serviceChargeRate`, `workingHours`, `logoUrl`, `contactPhone` (bütün sahələr optional, ortaq `Setting` modeli).
+
+**`SettingResponse`**: `orgId` + parametrlər (yuxarıdakı struktura uyğun).
+
+### Endpoints
+
+#### `GET /api/setting-ms/v1/settings`
+
+- **Auth:** Bearer
+- **Permission:** `settings.view`
+- Query: `orgId` (required)
 
 Success (200):
 ```json
@@ -3147,240 +2006,134 @@ Success (200):
   "message": "Success",
   "errorCode": null,
   "data": {
-    "orgId": "550e8400-e29b-41d4-a716-446655440001",
-    "orderMode": "CUSTOMER",
-    "customerPhotoRequired": false,
-    "paymentTiming": "AFTER",
-    "customerTheme": "CLASSIC"
+    "orgId": "01234567-89ab-cdef-0123-456789abcdef",
+    "restaurantName": "RestoFlow Demo",
+    "currency": "AZN",
+    "taxRate": 0.18,
+    "serviceChargeRate": 0.10,
+    "logoUrl": "https://cdn.example.com/logo.png",
+    "contactPhone": "+994 12 000 00 00"
   }
 }
 ```
 
-**Enum dəyərləri:**
+#### `PUT /api/setting-ms/v1/settings`
 
-| Field | Mümkün dəyərlər |
-|---|---|
-| `orderMode` | `WAITER`, `CUSTOMER`, `CUSTOMER_WAITER_CONFIRM`, `KITCHEN` |
-| `paymentTiming` | `BEFORE`, `AFTER` |
-| `customerTheme` | `CLASSIC`, `EMERALD`, `SUNSET`, `ROSE`, `VIOLET`, `AMBER` |
+- **Auth:** Bearer
+- **Permission:** `settings.edit`
 
----
-
-### `PUT /api/setting-ms/v1/settings`
-
-**Parametrləri yenilə.**
-
-Headers: `Authorization: Bearer {token}`
-
-Request:
-```json
-{
-  "orgId": "550e8400-e29b-41d4-a716-446655440001",
-  "orderMode": "CUSTOMER",
-  "customerPhotoRequired": true,
-  "paymentTiming": "BEFORE",
-  "customerTheme": "EMERALD"
-}
-```
-
-> Bütün field-lar göndərilməlidir (tam yeniləmə).
-
-Success (200):
-```json
-{
-  "success": true,
-  "message": "Settings updated",
-  "errorCode": null,
-  "data": { "...OrgSetting..." }
-}
-```
+Request: `SettingRequest` (dəyişdiriləcək sahələr). Success (200): `SettingResponse`.
 
 ---
 
-## 12. Dashboard — `dashboard-service` (port 8112)
+## 11. Dashboard — `dashboard-service` (port 8112)
 
 > API prefix: `/api/dashboard-ms/v1/...`
 > Response: `ApiResponse<T>` wrapper
-> **Not:** Aggregation service — öz DB-si yoxdur
+> Error: Spring `ProblemDetail`; servis-specific `DashboardErrorCode` yoxdur — bütün xətalar **upstream** (`ORDER_MS_*`, `ACCESS_MS_*`) və ya ümumi kodlardan (`*_4001`, `*_4003`, `*_9999`) gəlir
+> Context path: `/api/dashboard-ms`; gateway marşrutu: `/api/dashboard-ms/**` → `http://localhost:8112`
 
-### `GET /api/dashboard-ms/v1/stats`
+### Tenant & Giriş Qayraları
 
-**Ümumi statistika.**
+- Bütün endpoint-lər `Authorization: Bearer` tələb edir və `@PreAuthorize` permission kodu ilə qorunur.
+- Non-admin istifadəçi yalnız öz org-unun statistika məlumatlarına girişir; başqa org → **403** (`*_4003`).
+- Bu servis **oxuma** üçündür; bütün məlumat `order-ms`/`staff` üzərindən **upstream** toplanır.
 
-Headers: `Authorization: Bearer {token}`
+### Data Modelləri
 
-Query: `?orgId=550e8400-e29b-41d4-a716-446655440001`
+**`DashboardStatsResponse`**: bugünkü ümumi statistikalar — məs. `totalOrders`, `totalRevenue`, `averageOrderValue`, `activeOrders`, `cancelledOrders`, `topCategory`.
 
-Success (200):
+**`RecentOrderResponse`**: yığcam sifariş sətri — `id`, `tableNumber`, `totalAmount`, `status`, `paymentStatus`, `createdAt`.
+
+**`StaffListResponse`**: işçi xülasəsi — `userId`, `name`, `role`, `activeOrders`, `completedOrders`.
+
+**`TopItemResponse`**: ən çox satılan — `menuItemId`, `menuItemName`, `quantity`, `revenue`.
+
+### Endpoints
+
+#### `GET /api/dashboard-ms/v1/stats`
+
+- **Auth:** Bearer
+- **Permission:** `dashboard.view`
+- Query: `orgId` (required)
+
+Success (200): `DashboardStatsResponse`:
 ```json
 {
   "success": true,
   "message": "Success",
   "errorCode": null,
   "data": {
-    "totalRevenue": 15240.00,
-    "completedOrders": 128,
-    "activeOrders": 7,
-    "occupiedTables": 4
+    "totalOrders": 42,
+    "totalRevenue": 785.50,
+    "averageOrderValue": 18.70,
+    "activeOrders": 6,
+    "cancelledOrders": 2,
+    "topCategory": "Qrilla"
   }
 }
 ```
 
----
+#### `GET /api/dashboard-ms/v1/top-items`
 
-### `GET /api/dashboard-ms/v1/top-items`
+- **Auth:** Bearer
+- **Permission:** `dashboard.view`
+- Query: `orgId` (required), `limit` (optional, default 5)
 
-**Ən çox satılan 5 məhsul.**
+Success (200): `TopItemResponse[]`.
 
-Headers: `Authorization: Bearer {token}`
+#### `GET /api/dashboard-ms/v1/recent-orders`
 
-Query: `?orgId=550e8400-e29b-41d4-a716-446655440001`
+- **Auth:** Bearer
+- **Permission:** `dashboard.view`
+- Query: `orgId` (required), `limit` (optional)
 
-Success (200):
-```json
-{
-  "success": true,
-  "message": "Success",
-  "errorCode": null,
-  "data": [
-    {
-      "menuItemId": "550e8400-e29b-41d4-a716-446655440040",
-      "name": { "az": "Pomidor Şorbası", "en": "Tomato Soup", "ru": "Томатный суп" },
-      "count": 45
-    },
-    {
-      "menuItemId": "550e8400-e29b-41d4-a716-446655440041",
-      "name": { "az": "Lülə Kebab", "en": "Lule Kebab", "ru": "Люля-кебаб" },
-      "count": 38
-    }
-  ]
-}
-```
+Success (200): `RecentOrderResponse[]`.
+
+#### `GET /api/dashboard-ms/v1/staff-list`
+
+- **Auth:** Bearer
+- **Permission:** `dashboard.view`
+- Query: `orgId` (required)
+
+Success (200): `StaffListResponse[]`.
 
 ---
 
-### `GET /api/dashboard-ms/v1/recent-orders`
-
-**Son 6 sifariş.**
-
-Headers: `Authorization: Bearer {token}`
-
-Query: `?orgId=550e8400-e29b-41d4-a716-446655440001`
-
-Success (200):
-```json
-{
-  "success": true,
-  "message": "Success",
-  "errorCode": null,
-  "data": [
-    {
-      "id": "550e8400-e29b-41d4-a716-446655440080",
-      "tableNumber": 2,
-      "waiterName": "Leyla Hüseynova",
-      "totalAmount": 44.00,
-      "status": "COMPLETED",
-      "createdAt": "2026-07-30T18:30:00.000Z"
-    }
-  ]
-}
-```
-
----
-
-### `GET /api/dashboard-ms/v1/staff-list`
-
-**Aktiv personal (sifariş sayı ilə).**
-
-Headers: `Authorization: Bearer {token}`
-
-Query: `?orgId=550e8400-e29b-41d4-a716-446655440001`
-
-Success (200):
-```json
-{
-  "success": true,
-  "message": "Success",
-  "errorCode": null,
-  "data": [
-    {
-      "id": "550e8400-e29b-41d4-a716-446655440010",
-      "name": "Leyla Hüseynova",
-      "role": "WAITER",
-      "activeOrders": 3
-    }
-  ]
-}
-```
-
----
-
-## 13. Reports — `report-service` (port 8113)
+## 12. Reports — `report-service` (port 8113)
 
 > API prefix: `/api/report-ms/v1/...`
 > Response: `ApiResponse<T>` wrapper
-> **Not:** Aggregation service — öz DB-si yoxdur
+> Error: Spring `ProblemDetail`; servis-specific `ReportErrorCode` yoxdur — bütün xətalar **upstream** (`ORDER_MS_*`, `ACCESS_MS_*`) və ya ümumi kodlardan (`*_4001`, `*_4003`, `*_9999`) gəlir
+> Context path: `/api/report-ms`; gateway marşrutu: `/api/report-ms/**` → `http://localhost:8113`
 
-### `GET /api/report-ms/v1/summary`
+### Tenant & Giriş Qayraları
 
-**Xülasə.**
+- Bütün endpoint-lər `Authorization: Bearer` tələb edir və `@PreAuthorize` permission kodu ilə qorunur.
+- Non-admin istifadəçi yalnız öz org-unun hesabatlarına girişir; başqa org → **403** (`*_4003`).
+- Tarix aralığı query ilə: `startDate`, `endDate` (ISO `LocalDate`, optional — göstərilməsə **bugün**). Bu servis **oxuma** üçündür.
 
-Headers: `Authorization: Bearer {token}`
+### Data Modelləri
 
-Query: `?orgId=550e8400-e29b-41d4-a716-446655440001`
+**`SummaryResponse`**: `totalRevenue`, `totalOrders`, `averageOrderValue`, `totalItemsSold`, `completedOrders`, `cancelledOrders`.
 
-Success (200):
-```json
-{
-  "success": true,
-  "message": "Success",
-  "errorCode": null,
-  "data": {
-    "totalRevenue": 15240.00,
-    "completed": 128,
-    "cancelled": 5,
-    "avgOrderValue": 119.06
-  }
-}
-```
+**`DailyRevenueResponse`**: `date`, `revenue`, `orderCount`.
 
----
+**`HourlyResponse`**: `hour` (0-23), `revenue`, `orderCount`.
 
-### `GET /api/report-ms/v1/daily-revenue`
+**`SalesByCategoryResponse`**: `categoryName`, `quantity`, `revenue`.
 
-**Son 7 günlük gəlir.**
+**`TopItemResponse`** (report): `menuItemId`, `menuItemName`, `quantity`, `revenue`.
 
-Headers: `Authorization: Bearer {token}`
+**`StaffPerformanceResponse`**: `userId`, `name`, `role`, `totalOrders`, `completedOrders`, `revenue`, `activeOrders`.
 
-Query: `?orgId=550e8400-e29b-41d4-a716-446655440001`
+### Endpoints
 
-Success (200):
-```json
-{
-  "success": true,
-  "message": "Success",
-  "errorCode": null,
-  "data": [
-    { "date": "2026-07-24", "revenue": 2150.00, "orderCount": 18 },
-    { "date": "2026-07-25", "revenue": 1890.00, "orderCount": 15 },
-    { "date": "2026-07-26", "revenue": 2450.00, "orderCount": 22 },
-    { "date": "2026-07-27", "revenue": 3120.00, "orderCount": 28 },
-    { "date": "2026-07-28", "revenue": 1780.00, "orderCount": 14 },
-    { "date": "2026-07-29", "revenue": 1980.00, "orderCount": 16 },
-    { "date": "2026-07-30", "revenue": 1870.00, "orderCount": 15 }
-  ]
-}
-```
+#### `GET /api/report-ms/v1/summary`
 
----
-
-### `GET /api/report-ms/v1/hourly`
-
-**Saatlıq sifariş paylanması (24 saat).**
-
-Headers: `Authorization: Bearer {token}`
-
-Query: `?orgId=550e8400-e29b-41d4-a716-446655440001`
+- **Auth:** Bearer
+- **Permission:** `report.view`
+- Query: `orgId` (required), `startDate`, `endDate` (optional)
 
 Success (200):
 ```json
@@ -3389,303 +2142,431 @@ Success (200):
   "message": "Success",
   "errorCode": null,
   "data": {
-    "hourly": [0, 0, 0, 0, 0, 0, 0, 0, 5, 8, 12, 18, 22, 15, 10, 14, 20, 25, 18, 12, 8, 3, 0, 0]
+    "totalRevenue": 4520.00,
+    "totalOrders": 240,
+    "averageOrderValue": 18.83,
+    "totalItemsSold": 610,
+    "completedOrders": 228,
+    "cancelledOrders": 12
   }
 }
 ```
 
-> Array indeksi saatı göstərir (0=00:00, 23=23:00).
+#### `GET /api/report-ms/v1/daily-revenue`
 
----
+- **Auth:** Bearer
+- **Permission:** `report.view`
+- Query: `orgId` (required), `startDate`, `endDate` (optional)
 
-### `GET /api/report-ms/v1/sales-by-category`
-
-**Kateqoriyaya görə satış.**
-
-Headers: `Authorization: Bearer {token}`
-
-Query: `?orgId=550e8400-e29b-41d4-a716-446655440001`
-
-Success (200):
+Success (200): `DailyRevenueResponse[]`:
 ```json
-{
-  "success": true,
-  "message": "Success",
-  "errorCode": null,
-  "data": [
-    {
-      "categoryId": "550e8400-e29b-41d4-a716-446655440050",
-      "name": { "az": "Şorbalar", "en": "Soups", "ru": "Супы" },
-      "count": 85
-    },
-    {
-      "categoryId": "550e8400-e29b-41d4-a716-446655440051",
-      "name": { "az": "Əsas Yeməklər", "en": "Main Courses", "ru": "Основные блюда" },
-      "count": 62
-    }
-  ]
-}
+{ "data": [ { "date": "2026-08-06", "revenue": 1520.50, "orderCount": 80 } ] }
 ```
 
-> `count` = satılan maddələrin ümumi sayı (quantity cəmi).
+#### `GET /api/report-ms/v1/hourly`
 
----
+- **Auth:** Bearer
+- **Permission:** `report.view`
+- Query: `orgId` (required), `startDate`, `endDate` (optional)
 
-### `GET /api/report-ms/v1/top-items`
-
-**Ən çox satılan 8 məhsul (gəlirlə).**
-
-Headers: `Authorization: Bearer {token}`
-
-Query: `?orgId=550e8400-e29b-41d4-a716-446655440001`
-
-Success (200):
+Success (200): `HourlyResponse[]`:
 ```json
-{
-  "success": true,
-  "message": "Success",
-  "errorCode": null,
-  "data": [
-    {
-      "menuItemId": "550e8400-e29b-41d4-a716-446655440041",
-      "name": { "az": "Lülə Kebab", "en": "Lule Kebab", "ru": "Люля-кебаб" },
-      "count": 38,
-      "revenue": 1064.00
-    }
-  ]
-}
+{ "data": [ { "hour": 13, "revenue": 210.00, "orderCount": 12 } ] }
 ```
 
----
+#### `GET /api/report-ms/v1/sales-by-category`
 
-### `GET /api/report-ms/v1/staff-performance`
+- **Auth:** Bearer
+- **Permission:** `report.view`
+- Query: `orgId` (required), `startDate`, `endDate` (optional)
 
-**Personal performansı.**
-
-Headers: `Authorization: Bearer {token}`
-
-Query: `?orgId=550e8400-e29b-41d4-a716-446655440001`
-
-Success (200):
+Success (200): `SalesByCategoryResponse[]`:
 ```json
-{
-  "success": true,
-  "message": "Success",
-  "errorCode": null,
-  "data": [
-    {
-      "userId": "550e8400-e29b-41d4-a716-446655440010",
-      "name": "Leyla Hüseynova",
-      "role": "WAITER",
-      "totalOrders": 45,
-      "completedOrders": 40,
-      "revenue": 4800.00
-    }
-  ]
-}
+{ "data": [ { "categoryName": "Qrilla", "quantity": 180, "revenue": 1650.00 } ] }
 ```
 
+#### `GET /api/report-ms/v1/top-items`
+
+- **Auth:** Bearer
+- **Permission:** `report.view`
+- Query: `orgId` (required), `startDate`, `endDate` (optional), `limit` (optional, default 10)
+
+Success (200): `TopItemResponse[]`.
+
+#### `GET /api/report-ms/v1/staff-performance`
+
+- **Auth:** Bearer
+- **Permission:** `report.view`
+- Query: `orgId` (required), `startDate`, `endDate` (optional)
+
+Success (200): `StaffPerformanceResponse[]`.
+
 ---
 
-## 14. Microservice Architecture & Port Plan
+## 13. Microservice Architecture & Port Plan
 
-| Service | Module Name | Port | API Prefix | Purpose |
+```
+                         ┌──────────────────────────────┐
+      Client (Web/QR)    │        cloud-gateway          │   :8001
+      ──────────────────►│  (Spring Cloud Gateway)       │
+                         └──────────────┬───────────────┘
+                                        │ routes by context path
+        ┌───────────┬───────────┬───────┴────────┬───────────┬───────────┐
+        ▼           ▼           ▼                ▼           ▼           ▼
+   :8002       :8102      :8105..:8113       :8120        Keycloak    Postgres/
+  auth-ms    org-ms      order/table/menu/    access-ms    (:8443)    Mongo/Redis
+ (gateway)               kitchen/waiter/                  (resto realm)
+                         customer/setting/
+                         dashboard/report
+```
+
+| Service | Module | Port | Context path | Service key |
 |---|---|---|---|---|
-| **API Gateway** | `cloud-gateway` | 8001 | `/api/...` (route) | Gateway, auth filter, routing |
-| **Auth** | `auth-gateway` | 8002 | `/api/auth-ms/v1/auth/` | Login, JWT, refresh (Keycloak proxy) |
-| **Organization** | `organization-service` | 8102 | `/api/organization-ms/v1/` | Org CRUD |
-| **User / Staff** | `user-service` | 8103 | `/api/user-ms/v1/` | User/staff CRUD, staff perf |
-| **Role** | `role-service` | 8104 | `/api/role-ms/v1/` | Role/permission CRUD |
-| **Menu** | `menu-service` | 8105 | `/api/menu-ms/v1/` | Menu items & categories |
-| **Table** | `table-service` | 8106 | `/api/table-ms/v1/` | Table & section management |
-| **Order** | `order-service` | 8107 | `/api/order-ms/v1/` | Order lifecycle, cart |
-| **Kitchen** | `kitchen-service` | 8108 | `/api/kitchen-ms/v1/` | Kitchen order views |
-| **Waiter** | `waiter-service` | 8109 | `/api/waiter-ms/v1/` | Waiter-specific aggregated data |
-| **Customer** | `customer-service` | 8110 | `/api/customer-ms/v1/` | Public menu & order placement |
-| **Settings** | `setting-service` | 8111 | `/api/setting-ms/v1/` | Org settings |
-| **Dashboard** | `dashboard-service` | 8112 | `/api/dashboard-ms/v1/` | Dashboard aggregates |
-| **Reports** | `report-service` | 8113 | `/api/report-ms/v1/` | Report aggregates |
+| `cloud-gateway` | Gateway (Spring Cloud) | 8001 | `/` | `GATEWAY` |
+| `auth-gateway` | Auth (Keycloak proxy) | 8002 | `/api/auth-ms` | `AUTH` |
+| `access-service` | Users / Roles / Permissions | 8120 | `/api/access-ms` | `ACCESS_MS` |
+| `organization-service` | Organization + Org admin bootstrap | 8102 | `/api/organization-ms` | `ORG` |
+| `menu-service` | Menu categories & items | 8105 | `/api/menu-ms` | `MENU_MS` |
+| `table-service` | Tables & sections | 8106 | `/api/table-ms` | `TABLE_MS` |
+| `order-service` | Orders & payments | 8107 | `/api/order-ms` | `ORDER_MS` |
+| `kitchen-service` | Kitchen panel (read) | 8108 | `/api/kitchen-ms` | `KITCHEN_MS` |
+| `waiter-service` | Waiter panel (read) | 8109 | `/api/waiter-ms` | `WAITER_MS` |
+| `customer-service` | Customer QR flow | 8110 | `/api/customer-ms` | `CUSTOMER_MS` |
+| `setting-service` | Org settings | 8111 | `/api/setting-ms` | `SETTING_MS` |
+| `dashboard-service` | Dashboard stats | 8112 | `/api/dashboard-ms` | `DASHBOARD_MS` |
+| `report-service` | Reports | 8113 | `/api/report-ms` | `REPORT_MS` |
+
+### Autentifikasiya axını
+
+1. Client `POST /api/auth-ms/v1/auth/login` → auth-gateway `KeycloakClient.login()` → Keycloak token endpoint-i.
+2. `JwtTokenValidator.extractClaims()` → claims `sub`, `organizationId`, `roles`, `permissions`, `uiScope` parse olunur.
+3. auth-gateway cavabı: `accessToken`, `refreshToken`, `expiresIn`, `tokenType`, `user`, `uiScope`, `permissions`.
+4. Sonrakı bütün sorğularda client `Authorization: Bearer <accessToken>` göndərir; cloud-gateway tokeni doğrulayır.
+5. cloud-gateway-in `ClaimsForwardingFilter`-i claim-ləri header kimi downstream-ə ötürür: `X-User-Id`, `X-Org-Id`, `X-Roles`, `X-Permissions`, `X-UI-Scope`, `X-Platform-Admin`, `X-Internal-Auth`.
+6. Hər microservice `HeaderAuthenticationFilter`-i bu header-lərdən `UserPrincipal` qurur; `@PreAuthorize("@perm.has('...')")` ilə icazə yoxlanır.
+
+### Request axını (tenant + permission)
+
+```
+Client ──Bearer JWT──► Gateway ──► Service
+                        │
+                        ├─ X-Org-Id  → Service org-id ilə filterləyir (tenant izolyasiya)
+                        ├─ X-Platform-Admin → true → bütün org-lara giriş
+                        └─ X-Permissions → @perm.has() yoxlaması (DB fallback)
+```
+
+- **Platform admin** (`SUPER_ADMIN` rollu) bütün permission yoxlamalarını bypass edir və istənilən org üzərində işləyir.
+- **ORG_ADMIN** yalnız öz org-u üzərində — bütün `organization.view/create/edit/delete`, `staff.*`, `role.*`, `permission.*`, `settings.*` (ümumilikdə 38 perm) icazəsinə sahibdir.
+
+### Upstream (feign) əlaqələri
+
+| Service | Çağırır | Port |
+|---|---|---|
+| `organization-service` | `access-service` (role assign), `setting-service`, `table-service`, `order-service` | 8120, 8111, 8106, 8107 |
+| `kitchen-service` | `order-service` (PREPARING/READY sifarişlər) | 8107 |
+| `waiter-service` | `table-service`, `order-service` | 8106, 8107 |
+| `customer-service` | `menu-service`, `table-service`, `order-service` | 8105, 8106, 8107 |
+| `dashboard-service` | `order-service`, `access-service` (staff) | 8107, 8120 |
+| `report-service` | `order-service`, `access-service` | 8107, 8120 |
 
 ---
 
-## 15. Complete API Route Index (by module)
+## 14. Complete API Route Index (by module)
 
-```
-AUTH          (/api/auth-ms/v1/auth/)
-  POST          /login
-  POST          /refresh
-  POST          /logout
+> Bütün sorğular (public qeyd olunanlar istisna) `Authorization: Bearer` tələb edir. `Perm` sütunu tələb olunan `@PreAuthorize` kodudur.
 
-ORGANIZATION  (/api/organization-ms/v1/)
-  GET           /organizations
-  POST          /organizations
-  GET           /organizations/{id}
-  GET           /organizations/{id}/qr-code
+### Auth — auth-gateway (:8002)
 
-USER          (/api/user-ms/v1/)
-  GET           /users
-  GET           /users/{id}
-  POST          /users
-  PUT           /users/{id}
-  DELETE        /users/{id}
-  GET           /users/staff-performance
-  PUT           /users/clear-role?roleId={roleId}
+| Method | Path | Auth | Perm | Açıqlama |
+|---|---|---|---|---|
+| POST | `/api/auth-ms/v1/auth/login` | public | – | Giriş → JWT + uiScope + permissions |
+| POST | `/api/auth-ms/v1/auth/refresh` | public | – | Refresh token |
+| POST | `/api/auth-ms/v1/auth/logout` | Bearer | – | Çıxış (refresh token) |
 
-ROLE          (/api/role-ms/v1/)
-  GET           /roles
-  GET           /roles/{id}
-  POST          /roles
-  PUT           /roles/{id}
-  DELETE        /roles/{id}
-  GET           /roles/permissions
+### Access — access-service (:8120)
 
-MENU          (/api/menu-ms/v1/)
-  GET           /items
-  GET           /items/{id}
-  POST          /items
-  PUT           /items/{id}
-  DELETE        /items/{id}
-  POST          /items/{id}/image
-  DELETE        /items/{id}/image
-  GET           /categories
-  GET           /categories/{id}
-  POST          /categories
-  PUT           /categories/{id}
-  DELETE        /categories/{id}
+| Method | Path | Auth | Perm | Açıqlama |
+|---|---|---|---|---|
+| GET | `/api/access-ms/v1/users` | Bearer | `staff.view` | İşçi siyahısı (orgId, roleId, q, page, size) |
+| GET | `/api/access-ms/v1/users/{id}` | Bearer | `staff.view` | İşçi detalları |
+| POST | `/api/access-ms/v1/users` | Bearer | `staff.create` | İşçi yarat (Keycloak + DB) |
+| PUT | `/api/access-ms/v1/users/{id}` | Bearer | `staff.edit` | İşçi redaktə |
+| DELETE | `/api/access-ms/v1/users/{id}` | Bearer | `staff.delete` | Soft-delete (Keycloak da silinir) |
+| DELETE | `/api/access-ms/v1/users/{id}/role` | Bearer | `role.assign` | İşçidən rol götür |
+| GET | `/api/access-ms/v1/users/staff-performance` | Bearer | `staff.view` | İşçi performans xülasəsi |
+| GET | `/api/access-ms/v1/roles` | Bearer | `role.view` | Rol siyahısı (q, page, size) |
+| GET | `/api/access-ms/v1/roles/{id}` | Bearer | `role.view` | Rol detalları (+permissions) |
+| POST | `/api/access-ms/v1/roles` | Bearer | `role.create` | Rol yarat |
+| PUT | `/api/access-ms/v1/roles/{id}` | Bearer | `role.edit` | Rol redaktə |
+| DELETE | `/api/access-ms/v1/roles/{id}` | Bearer | `role.delete` | Soft-delete (sistem roluna 403) |
+| GET | `/api/access-ms/v1/roles/system/{code}` | Bearer | `role.view` | Sistem rolunu koda görə al |
+| POST | `/api/access-ms/v1/roles/{id}/permissions` | Bearer | `role.edit` | Rol-a permission təyin et |
+| PUT | `/api/access-ms/v1/roles/{id}/permissions` | Bearer | `role.edit` | Rol permission-larını tam dəyiş |
+| DELETE | `/api/access-ms/v1/roles/{id}/permissions/{permissionId}` | Bearer | `role.edit` | Bir permission-u sil |
+| POST | `/api/access-ms/v1/roles/{id}/users` | Bearer | `role.assign` | Rol-a istifadəçilər təyin et |
+| GET | `/api/access-ms/v1/roles/{id}/users` | Bearer | `role.view` | Rolun istifadəçiləri |
+| DELETE | `/api/access-ms/v1/roles/{id}/users/{userId}` | Bearer | `role.assign` | İstifadəçini roldan çıxar |
+| GET | `/api/access-ms/v1/permissions/my` | Bearer | (isAuthenticated) | Cari istifadəçinin permission-ları |
+| GET | `/api/access-ms/v1/permissions` | Bearer | `permission.view` | Permission kataloqu (q, module, uiGroup, page, size) |
+| GET | `/api/access-ms/v1/permissions/tree` | Bearer | `permission.view` | Module→UI Group→Permission ağacı |
+| GET | `/api/access-ms/v1/permissions/by-module` | Bearer | `permission.view` | Modula görə permission-lar |
+| GET | `/api/access-ms/v1/permissions/by-ui-group` | Bearer | `permission.view` | UI Group-a görə permission-lar |
+| GET | `/api/access-ms/v1/modules` | Bearer | `permission.view` | Modul siyahısı |
+| GET | `/api/access-ms/v1/ui-groups` | Bearer | `permission.view` | UI Group siyahısı |
 
-TABLE         (/api/table-ms/v1/)
-  GET           /tables
-  GET           /tables/{id}
-  POST          /tables
-  PUT           /tables/{id}
-  DELETE        /tables/{id}
-  PUT           /tables/{id}/status
-  PUT           /tables/{id}/reservation
-  DELETE        /tables/{id}/reservation
-  GET           /sections
-  POST          /sections
-  PUT           /sections/{id}
-  DELETE        /sections/{id}
+### Organization — organization-service (:8102)
 
-ORDER         (/api/order-ms/v1/)
-  GET           /orders
-  GET           /orders/{id}
-  POST          /orders
-  PUT           /orders/{id}/status
-  PUT           /orders/{id}/items/{itemId}/status
-  POST          /orders/{id}/items
-  PUT           /orders/{id}/waiter-confirm
-  POST          /orders/{id}/cancel
-  POST          /orders/{id}/request-payment
-  POST          /orders/{id}/complete-payment
-  POST          /orders/{id}/start-preparing
-  POST          /orders/{id}/mark-all-ready
+| Method | Path | Auth | Perm | Açıqlama |
+|---|---|---|---|---|
+| GET | `/api/organization-ms/v1/organizations` | Bearer | `organization.view` | Org siyahısı |
+| POST | `/api/organization-ms/v1/organizations` | Bearer | `organization.create` | Org + ORG_ADMIN yarat |
+| GET | `/api/organization-ms/v1/organizations/{orgId}` | Bearer | `organization.view` | Org detalları |
+| GET | `/api/organization-ms/v1/organizations/{orgId}/qr-code` | Bearer | `organization.view` | QR URL (müştəri paneli) |
 
-KITCHEN       (/api/kitchen-ms/v1/)
-  GET           /orders
+### Menu — menu-service (:8105)
 
-WAITER        (/api/waiter-ms/v1/)
-  GET           /tables
-  GET           /orders/pending-confirm
-  GET           /orders/payment-requests
+| Method | Path | Auth | Perm | Açıqlama |
+|---|---|---|---|---|
+| GET | `/api/menu-ms/v1/categories` | Bearer | `menu.view` | Kateqoriyalar (orgId) |
+| POST | `/api/menu-ms/v1/categories` | Bearer | `menu.create` | Kateqoriya yarat |
+| PUT | `/api/menu-ms/v1/categories/{id}` | Bearer | `menu.edit` | Kateqoriya redaktə |
+| DELETE | `/api/menu-ms/v1/categories/{id}` | Bearer | `menu.delete` | Kateqoriya sil (moveItemsTo) |
+| GET | `/api/menu-ms/v1/items` | Bearer | `menu.view` | Menyu item-ləri (orgId, categoryId, q, page, size) |
+| GET | `/api/menu-ms/v1/items/{id}` | Bearer | `menu.view` | Item detalları |
+| POST | `/api/menu-ms/v1/items` | Bearer | `menu.create` | Item yarat |
+| PUT | `/api/menu-ms/v1/items/{id}` | Bearer | `menu.edit` | Item redaktə |
+| DELETE | `/api/menu-ms/v1/items/{id}` | Bearer | `menu.delete` | Item sil |
+| GET | `/api/menu-ms/v1/images/**` | public | – | Şəkil (statik) |
 
-CUSTOMER      (/api/customer-ms/v1/)
-  GET           /{orgId}/menu
-  GET           /{orgId}/tables
-  POST          /orders
-  GET           /orders/{orderId}
-  POST          /orders/{orderId}/request-bill
+### Table — table-service (:8106)
 
-SETTINGS      (/api/setting-ms/v1/)
-  GET           /settings
-  PUT           /settings
+| Method | Path | Auth | Perm | Açıqlama |
+|---|---|---|---|---|
+| GET | `/api/table-ms/v1/tables` | Bearer | `table.view` | Masalar (orgId, sectionId, status) |
+| GET | `/api/table-ms/v1/tables/{id}` | Bearer | `table.view` | Masa detalları |
+| POST | `/api/table-ms/v1/tables` | Bearer | `table.create` | Masa yarat |
+| PUT | `/api/table-ms/v1/tables/{id}` | Bearer | `table.edit` | Masa redaktə |
+| DELETE | `/api/table-ms/v1/tables/{id}` | Bearer | `table.delete` | Masa sil |
+| PUT | `/api/table-ms/v1/tables/{id}/status` | Bearer | `table.status` | Status keçidi |
+| PUT | `/api/table-ms/v1/tables/{id}/reservation` | Bearer | `table.reserve` | Rezerv yarat |
+| DELETE | `/api/table-ms/v1/tables/{id}/reservation` | Bearer | `table.reserve` | Rezerv sil |
+| GET | `/api/table-ms/v1/sections` | Bearer | `table.view` | Seksiyalar (orgId) |
+| POST | `/api/table-ms/v1/sections` | Bearer | `table.create` | Seksiya yarat |
+| PUT | `/api/table-ms/v1/sections/{id}` | Bearer | `table.edit` | Seksiya redaktə |
+| DELETE | `/api/table-ms/v1/sections/{id}` | Bearer | `table.delete` | Seksiya sil |
 
-DASHBOARD     (/api/dashboard-ms/v1/)
-  GET           /stats
-  GET           /top-items
-  GET           /recent-orders
-  GET           /staff-list
+### Order — order-service (:8107)
 
-REPORTS       (/api/report-ms/v1/)
-  GET           /summary
-  GET           /daily-revenue
-  GET           /hourly
-  GET           /sales-by-category
-  GET           /top-items
-  GET           /staff-performance
-```
+| Method | Path | Auth | Perm | Açıqlama |
+|---|---|---|---|---|
+| GET | `/api/order-ms/v1/orders` | Bearer | `order.view` | Sifarişlər (orgId, status, tableId, waiterId) |
+| GET | `/api/order-ms/v1/orders/{id}` | Bearer | `order.view` | Sifariş detalları |
+| POST | `/api/order-ms/v1/orders` | Bearer | `order.create` | Sifariş yarat |
+| PUT | `/api/order-ms/v1/orders/{id}/status` | Bearer | `order.manage` | Order status keçidi |
+| PUT | `/api/order-ms/v1/orders/{id}/items/{itemId}/status` | Bearer | `order.manage` | Item status keçidi |
+| POST | `/api/order-ms/v1/orders/{id}/items` | Bearer | `order.manage` | Item-lər əlavə et |
+| PUT | `/api/order-ms/v1/orders/{id}/waiter-confirm` | Bearer | `order.manage` | Ofisiant təsdiqi |
+| POST | `/api/order-ms/v1/orders/{id}/cancel` | Bearer | `order.cancel` | Ləğv et |
+| POST | `/api/order-ms/v1/orders/{id}/request-payment` | Bearer | `order.payment` | Hesab istə (paylaşımlı) |
+| POST | `/api/order-ms/v1/orders/{id}/complete-payment` | Bearer | `order.payment` | Ödənişi tamamla |
+| POST | `/api/order-ms/v1/orders/{id}/start-preparing` | Bearer | `order.manage` | Hazırlanmaya başla |
+| POST | `/api/order-ms/v1/orders/{id}/mark-all-ready` | Bearer | `order.manage` | Hamısı hazır |
 
----
+### Kitchen — kitchen-service (:8108)
 
-## 16. Common Shared Types (for reference)
+| Method | Path | Auth | Perm | Açıqlama |
+|---|---|---|---|---|
+| GET | `/api/kitchen-ms/v1/orders` | Bearer | `kitchen.view` | PREPARING/READY sifarişlər (qruplaşdırılmış) |
 
-Hamısı `common-core` modulunda yerləşir:
+### Waiter — waiter-service (:8109)
 
-```java
-// === Enums ===
-UserRole        { ADMIN, ORG_ADMIN, WAITER, CHEF, CUSTOMER }
-TableStatus     { AVAILABLE, OCCUPIED, RESERVED, CLEANING }
-OrderStatus     { PENDING, CONFIRMED, PREPARING, READY, SERVED, COMPLETED, CANCELLED }
-PaymentStatus   { PENDING, PAID }
-PaymentMethod   { CASH, CARD }
-OrderMode       { WAITER, CUSTOMER, CUSTOMER_WAITER_CONFIRM, KITCHEN }
-OrderSource     { WAITER, CUSTOMER }
-CustomerTheme   { CLASSIC, EMERALD, SUNSET, ROSE, VIOLET, AMBER }
-PaymentTiming   { BEFORE, AFTER }
-UiScope         { ADMIN_PANEL, USER_PANEL }  // auth-gateway-specific
+| Method | Path | Auth | Perm | Açıqlama |
+|---|---|---|---|---|
+| GET | `/api/waiter-ms/v1/tables` | Bearer | `waiter.view` | Masalar + aktiv sifariş işarəsi |
+| GET | `/api/waiter-ms/v1/orders/pending-confirm` | Bearer | `waiter.view` | Təsdiq gözləyən sifarişlər |
+| GET | `/api/waiter-ms/v1/orders/payment-requests` | Bearer | `waiter.view` | Hesab istənmiş sifarişlər |
 
-// === JSON Columns (PostgreSQL jsonb) ===
-LocalizedString   { az, en, ru }
-TableReservation  { guestName, phone, time, guestCount, notes }
+### Customer — customer-service (:8110)
 
-// === Common fields (SoftDeletableCoreEntity) ===
-id: UUID (PK)
-createdAt: Instant
-updatedAt: Instant
-createdBy: UUID
-updatedBy: UUID
-isDeleted: boolean
-deletedAt: Instant
-deletedBy: UUID
-orgId: UUID (nullable, multi-tenant)
-```
+| Method | Path | Auth | Perm | Açıqlama |
+|---|---|---|---|---|
+| GET | `/api/customer-ms/v1/{orgId}/menu` | public | – | Müştəri menyusu |
+| GET | `/api/customer-ms/v1/{orgId}/tables` | public | – | Masa yoxlaması (QR) |
+| POST | `/api/customer-ms/v1/orders` | public | – | Müştəri sifarişi |
+| GET | `/api/customer-ms/v1/orders/{orderId}` | public | – | Sifariş statusu |
+| POST | `/api/customer-ms/v1/orders/{orderId}/request-bill` | public | – | Hesab istə |
 
-**Permission constants:**
-```
-dashboard.view, menu.view, menu.create, menu.edit, menu.delete,
-tables.view, tables.manage, tables.status,
-orders.view, orders.manage, orders.cancel,
-reports.view,
-staff.view, staff.create, staff.edit, staff.delete,
-roles.view, roles.create, roles.edit, roles.delete,
-kitchen.view, kitchen.manage,
-settings.view, settings.edit
-```
+### Settings — setting-service (:8111)
+
+| Method | Path | Auth | Perm | Açıqlama |
+|---|---|---|---|---|
+| GET | `/api/setting-ms/v1/settings` | Bearer | `settings.view` | Org parametrləri |
+| PUT | `/api/setting-ms/v1/settings` | Bearer | `settings.edit` | Parametrləri yenilə |
+
+### Dashboard — dashboard-service (:8112)
+
+| Method | Path | Auth | Perm | Açıqlama |
+|---|---|---|---|---|
+| GET | `/api/dashboard-ms/v1/stats` | Bearer | `dashboard.view` | Ümumi statistika |
+| GET | `/api/dashboard-ms/v1/top-items` | Bearer | `dashboard.view` | Ən çox satılanlar |
+| GET | `/api/dashboard-ms/v1/recent-orders` | Bearer | `dashboard.view` | Son sifarişlər |
+| GET | `/api/dashboard-ms/v1/staff-list` | Bearer | `dashboard.view` | İşçi xülasəsi |
+
+### Reports — report-service (:8113)
+
+| Method | Path | Auth | Perm | Açıqlama |
+|---|---|---|---|---|
+| GET | `/api/report-ms/v1/summary` | Bearer | `report.view` | Xülasə |
+| GET | `/api/report-ms/v1/daily-revenue` | Bearer | `report.view` | Gündəlik gəlir |
+| GET | `/api/report-ms/v1/hourly` | Bearer | `report.view` | Saatlıq gəlir |
+| GET | `/api/report-ms/v1/sales-by-category` | Bearer | `report.view` | Kateqoriya üzrə satış |
+| GET | `/api/report-ms/v1/top-items` | Bearer | `report.view` | Ən çox satılanlar |
+| GET | `/api/report-ms/v1/staff-performance` | Bearer | `report.view` | İşçi performansı |
 
 ---
 
-## 17. Gradle Modules
+## 15. Common Shared Types (for reference)
 
-Bütün modullar hazırdır (`settings.gradle`):
+> `common-*` modullarında tanımlanır; bütün servislərdə istifadə olunur.
 
-```gradle
-include 'auth-gateway'
-include 'cloud-gateway'
-include 'common-core'
-include 'common-jpa'
-include 'common-exception-handling'
-include 'common-security'
-include 'db-migrations'
-include 'organization-service'
-include 'user-service'
-include 'role-service'
-include 'menu-service'
-include 'table-service'
-include 'order-service'
-include 'kitchen-service'
-include 'waiter-service'
-include 'customer-service'
-include 'setting-service'
-include 'dashboard-service'
-include 'report-service'
+### `ApiResponse<T>`
+
+```json
+{ "success": true, "message": "Success", "errorCode": null, "data": { } }
 ```
+
+`errorCode` səhv halda `"PREFIX_XXXX"` (məs. `ORDER_MS_3001`), uğurda `null`.
+
+### `PageDto<T>`
+
+```json
+{
+  "content": [ ],
+  "page": 0,
+  "size": 20,
+  "totalElements": 1,
+  "totalPages": 1,
+  "first": true,
+  "last": true,
+  "empty": false
+}
+```
+
+- Səhifələmə: `page` (0-dan), `size` (default 20, max 100).
+- Filter: `q` (search) — ad/kod üzrə (case-insensitive).
+
+### `LocalizedString`
+
+```json
+{ "az": "Toyuq Doner", "en": "Chicken Doner", "ru": "Куриный донер" }
+```
+
+`az` mütləq (required, max 100), `en`/`ru` optional. Yoxlamalar: boş string qadağan.
+
+### `UiScope` (enum)
+
+`SUPER_ADMIN_PANEL`, `ADMIN_PANEL`, `WAITER_PANEL`, `KITCHEN_PANEL`
+
+- Front bu dəyərlə login cavabındakı `uiScope`-dən panel seçir.
+- Fallback: platform admin → `SUPER_ADMIN_PANEL`, digər staff → `ADMIN_PANEL`.
+
+### Ümumi enum-lar
+
+| Enum | Dəyərlər |
+|---|---|
+| `OrderStatus` | `PENDING`, `CONFIRMED`, `PREPARING`, `READY`, `SERVED`, `COMPLETED`, `CANCELLED` |
+| `PaymentStatus` | `PENDING`, `PAID` |
+| `PaymentMethod` | `CASH`, `CARD` |
+| `OrderSource` | `WAITER`, `CUSTOMER` |
+| `TableStatus` | `AVAILABLE`, `OCCUPIED`, `RESERVED`, `CLEANING` |
+
+### Tenant header-ləri (gateway → service)
+
+| Header | Məzmun | Mənbə (claim) |
+|---|---|---|
+| `X-User-Id` | İstifadəçi UUID | `sub` |
+| `X-Org-Id` | Org UUID | `organizationId` |
+| `X-Roles` | Rol kodları (CSV) | `roles` |
+| `X-Permissions` | Permission kodları (CSV) | `permissions` |
+| `X-UI-Scope` | `UiScope` dəyəri | `uiScope` |
+| `X-Platform-Admin` | `true`/`false` | `roles`-də `SUPER_ADMIN` |
+| `X-Internal-Auth` | Daxili servis imzası | Gateway tərəfindən əlavə edilir |
+
+> `X-Internal-Auth` olmadan gələn sorğular `HeaderAuthenticationFilter` tərəfindən **401** alır (servislərarası qorunma).
+
+### Validation Error forması (400)
+
+```json
+{
+  "type": "about:blank",
+  "title": "Validation Failed",
+  "status": 400,
+  "detail": "Validation failed for one or more fields",
+  "instance": "/api/menu-ms/v1/items",
+  "key": "MENU_MS_1000",
+  "path": "/api/menu-ms/v1/items",
+  "timestamp": "2026-08-06T12:00:00.000Z",
+  "fieldErrors": [
+    { "field": "price", "message": "must be greater than 0" }
+  ]
+}
+```
+
+> `key` formatı `{SERVICE_KEY}_{CODE}`; `instance` trace header-i varsa `trace:<traceId>`, yoxsa request URI.
+> BaseException error-larında property `errorCode` deyil, `key`-dir (bax: `AbstractGlobalExceptionHandler`).
+
+### Ümumi error kodları (bütün servislərdə)
+
+| Code | HTTP | Açıqlama |
+|---|---|---|
+| `*_1000` | 400 | Validation / tələb formatı səhvi |
+| `*_3001` | 404 | Resurs tapılmadı |
+| `*_3003` | 403 | Başqa org / permission yoxdur |
+| `*_4001` | 401 | Token yoxdur / keçərsiz |
+| `*_4003` | 403 | Permission yoxdur |
+| `*_9001`/`*_9002` | 503/502 | Upstream servis əlçatmaz / xəta |
+| `*_9999` | 500 | Gözlənilməz xəta |
+
+---
+
+## 16. Gradle Modules
+
+> Çoxmodullu Gradle layihəsi; `common-*` modulları bütün servislərdə ortaq olaraq istifadə olunur.
+
+| Modul | Rol |
+|---|---|
+| `common-core` | Ortaq tiplər: `ApiResponse`, `PageDto`, `UiScope`, `LocalizedString`, enum-lar |
+| `common-exception-handling` | `ErrorCode`, `CommonErrorCode`, `BaseException`, `AbstractGlobalExceptionHandler`, `ErrorProperties` (service-key), `FeignClientException` |
+| `common-security` | `HeaderAuthenticationFilter`, `JwtUserPrincipalConverter`, `UserPrincipal`, `PermissionEvaluator`, `SecurityConfig`, `KeycloakJwtDecoder` |
+| `common-jpa` | Ortaq JPA konfiqurasiyası / audit |
+| `cloud-gateway` | Spring Cloud Gateway; `JwtAuthenticationFilter`, `ClaimsForwardingFilter`, `GatewaySecurityConfig`, CORS |
+| `auth-gateway` | Login/refresh/logout proxy (Keycloak); `KeycloakClient`, `JwtTokenValidator`, `KeycloakAuthService` |
+| `access-service` | Users / Roles / Permissions / Modules / UI Groups (RBAC core) |
+| `organization-service` | Organization CRUD + ORG_ADMIN bootstrap; `RoleServiceClient` (feign) |
+| `menu-service` | Menu categories & items + lokalizasiya + şəkil |
+| `table-service` | Tables & sections + status + rezerv |
+| `order-service` | Orders, items, status maşını, ödənişlər |
+| `kitchen-service` | Kitchen panel (read, order-ms-ə upstream) |
+| `waiter-service` | Waiter panel (read, table-ms/order-ms-ə upstream) |
+| `customer-service` | Customer QR flow (public, menu/table/order-ms-ə upstream) |
+| `setting-service` | Org parametrləri |
+| `dashboard-service` | Dashboard statistika (order/access-ms-ə upstream) |
+| `report-service` | Hesabatlar (order/access-ms-ə upstream) |
+| `db-migrations` | Liquibase changelog + seed məlumatları (`003-insert-access-data.yml` RBAC seed) |
+| `script` | `resto-realm.json` — Keycloak realm exportu (mappers daxil) |
+
+---
+
+
+
+
+
+
+
+
+
+
+
+
+
+

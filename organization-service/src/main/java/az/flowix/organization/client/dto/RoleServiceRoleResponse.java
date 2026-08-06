@@ -17,7 +17,9 @@ import java.util.UUID;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class RoleServiceRoleResponse {
     UUID id;
+    String code;
     String name;
+    String uiScope;
     List<String> permissions;
     Boolean isSystem;
     UUID orgId;

@@ -1,0 +1,63 @@
+databaseChangeLog:
+  - changeSet:
+      id: 012-fix-access-uniqueness-soft-delete
+      author: rajabmirzayev
+      changes:
+        # Replace plain unique constraints on soft-deletable tables with partial
+        # unique indexes so soft-deleted rows can be re-created with the same code.
+        - sql:
+            dbms: postgresql
+            sql: |
+              ALTER TABLE resto_access.roles DROP CONSTRAINT IF EXISTS uq_roles_org_code;
+              CREATE UNIQUE INDEX uq_roles_org_code
+                ON resto_access.roles (org_id, code)
+                WHERE is_deleted = false;
+        - sql:
+            dbms: postgresql
+            sql: |
+              DROP INDEX IF EXISTS resto_access.uq_roles_system_code;
+              CREATE UNIQUE INDEX uq_roles_system_code
+                ON resto_access.roles (code)
+                WHERE org_id IS NULL AND is_deleted = false;
+        - sql:
+            dbms: postgresql
+            sql: |
+              ALTER TABLE resto_access.modules DROP CONSTRAINT IF EXISTS uq_modules_code;
+              CREATE UNIQUE INDEX uq_modules_code
+                ON resto_access.modules (code)
+                WHERE is_deleted = false;
+        - sql:
+            dbms: postgresql
+            sql: |
+              ALTER TABLE resto_access.ui_groups DROP CONSTRAINT IF EXISTS uq_ui_groups_code;
+              CREATE UNIQUE INDEX uq_ui_groups_code
+                ON resto_access.ui_groups (code)
+                WHERE is_deleted = false;
+        - sql:
+            dbms: postgresql
+            sql: |
+              ALTER TABLE resto_access.permissions DROP CONSTRAINT IF EXISTS uq_permissions_code;
+              CREATE UNIQUE INDEX uq_permissions_code
+                ON resto_access.permissions (code)
+                WHERE is_deleted = false;
+        - sql:
+            dbms: postgresql
+            sql: |
+              ALTER TABLE resto_access.users DROP CONSTRAINT IF EXISTS uq_users_username_org;
+              CREATE UNIQUE INDEX uq_users_username_org
+                ON resto_access.users (username, org_id)
+                WHERE is_deleted = false;
+        - sql:
+            dbms: postgresql
+            sql: |
+              ALTER TABLE resto_access.users DROP CONSTRAINT IF EXISTS uq_users_email_org;
+              CREATE UNIQUE INDEX uq_users_email_org
+                ON resto_access.users (email, org_id)
+                WHERE is_deleted = false;
+        - sql:
+            dbms: postgresql
+            sql: |
+              ALTER TABLE resto_access.users DROP CONSTRAINT IF EXISTS uq_users_keycloak_id;
+              CREATE UNIQUE INDEX uq_users_keycloak_id
+                ON resto_access.users (keycloak_id)
+                WHERE is_deleted = false;

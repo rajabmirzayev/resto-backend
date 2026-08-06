@@ -1,5 +1,6 @@
 package az.flowix.common.security.filter;
 
+import az.flowix.common.enums.UiScope;
 import az.flowix.common.security.model.UserPrincipal;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -24,6 +25,8 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
     public static final String HEADER_USER_ID = "X-User-Id";
     public static final String HEADER_ORG_ID = "X-Org-Id";
     public static final String HEADER_ROLES = "X-Roles";
+    public static final String HEADER_PERMISSIONS = "X-Permissions";
+    public static final String HEADER_UI_SCOPE = "X-UI-Scope";
     public static final String HEADER_PLATFORM_ADMIN = "X-Platform-Admin";
     public static final String HEADER_INTERNAL_AUTH = "X-Internal-Auth";
 
@@ -50,9 +53,11 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
             if (userId != null && !userId.isBlank()) {
                 var orgId = request.getHeader(HEADER_ORG_ID);
                 var roles = parseSet(request.getHeader(HEADER_ROLES));
+                var permissions = parseSet(request.getHeader(HEADER_PERMISSIONS));
+                var uiScope = parseUiScope(request.getHeader(HEADER_UI_SCOPE));
                 var platformAdmin = Boolean.TRUE.toString().equalsIgnoreCase(request.getHeader(HEADER_PLATFORM_ADMIN));
 
-                var principal = new UserPrincipal(userId, orgId, roles, platformAdmin);
+                var principal = new UserPrincipal(userId, orgId, roles, permissions, uiScope, platformAdmin);
 
                 var authorities = roles.stream()
                         .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
@@ -95,6 +100,17 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
                 .map(String::trim)
                 .filter(s -> !s.isBlank())
                 .collect(Collectors.toSet());
+    }
+
+    private UiScope parseUiScope(String header) {
+        if (header == null || header.isBlank()) {
+            return null;
+        }
+        try {
+            return UiScope.valueOf(header.trim());
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
 }

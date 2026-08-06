@@ -12,13 +12,13 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
-@FeignClient(name = "user-service", url = "${service.user.url}")
+@FeignClient(name = "access-service", url = "${service.access.url}")
 public interface UserServiceClient {
 
-    @PostMapping("/api/user-ms/v1/users")
+    @PostMapping("/api/access-ms/v1/users")
     ApiResponse<UserServiceUserResponse> createUser(@RequestBody UserServiceCreateUserRequest request);
 
-    @DeleteMapping("/api/user-ms/v1/users/{id}")
+    @DeleteMapping("/api/access-ms/v1/users/{id}")
     ApiResponse<Void> deleteUser(@PathVariable("id") UUID id);
 
 }

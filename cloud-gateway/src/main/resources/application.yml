@@ -67,14 +67,10 @@ spring:
               uri: ${GW_SETTING_URL:http://localhost:8111}
               predicates:
                 - Path=/api/setting-ms/**
-            - id: role-management
-              uri: ${GW_ROLE_URL:http://localhost:8104}
+            - id: access-management
+              uri: ${GW_ACCESS_URL:http://localhost:8120}
               predicates:
-                - Path=/api/role-ms/**
-            - id: user-management
-              uri: ${GW_USER_URL:http://localhost:8103}
-              predicates:
-                - Path=/api/user-ms/**
+                - Path=/api/access-ms/**
             - id: menu-management
               uri: ${GW_MENU_URL:http://localhost:8105}
               predicates:

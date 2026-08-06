@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.UUID;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -27,6 +28,7 @@ public class WaiterController {
     }
 
     @GetMapping("/tables")
+    @PreAuthorize("@perm.has('waiter.view')")
     public ResponseEntity<ApiResponse<WaiterTablesWrapper>> getTables(
             @RequestParam UUID orgId,
             @AuthenticationPrincipal UserPrincipal principal) {
@@ -34,6 +36,7 @@ public class WaiterController {
     }
 
     @GetMapping("/orders/pending-confirm")
+    @PreAuthorize("@perm.has('waiter.view')")
     public ResponseEntity<ApiResponse<List<WaiterOrderResponse>>> getPendingConfirmOrders(
             @RequestParam UUID orgId,
             @AuthenticationPrincipal UserPrincipal principal) {
@@ -41,6 +44,7 @@ public class WaiterController {
     }
 
     @GetMapping("/orders/payment-requests")
+    @PreAuthorize("@perm.has('waiter.view')")
     public ResponseEntity<ApiResponse<List<WaiterOrderResponse>>> getPaymentRequests(
             @RequestParam UUID orgId,
             @AuthenticationPrincipal UserPrincipal principal) {

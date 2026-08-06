@@ -21,5 +21,4 @@ public class UserServiceCreateUserRequest {
     UUID roleId;
     UUID orgId;
     String email;
-    String role;
 }

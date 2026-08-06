@@ -25,10 +25,8 @@ spring:
     basename: messages,i18n/messages
 
 service:
-  role:
-    url: ${ROLE_SERVICE_URL:http://localhost:8104}
-  user:
-    url: ${USER_SERVICE_URL:http://localhost:8103}
+  access:
+    url: ${ACCESS_SERVICE_URL:http://localhost:8120}
   setting:
     url: ${SETTING_SERVICE_URL:http://localhost:8111}
   table:

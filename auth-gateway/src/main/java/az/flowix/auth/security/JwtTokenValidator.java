@@ -17,25 +17,38 @@ public class JwtTokenValidator {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public List<String> extractRoles(String accessToken) {
+        var roles = extractClaims(accessToken).get("roles");
+        return stringList(roles);
+    }
+
+    public Map<String, Object> extractClaims(String accessToken) {
         try {
             var payload = decodePayload(accessToken);
-            Map<String, Object> claims = objectMapper.readValue(payload, new TypeReference<>() {
+            return objectMapper.readValue(payload, new TypeReference<>() {
             });
-
-            var roles = claims.get("roles");
-            if (roles instanceof List<?> roleList) {
-                return roleList.stream()
-                        .filter(String.class::isInstance)
-                        .map(String.class::cast)
-                        .toList();
-
-            }
-
-            return Collections.emptyList();
         } catch (Exception ex) {
-            log.warn("Failed to extract roles from JWT", ex);
-            return Collections.emptyList();
+            log.warn("Failed to extract claims from JWT", ex);
+            return Collections.emptyMap();
         }
+    }
+
+    public List<String> extractPermissions(String accessToken) {
+        return stringList(extractClaims(accessToken).get("permissions"));
+    }
+
+    public String extractUiScope(String accessToken) {
+        var scope = extractClaims(accessToken).get("uiScope");
+        return scope instanceof String value ? value : null;
+    }
+
+    private List<String> stringList(Object value) {
+        if (value instanceof List<?> list) {
+            return list.stream()
+                    .filter(String.class::isInstance)
+                    .map(String.class::cast)
+                    .toList();
+        }
+        return List.of();
     }
 
     private String decodePayload(String jwt) {

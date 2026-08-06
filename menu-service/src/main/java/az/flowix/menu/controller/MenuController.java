@@ -21,6 +21,7 @@ import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -50,6 +51,7 @@ public class MenuController {
     // ======================== Categories ========================
 
     @GetMapping("/categories")
+    @PreAuthorize("@perm.has('menu.view')")
     public ResponseEntity<ApiResponse<List<CategoryResponse>>> getAllCategories(
             @RequestParam UUID orgId,
             @AuthenticationPrincipal UserPrincipal principal) {
@@ -58,6 +60,7 @@ public class MenuController {
     }
 
     @GetMapping("/categories/{id}")
+    @PreAuthorize("@perm.has('menu.view')")
     public ResponseEntity<ApiResponse<CategoryResponse>> getCategory(
             @PathVariable UUID id,
             @AuthenticationPrincipal UserPrincipal principal) {
@@ -66,6 +69,7 @@ public class MenuController {
     }
 
     @PostMapping("/categories")
+    @PreAuthorize("@perm.has('menu.create')")
     public ResponseEntity<ApiResponse<CategoryResponse>> createCategory(
             @Valid @RequestBody CategoryRequest request,
             @AuthenticationPrincipal UserPrincipal principal) {
@@ -75,6 +79,7 @@ public class MenuController {
     }
 
     @PutMapping("/categories/{id}")
+    @PreAuthorize("@perm.has('menu.edit')")
     public ResponseEntity<ApiResponse<CategoryResponse>> updateCategory(
             @PathVariable UUID id,
             @Valid @RequestBody CategoryUpdateRequest request,
@@ -84,6 +89,7 @@ public class MenuController {
     }
 
     @DeleteMapping("/categories/{id}")
+    @PreAuthorize("@perm.has('menu.delete')")
     public ResponseEntity<ApiResponse<Void>> deleteCategory(
             @PathVariable UUID id,
             @RequestBody(required = false) CategoryDeleteRequest request,
@@ -95,6 +101,7 @@ public class MenuController {
     // ======================== Menu Items ========================
 
     @GetMapping("/items")
+    @PreAuthorize("@perm.has('menu.view')")
     public ResponseEntity<ApiResponse<List<MenuItemResponse>>> getAllItems(
             @RequestParam(required = false) UUID orgId,
             @RequestParam(required = false) UUID categoryId,
@@ -105,6 +112,7 @@ public class MenuController {
     }
 
     @GetMapping("/items/{id}")
+    @PreAuthorize("@perm.has('menu.view')")
     public ResponseEntity<ApiResponse<MenuItemResponse>> getItem(
             @PathVariable UUID id,
             @AuthenticationPrincipal UserPrincipal principal) {
@@ -113,6 +121,7 @@ public class MenuController {
     }
 
     @PostMapping("/items")
+    @PreAuthorize("@perm.has('menu.create')")
     public ResponseEntity<ApiResponse<MenuItemResponse>> createItem(
             @Valid @RequestBody MenuItemRequest request,
             @AuthenticationPrincipal UserPrincipal principal) {
@@ -122,6 +131,7 @@ public class MenuController {
     }
 
     @PutMapping("/items/{id}")
+    @PreAuthorize("@perm.has('menu.edit')")
     public ResponseEntity<ApiResponse<MenuItemResponse>> updateItem(
             @PathVariable UUID id,
             @Valid @RequestBody MenuItemUpdateRequest request,
@@ -131,6 +141,7 @@ public class MenuController {
     }
 
     @DeleteMapping("/items/{id}")
+    @PreAuthorize("@perm.has('menu.delete')")
     public ResponseEntity<ApiResponse<Void>> deleteItem(
             @PathVariable UUID id,
             @AuthenticationPrincipal UserPrincipal principal) {
@@ -139,6 +150,7 @@ public class MenuController {
     }
 
     @PostMapping(value = "/items/{id}/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("@perm.has('menu.edit')")
     public ResponseEntity<ApiResponse<ImageUploadResponse>> uploadImage(
             @PathVariable UUID id,
             @RequestPart("file") MultipartFile file,
@@ -151,6 +163,7 @@ public class MenuController {
     }
 
     @DeleteMapping("/items/{id}/image")
+    @PreAuthorize("@perm.has('menu.edit')")
     public ResponseEntity<ApiResponse<Void>> deleteImage(
             @PathVariable UUID id,
             @AuthenticationPrincipal UserPrincipal principal) {

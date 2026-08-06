@@ -1,8 +1,11 @@
 package az.flowix.common.security.config;
 
 import az.flowix.common.exception.handling.model.TraceHeaders;
+import az.flowix.common.security.access.PermissionEvaluator;
 import az.flowix.common.security.converter.JwtUserPrincipalConverter;
 import az.flowix.common.security.filter.HeaderAuthenticationFilter;
+import az.flowix.common.security.resolver.HeaderBasedPermissionResolver;
+import az.flowix.common.security.resolver.PermissionResolver;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
@@ -82,6 +85,18 @@ public class SecurityConfig {
                 .addFilterBefore(headerAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(PermissionResolver.class)
+    public PermissionResolver permissionResolver() {
+        return new HeaderBasedPermissionResolver();
+    }
+
+    @Bean("perm")
+    @ConditionalOnMissingBean(PermissionEvaluator.class)
+    public PermissionEvaluator permissionEvaluator(PermissionResolver permissionResolver) {
+        return new PermissionEvaluator(permissionResolver);
     }
 
     @Bean

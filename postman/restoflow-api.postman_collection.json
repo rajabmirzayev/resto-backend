@@ -214,7 +214,7 @@
       ]
     },
     {
-      "name": "User / Staff (user-service, port 8103)",
+      "name": "User / Staff (access-service, port 8120)",
       "item": [
         {
           "name": "GET /users",
@@ -222,13 +222,13 @@
             "auth": "inherit",
             "method": "GET",
             "url": {
-              "raw": "{{base_url}}/api/user-ms/v1/users",
+              "raw": "{{base_url}}/api/access-ms/v1/users",
               "host": [
                 "{{base_url}}"
               ],
               "path": [
                 "api",
-                "user-ms",
+                "access-ms",
                 "v1",
                 "users"
               ]
@@ -242,13 +242,13 @@
             "auth": "inherit",
             "method": "GET",
             "url": {
-              "raw": "{{base_url}}/api/user-ms/v1/users/{id}",
+              "raw": "{{base_url}}/api/access-ms/v1/users/{id}",
               "host": [
                 "{{base_url}}"
               ],
               "path": [
                 "api",
-                "user-ms",
+                "access-ms",
                 "v1",
                 "users",
                 "{id}"
@@ -269,13 +269,13 @@
             "auth": "inherit",
             "method": "POST",
             "url": {
-              "raw": "{{base_url}}/api/user-ms/v1/users",
+              "raw": "{{base_url}}/api/access-ms/v1/users",
               "host": [
                 "{{base_url}}"
               ],
               "path": [
                 "api",
-                "user-ms",
+                "access-ms",
                 "v1",
                 "users"
               ]
@@ -299,13 +299,13 @@
             "auth": "inherit",
             "method": "PUT",
             "url": {
-              "raw": "{{base_url}}/api/user-ms/v1/users/{id}",
+              "raw": "{{base_url}}/api/access-ms/v1/users/{id}",
               "host": [
                 "{{base_url}}"
               ],
               "path": [
                 "api",
-                "user-ms",
+                "access-ms",
                 "v1",
                 "users",
                 "{id}"
@@ -336,13 +336,13 @@
             "auth": "inherit",
             "method": "DELETE",
             "url": {
-              "raw": "{{base_url}}/api/user-ms/v1/users/{id}",
+              "raw": "{{base_url}}/api/access-ms/v1/users/{id}",
               "host": [
                 "{{base_url}}"
               ],
               "path": [
                 "api",
-                "user-ms",
+                "access-ms",
                 "v1",
                 "users",
                 "{id}"
@@ -363,13 +363,13 @@
             "auth": "inherit",
             "method": "GET",
             "url": {
-              "raw": "{{base_url}}/api/user-ms/v1/users/staff-performance",
+              "raw": "{{base_url}}/api/access-ms/v1/users/staff-performance",
               "host": [
                 "{{base_url}}"
               ],
               "path": [
                 "api",
-                "user-ms",
+                "access-ms",
                 "v1",
                 "users",
                 "staff-performance"
@@ -390,13 +390,13 @@
             "auth": "inherit",
             "method": "PUT",
             "url": {
-              "raw": "{{base_url}}/api/user-ms/v1/users/clear-role",
+              "raw": "{{base_url}}/api/access-ms/v1/users/clear-role",
               "host": [
                 "{{base_url}}"
               ],
               "path": [
                 "api",
-                "user-ms",
+                "access-ms",
                 "v1",
                 "users",
                 "clear-role"
@@ -414,7 +414,7 @@
       ]
     },
     {
-      "name": "Role (role-service, port 8104)",
+      "name": "Role (access-service, port 8120)",
       "item": [
         {
           "name": "GET /roles",
@@ -422,13 +422,13 @@
             "auth": "inherit",
             "method": "GET",
             "url": {
-              "raw": "{{base_url}}/api/role-ms/v1/roles",
+              "raw": "{{base_url}}/api/access-ms/v1/roles",
               "host": [
                 "{{base_url}}"
               ],
               "path": [
                 "api",
-                "role-ms",
+                "access-ms",
                 "v1",
                 "roles"
               ]
@@ -442,13 +442,13 @@
             "auth": "inherit",
             "method": "GET",
             "url": {
-              "raw": "{{base_url}}/api/role-ms/v1/roles/{id}",
+              "raw": "{{base_url}}/api/access-ms/v1/roles/{id}",
               "host": [
                 "{{base_url}}"
               ],
               "path": [
                 "api",
-                "role-ms",
+                "access-ms",
                 "v1",
                 "roles",
                 "{id}"
@@ -469,13 +469,13 @@
             "auth": "inherit",
             "method": "POST",
             "url": {
-              "raw": "{{base_url}}/api/role-ms/v1/roles",
+              "raw": "{{base_url}}/api/access-ms/v1/roles",
               "host": [
                 "{{base_url}}"
               ],
               "path": [
                 "api",
-                "role-ms",
+                "access-ms",
                 "v1",
                 "roles"
               ]
@@ -499,13 +499,13 @@
             "auth": "inherit",
             "method": "PUT",
             "url": {
-              "raw": "{{base_url}}/api/role-ms/v1/roles/{id}",
+              "raw": "{{base_url}}/api/access-ms/v1/roles/{id}",
               "host": [
                 "{{base_url}}"
               ],
               "path": [
                 "api",
-                "role-ms",
+                "access-ms",
                 "v1",
                 "roles",
                 "{id}"
@@ -536,13 +536,13 @@
             "auth": "inherit",
             "method": "DELETE",
             "url": {
-              "raw": "{{base_url}}/api/role-ms/v1/roles/{id}",
+              "raw": "{{base_url}}/api/access-ms/v1/roles/{id}",
               "host": [
                 "{{base_url}}"
               ],
               "path": [
                 "api",
-                "role-ms",
+                "access-ms",
                 "v1",
                 "roles",
                 "{id}"
@@ -563,13 +563,13 @@
             "auth": "inherit",
             "method": "GET",
             "url": {
-              "raw": "{{base_url}}/api/role-ms/v1/roles/permissions",
+              "raw": "{{base_url}}/api/access-ms/v1/roles/permissions",
               "host": [
                 "{{base_url}}"
               ],
               "path": [
                 "api",
-                "role-ms",
+                "access-ms",
                 "v1",
                 "roles",
                 "permissions"

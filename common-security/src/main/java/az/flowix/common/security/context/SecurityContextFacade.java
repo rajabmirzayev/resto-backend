@@ -1,5 +1,6 @@
 package az.flowix.common.security.context;
 
+import az.flowix.common.enums.UiScope;
 import az.flowix.common.security.model.UserPrincipal;
 
 import java.util.Optional;
@@ -29,6 +30,18 @@ public final class SecurityContextFacade {
 
     public static Set<String> getRoles() {
         return getPrincipal().map(UserPrincipal::getRoles).orElse(Set.of());
+    }
+
+    public static Set<String> getPermissions() {
+        return getPrincipal().map(UserPrincipal::getPermissions).orElse(Set.of());
+    }
+
+    public static Optional<UiScope> getUiScope() {
+        return getPrincipal().map(UserPrincipal::getUiScope);
+    }
+
+    public static boolean hasPermission(String permission) {
+        return getPrincipal().map(p -> p.hasPermission(permission)).orElse(false);
     }
 
     public static boolean isPlatformAdmin() {

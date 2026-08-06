@@ -18,6 +18,8 @@ databaseChangeLog:
         - sql:
             sql: CREATE SCHEMA IF NOT EXISTS resto_order
         - sql:
+            sql: CREATE SCHEMA IF NOT EXISTS resto_access
+        - sql:
             sql: CREATE SCHEMA IF NOT EXISTS keycloak
         - sql:
-            sql: GRANT ALL PRIVILEGES ON SCHEMA resto_organization, resto_user, resto_role, resto_menu, resto_table, resto_setting, resto_order, keycloak TO postgres
+            sql: GRANT ALL PRIVILEGES ON SCHEMA resto_organization, resto_user, resto_role, resto_menu, resto_table, resto_setting, resto_order, resto_access, keycloak TO postgres

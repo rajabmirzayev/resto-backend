@@ -1,0 +1,47 @@
+common:
+  error:
+    service-key: ACCESS_MS
+
+spring:
+  application:
+    name: access-service
+
+  datasource:
+    url: ${ACCESS_DB_URL:jdbc:postgresql://localhost:5432/resto?currentSchema=resto_access}
+    username: ${ACCESS_DB_USERNAME:postgres}
+    password: ${ACCESS_DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: ${JPA_DDL_AUTO:none}
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  messages:
+    basename: messages,i18n/messages
+
+keycloak:
+  server-url: ${AUTH_KEYCLOAK_URL:http://localhost:8080}
+  realm: ${AUTH_KEYCLOAK_REALM:resto}
+  client-id: ${AUTH_KEYCLOAK_CLIENT_ID:resto-auth}
+  client-secret: ${AUTH_KEYCLOAK_CLIENT_SECRET:}
+  connect-timeout-ms: ${AUTH_KEYCLOAK_CONNECT_TIMEOUT:5000}
+  read-timeout-ms: ${AUTH_KEYCLOAK_READ_TIMEOUT:10000}
+
+server:
+  port: ${ACCESS_SERVER_PORT:8120}
+  servlet:
+    context-path: /api/access-ms
+
+logging:
+  level:
+    az.flowix.access: DEBUG
+
+
+security:
+  internal-auth:
+    secret: ${INTERNAL_AUTH_SECRET:}

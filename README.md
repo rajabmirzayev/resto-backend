@@ -9,7 +9,7 @@ Frontend ──► cloud-gateway (8001) ──► auth-gateway ──► Keycloa
 ```
 
 - **Auth:** Keycloak 26.5 (`resto` realm, client `resto-auth`). The gateway validates JWTs; `auth-gateway` proxies login/refresh/logout. The frontend never talks to Keycloak directly.
-- **Database:** one `resto` database; each service owns a schema (`resto_user`, `resto_role`, `resto_organization`, `resto_menu`, `resto_table`, `resto_order`, `resto_setting`). Schema migrations live in `db-migrations` (Liquibase).
+- **Database:** one `resto` database; each service owns a schema (`resto_access`, `resto_organization`, `resto_menu`, `resto_table`, `resto_order`, `resto_setting`). Schema migrations live in `db-migrations` (Liquibase).
 - **Config:** 100% env-driven via `script/.env`. No secrets in the repository.
 
 ---
@@ -52,7 +52,7 @@ A successful login returns a JWT whose `roles` claim contains `SUPER_ADMIN`.
 > **Memory:** the first build compiles 15 modules inside Docker and needs a Docker engine with **at least 6 GB** of memory (Docker Desktop → Settings → Resources). On a low-memory machine the build can fail with `ResourceExhausted: cannot allocate memory`; build one service at a time as a workaround:
 >
 > ```bash
-> docker compose build --parallel user-service role-service organization-service
+> docker compose build --parallel access-service organization-service
 > ```
 > `docker compose up -d --build` takes several minutes the first time. Use `docker compose logs -f <service>` to follow any container.
 
@@ -114,8 +114,7 @@ Services (start gateways first, then the rest; startup order between business se
 | `cloud-gateway` | 8001 | – |
 | `auth-gateway` | 8002 | – |
 | `organization-service` | 8102 | `resto_organization` |
-| `user-service` | 8103 | `resto_user` |
-| `role-service` | 8104 | `resto_role` |
+| `access-service` | 8120 | `resto_access` |
 | `menu-service` | 8105 | `resto_menu` |
 | `table-service` | 8106 | `resto_table` |
 | `order-service` | 8107 | `resto_order` |

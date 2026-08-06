@@ -10,6 +10,7 @@ import java.util.UUID;
 import jakarta.validation.Valid;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -28,12 +29,14 @@ public class SettingController {
     }
 
     @GetMapping
+    @PreAuthorize("@perm.has('settings.view')")
     public ResponseEntity<ApiResponse<SettingResponse>> getSettings(@RequestParam UUID orgId) {
         var settings = settingService.getSettings(orgId);
         return ResponseEntity.ok(ApiResponse.success(settings));
     }
 
     @PutMapping
+    @PreAuthorize("@perm.has('settings.edit')")
     public ResponseEntity<ApiResponse<SettingResponse>> updateSettings(
             @Valid @RequestBody SettingRequest request) {
         var settings = settingService.updateSettings(request);

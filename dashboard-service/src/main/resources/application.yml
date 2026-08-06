@@ -14,7 +14,7 @@ service:
   menu:
     url: ${MENU_SERVICE_URL:http://localhost:8105}
   user:
-    url: ${USER_SERVICE_URL:http://localhost:8103}
+    url: ${ACCESS_SERVICE_URL:http://localhost:8120}
 
 server:
   port: ${DASHBOARD_SERVER_PORT:8112}

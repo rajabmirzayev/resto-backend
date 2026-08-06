@@ -1,0 +1,546 @@
+databaseChangeLog:
+  - changeSet:
+      id: 002-create-access-tables
+      author: rajabmirzayev
+      changes:
+
+        # ==================== modules ====================
+        - createTable:
+            schemaName: resto_access
+            tableName: modules
+            remarks: RBAC permission modules (frontend navigation modules)
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  constraints:
+                    nullable: false
+                    primaryKey: true
+                    primaryKeyName: pk_modules
+              - column:
+                  name: created_by
+                  type: UUID
+              - column:
+                  name: created_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_by
+                  type: UUID
+              - column:
+                  name: updated_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: false
+              - column:
+                  name: is_deleted
+                  type: BOOLEAN
+                  defaultValueBoolean: false
+                  constraints:
+                    nullable: false
+              - column:
+                  name: deleted_at
+                  type: TIMESTAMP WITH TIME ZONE
+              - column:
+                  name: deleted_by
+                  type: UUID
+              - column:
+                  name: code
+                  type: VARCHAR(64)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: name
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: sort_order
+                  type: INT
+                  defaultValueNumeric: 0
+                  constraints:
+                    nullable: false
+              - column:
+                  name: is_active
+                  type: BOOLEAN
+                  defaultValueBoolean: true
+                  constraints:
+                    nullable: false
+        - addUniqueConstraint:
+            schemaName: resto_access
+            tableName: modules
+            columnNames: code
+            constraintName: uq_modules_code
+
+        # ==================== ui_groups ====================
+        - createTable:
+            schemaName: resto_access
+            tableName: ui_groups
+            remarks: RBAC UI groups (grouping of permissions per frontend section)
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  constraints:
+                    nullable: false
+                    primaryKey: true
+                    primaryKeyName: pk_ui_groups
+              - column:
+                  name: created_by
+                  type: UUID
+              - column:
+                  name: created_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_by
+                  type: UUID
+              - column:
+                  name: updated_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: false
+              - column:
+                  name: is_deleted
+                  type: BOOLEAN
+                  defaultValueBoolean: false
+                  constraints:
+                    nullable: false
+              - column:
+                  name: deleted_at
+                  type: TIMESTAMP WITH TIME ZONE
+              - column:
+                  name: deleted_by
+                  type: UUID
+              - column:
+                  name: code
+                  type: VARCHAR(64)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: name
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: module_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+              - column:
+                  name: sort_order
+                  type: INT
+                  defaultValueNumeric: 0
+                  constraints:
+                    nullable: false
+              - column:
+                  name: is_active
+                  type: BOOLEAN
+                  defaultValueBoolean: true
+                  constraints:
+                    nullable: false
+        - addUniqueConstraint:
+            schemaName: resto_access
+            tableName: ui_groups
+            columnNames: code
+            constraintName: uq_ui_groups_code
+        - createIndex:
+            schemaName: resto_access
+            tableName: ui_groups
+            indexName: idx_ui_group_module
+            columns:
+              - column:
+                  name: module_id
+
+        # ==================== permissions ====================
+        - createTable:
+            schemaName: resto_access
+            tableName: permissions
+            remarks: RBAC permissions catalog (each backend API maps to one permission code)
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  constraints:
+                    nullable: false
+                    primaryKey: true
+                    primaryKeyName: pk_permissions
+              - column:
+                  name: created_by
+                  type: UUID
+              - column:
+                  name: created_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_by
+                  type: UUID
+              - column:
+                  name: updated_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: false
+              - column:
+                  name: is_deleted
+                  type: BOOLEAN
+                  defaultValueBoolean: false
+                  constraints:
+                    nullable: false
+              - column:
+                  name: deleted_at
+                  type: TIMESTAMP WITH TIME ZONE
+              - column:
+                  name: deleted_by
+                  type: UUID
+              - column:
+                  name: code
+                  type: VARCHAR(128)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: name
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: description
+                  type: VARCHAR(500)
+              - column:
+                  name: module_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+              - column:
+                  name: ui_group_id
+                  type: UUID
+              - column:
+                  name: sort_order
+                  type: INT
+                  defaultValueNumeric: 0
+                  constraints:
+                    nullable: false
+              - column:
+                  name: is_active
+                  type: BOOLEAN
+                  defaultValueBoolean: true
+                  constraints:
+                    nullable: false
+        - addUniqueConstraint:
+            schemaName: resto_access
+            tableName: permissions
+            columnNames: code
+            constraintName: uq_permissions_code
+        - createIndex:
+            schemaName: resto_access
+            tableName: permissions
+            indexName: idx_permission_module
+            columns:
+              - column:
+                  name: module_id
+        - createIndex:
+            schemaName: resto_access
+            tableName: permissions
+            indexName: idx_permission_ui_group
+            columns:
+              - column:
+                  name: ui_group_id
+
+        # ==================== roles ====================
+        - createTable:
+            schemaName: resto_access
+            tableName: roles
+            remarks: RBAC roles (org-scoped + system roles with org_id IS NULL)
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  constraints:
+                    nullable: false
+                    primaryKey: true
+                    primaryKeyName: pk_roles
+              - column:
+                  name: created_by
+                  type: UUID
+              - column:
+                  name: created_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_by
+                  type: UUID
+              - column:
+                  name: updated_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: false
+              - column:
+                  name: is_deleted
+                  type: BOOLEAN
+                  defaultValueBoolean: false
+                  constraints:
+                    nullable: false
+              - column:
+                  name: deleted_at
+                  type: TIMESTAMP WITH TIME ZONE
+              - column:
+                  name: deleted_by
+                  type: UUID
+              - column:
+                  name: code
+                  type: VARCHAR(64)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: name
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: ui_scope
+                  type: VARCHAR(32)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: is_system
+                  type: BOOLEAN
+                  defaultValueBoolean: false
+                  constraints:
+                    nullable: false
+              - column:
+                  name: is_active
+                  type: BOOLEAN
+                  defaultValueBoolean: true
+                  constraints:
+                    nullable: false
+              - column:
+                  name: org_id
+                  type: UUID
+        - addUniqueConstraint:
+            schemaName: resto_access
+            tableName: roles
+            columnNames: org_id, code
+            constraintName: uq_roles_org_code
+        - createIndex:
+            schemaName: resto_access
+            tableName: roles
+            indexName: idx_roles_org
+            where: is_deleted = false
+            columns:
+              - column:
+                  name: org_id
+        - createIndex:
+            schemaName: resto_access
+            tableName: roles
+            indexName: uq_roles_system_code
+            unique: true
+            where: org_id IS NULL AND is_deleted = false
+            columns:
+              - column:
+                  name: code
+
+        # ==================== role_permissions ====================
+        - createTable:
+            schemaName: resto_access
+            tableName: role_permissions
+            remarks: Many-to-many link between roles and permissions
+            columns:
+              - column:
+                  name: role_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+              - column:
+                  name: permission_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+        - addPrimaryKey:
+            schemaName: resto_access
+            tableName: role_permissions
+            columnNames: role_id, permission_id
+            constraintName: pk_role_permissions
+        - createIndex:
+            schemaName: resto_access
+            tableName: role_permissions
+            indexName: idx_rp_permission
+            columns:
+              - column:
+                  name: permission_id
+
+        # ==================== users ====================
+        - createTable:
+            schemaName: resto_access
+            tableName: users
+            remarks: RBAC users (role_id only, no role enum)
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  constraints:
+                    nullable: false
+                    primaryKey: true
+                    primaryKeyName: pk_users
+              - column:
+                  name: created_by
+                  type: UUID
+              - column:
+                  name: created_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_by
+                  type: UUID
+              - column:
+                  name: updated_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: false
+              - column:
+                  name: is_deleted
+                  type: BOOLEAN
+                  defaultValueBoolean: false
+                  constraints:
+                    nullable: false
+              - column:
+                  name: deleted_at
+                  type: TIMESTAMP WITH TIME ZONE
+              - column:
+                  name: deleted_by
+                  type: UUID
+              - column:
+                  name: keycloak_id
+                  type: VARCHAR(255)
+              - column:
+                  name: password
+                  type: VARCHAR(255)
+              - column:
+                  name: name
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: username
+                  type: VARCHAR(100)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: email
+                  type: VARCHAR(255)
+              - column:
+                  name: phone
+                  type: VARCHAR(50)
+              - column:
+                  name: role_id
+                  type: UUID
+              - column:
+                  name: org_id
+                  type: UUID
+              - column:
+                  name: avatar
+                  type: VARCHAR(512)
+              - column:
+                  name: is_active
+                  type: BOOLEAN
+                  defaultValueBoolean: true
+                  constraints:
+                    nullable: false
+        - addUniqueConstraint:
+            schemaName: resto_access
+            tableName: users
+            columnNames: username, org_id
+            constraintName: uq_users_username_org
+        - addUniqueConstraint:
+            schemaName: resto_access
+            tableName: users
+            columnNames: email, org_id
+            constraintName: uq_users_email_org
+        - addUniqueConstraint:
+            schemaName: resto_access
+            tableName: users
+            columnNames: keycloak_id
+            constraintName: uq_users_keycloak_id
+        - createIndex:
+            schemaName: resto_access
+            tableName: users
+            indexName: idx_users_org_id
+            where: is_deleted = false
+            columns:
+              - column:
+                  name: org_id
+        - createIndex:
+            schemaName: resto_access
+            tableName: users
+            indexName: idx_users_role_id
+            where: is_deleted = false
+            columns:
+              - column:
+                  name: role_id
+        - createIndex:
+            schemaName: resto_access
+            tableName: users
+            indexName: idx_users_username
+            where: is_deleted = false
+            columns:
+              - column:
+                  name: username
+
+        # ==================== foreign keys ====================
+        - addForeignKeyConstraint:
+            baseTableSchemaName: resto_access
+            baseTableName: ui_groups
+            baseColumnNames: module_id
+            constraintName: fk_ui_groups_module
+            referencedTableSchemaName: resto_access
+            referencedTableName: modules
+            referencedColumnNames: id
+        - addForeignKeyConstraint:
+            baseTableSchemaName: resto_access
+            baseTableName: permissions
+            baseColumnNames: module_id
+            constraintName: fk_permissions_module
+            referencedTableSchemaName: resto_access
+            referencedTableName: modules
+            referencedColumnNames: id
+        - addForeignKeyConstraint:
+            baseTableSchemaName: resto_access
+            baseTableName: permissions
+            baseColumnNames: ui_group_id
+            constraintName: fk_permissions_ui_group
+            referencedTableSchemaName: resto_access
+            referencedTableName: ui_groups
+            referencedColumnNames: id
+        - addForeignKeyConstraint:
+            baseTableSchemaName: resto_access
+            baseTableName: role_permissions
+            baseColumnNames: role_id
+            constraintName: fk_rp_role
+            referencedTableSchemaName: resto_access
+            referencedTableName: roles
+            referencedColumnNames: id
+        - addForeignKeyConstraint:
+            baseTableSchemaName: resto_access
+            baseTableName: role_permissions
+            baseColumnNames: permission_id
+            constraintName: fk_rp_permission
+            referencedTableSchemaName: resto_access
+            referencedTableName: permissions
+            referencedColumnNames: id
+        - addForeignKeyConstraint:
+            baseTableSchemaName: resto_access
+            baseTableName: users
+            baseColumnNames: role_id
+            constraintName: fk_users_role
+            referencedTableSchemaName: resto_access
+            referencedTableName: roles
+            referencedColumnNames: id

@@ -22,6 +22,8 @@ public class ClaimsForwardingFilter implements GlobalFilter, Ordered {
     public static final String HEADER_USER_ID = "X-User-Id";
     public static final String HEADER_ORG_ID = "X-Org-Id";
     public static final String HEADER_ROLES = "X-Roles";
+    public static final String HEADER_PERMISSIONS = "X-Permissions";
+    public static final String HEADER_UI_SCOPE = "X-UI-Scope";
     public static final String HEADER_PLATFORM_ADMIN = "X-Platform-Admin";
     public static final String HEADER_INTERNAL_AUTH = "X-Internal-Auth";
 
@@ -39,6 +41,8 @@ public class ClaimsForwardingFilter implements GlobalFilter, Ordered {
                         String userId = jwt.getSubject();
                         String organizationId = jwt.getClaimAsString("organizationId");
                         List<String> roles = resolveRoles(jwt);
+                        List<String> permissions = resolvePermissions(jwt);
+                        String uiScope = jwt.getClaimAsString("uiScope");
                         boolean platformAdmin = roles.contains("SUPER_ADMIN");
 
                         var mutatedRequest = exchange.getRequest().mutate()
@@ -47,12 +51,16 @@ public class ClaimsForwardingFilter implements GlobalFilter, Ordered {
                                     headers.remove(HEADER_USER_ID);
                                     headers.remove(HEADER_ORG_ID);
                                     headers.remove(HEADER_ROLES);
+                                    headers.remove(HEADER_PERMISSIONS);
+                                    headers.remove(HEADER_UI_SCOPE);
                                     headers.remove(HEADER_PLATFORM_ADMIN);
                                     headers.remove(HEADER_INTERNAL_AUTH);
 
                                     setIfNotBlank(headers, HEADER_USER_ID, userId);
                                     setIfNotBlank(headers, HEADER_ORG_ID, organizationId);
                                     setIfNotBlank(headers, HEADER_ROLES, toCsv(roles));
+                                    setIfNotBlank(headers, HEADER_PERMISSIONS, toCsv(permissions));
+                                    setIfNotBlank(headers, HEADER_UI_SCOPE, uiScope);
                                     headers.set(HEADER_PLATFORM_ADMIN, String.valueOf(platformAdmin));
                                     if (internalAuthSecret != null && !internalAuthSecret.isBlank()) {
                                         headers.set(HEADER_INTERNAL_AUTH, internalAuthSecret);
@@ -86,6 +94,22 @@ public class ClaimsForwardingFilter implements GlobalFilter, Ordered {
         }
 
         return userRoles;
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<String> resolvePermissions(Jwt jwt) {
+        List<String> permissions = new ArrayList<>();
+
+        Object claim = jwt.getClaim("permissions");
+        if (claim instanceof List<?> permissionList) {
+            permissionList.forEach(permission -> {
+                if (permission != null) {
+                    permissions.add(String.valueOf(permission));
+                }
+            });
+        }
+
+        return permissions;
     }
 
     private String toCsv(List<String> values) {

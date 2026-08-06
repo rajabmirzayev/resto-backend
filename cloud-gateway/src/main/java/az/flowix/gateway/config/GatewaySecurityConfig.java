@@ -82,6 +82,7 @@ public class GatewaySecurityConfig {
                                 "/favicon.ico"
                         ).permitAll()
                         .pathMatchers(HttpMethod.GET, "/api/menu-ms/v1/images/**").permitAll()
+                        .pathMatchers(HttpMethod.GET, "/api/access-ms/v1/permissions/my").permitAll()
                         .pathMatchers("/api/customer-ms/**").permitAll()
                         .anyExchange().authenticated()
                 )
