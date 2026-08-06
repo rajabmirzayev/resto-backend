@@ -13,7 +13,7 @@ service:
     url: ${TABLE_SERVICE_URL:http://localhost:8106}
   menu:
     url: ${MENU_SERVICE_URL:http://localhost:8105}
-  user:
+  access:
     url: ${ACCESS_SERVICE_URL:http://localhost:8120}
 
 server:

@@ -11,7 +11,7 @@ service:
     url: ${ORDER_SERVICE_URL:http://localhost:8107}
   menu:
     url: ${MENU_SERVICE_URL:http://localhost:8105}
-  user:
+  access:
     url: ${ACCESS_SERVICE_URL:http://localhost:8120}
 
 server:
