@@ -1,5 +1,8 @@
 package az.flowix.organization.service;
 
+import az.flowix.common.enums.CustomerTheme;
+import az.flowix.common.enums.OrderMode;
+import az.flowix.common.enums.PaymentTiming;
 import az.flowix.common.exception.handling.decoder.FeignClientException;
 import az.flowix.common.exception.handling.dto.ApiResponse;
 import az.flowix.organization.client.RoleServiceClient;
@@ -140,12 +143,12 @@ public class OrganizationCreationOrchestrator {
     private void createDefaultSettings(UUID orgId) {
         var request = SettingServiceCreateSettingRequest.builder()
                 .orgId(orgId)
-                .orderMode("CUSTOMER")
+                .orderMode(OrderMode.CUSTOMER.name())
                 .customerPhotoRequired(false)
-                .paymentTiming("AFTER")
-                .customerTheme("CLASSIC")
+                .paymentTiming(PaymentTiming.AFTER.name())
+                .customerTheme(CustomerTheme.CLASSIC.name())
                 .build();
-        settingServiceClient.createSettings(request);
+        unwrap(settingServiceClient.createSettings(request));
     }
 
     private void createDefaultSection(UUID orgId) {

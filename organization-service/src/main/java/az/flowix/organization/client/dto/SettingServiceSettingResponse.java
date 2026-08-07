@@ -17,7 +17,7 @@ import java.util.UUID;
 public class SettingServiceSettingResponse {
     UUID orgId;
     String orderMode;
-    Boolean customerPhotoRequired;
+    boolean customerPhotoRequired;
     String paymentTiming;
     String customerTheme;
 }

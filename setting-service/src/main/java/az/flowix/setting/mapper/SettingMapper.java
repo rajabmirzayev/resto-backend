@@ -9,9 +9,6 @@ import org.mapstruct.Mapping;
 @Mapper(componentModel = "spring")
 public interface SettingMapper {
 
-    @Mapping(target = "orderMode", source = "orderMode")
-    @Mapping(target = "paymentTiming", source = "paymentTiming")
-    @Mapping(target = "customerTheme", source = "customerTheme")
     SettingResponse toDto(OrgSetting entity);
 
 }

@@ -6,8 +6,7 @@ import org.springframework.http.HttpStatus;
 
 public enum SettingErrorCode implements ErrorCode {
 
-    SETTINGS_NOT_FOUND("3001", "error.setting.not-found.title", "error.setting.not-found.message"),
-    ORGANIZATION_NOT_FOUND("4001", "error.setting.organization-not-found.title", "error.setting.organization-not-found.message");
+    SETTINGS_NOT_FOUND("3001", "error.setting.not-found.title", "error.setting.not-found.message");
 
     private final String code;
     private final String titleKey;
