@@ -83,6 +83,7 @@ public class KeycloakAdminClient {
         body.put("firstName", user.firstName());
         body.put("enabled", true);
         body.put("emailVerified", true);
+        body.put("requiredActions", List.of());
         body.put("attributes", Map.of("organizationId", List.of(user.orgId().toString())));
 
         try {

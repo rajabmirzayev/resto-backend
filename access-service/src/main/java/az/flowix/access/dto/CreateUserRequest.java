@@ -4,6 +4,7 @@ import az.flowix.common.validation.ValidPhone;
 
 import java.util.UUID;
 
+import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.AccessLevel;
@@ -23,7 +24,6 @@ public class CreateUserRequest {
     @NotBlank
     String name;
 
-    @NotBlank
     String username;
 
     @NotBlank
@@ -35,6 +35,8 @@ public class CreateUserRequest {
     @NotNull
     UUID orgId;
 
+    @NotBlank
+    @Email
     String email;
 
     @ValidPhone

@@ -106,20 +106,23 @@ public class UserService {
 
     @Transactional
     public UserDto createUser(CreateUserRequest request) {
-        if (userRepository.existsByUsernameAndDeletedFalse(request.getUsername())) {
+        String username = request.getUsername() != null && !request.getUsername().isBlank()
+                ? request.getUsername().trim() : request.getEmail().trim().toLowerCase();
+        String email = normalizeEmail(request.getEmail());
+
+        if (userRepository.existsByUsernameAndDeletedFalse(username)) {
             throw UserErrorCode.USERNAME_DUPLICATE.conflict();
         }
 
         enforceOrgScope(request.getOrgId());
 
-        String email = normalizeEmail(request.getEmail());
-        ensureKeycloakUsernameFree(request.getUsername(), email);
+        ensureKeycloakUsernameFree(username, email);
 
         var role = resolveRole(request.getRoleId(), request.getOrgId());
 
         var user = User.builder()
                 .name(request.getName().trim())
-                .username(request.getUsername().trim())
+                .username(username)
                 .email(email)
                 .phone(PhoneUtils.normalize(request.getPhone()))
                 .password(passwordEncoder.encode(request.getPassword()))

@@ -27,14 +27,15 @@ public final class RoleSpecifications {
     }
 
     /**
-     * Tenant isolation: an organization sees its own roles plus global system roles.
-     * A null orgId keeps only the global system roles.
+     * Tenant isolation: an organization sees its own roles plus the ORG_ADMIN system role.
+     * A null orgId keeps only the ORG_ADMIN system role.
      */
     public static Specification<Role> visibleToOrg(UUID orgId) {
         return (root, query, cb) -> {
             var systemGlobal = cb.and(
                     cb.isNull(root.get("orgId")),
-                    cb.isTrue(root.get("isSystem")));
+                    cb.isTrue(root.get("isSystem")),
+                    cb.notEqual(root.get("code"), "SUPER_ADMIN"));
             if (orgId == null) {
                 return systemGlobal;
             }
