@@ -35,6 +35,8 @@ public interface UserRepository extends JpaRepository<User, UUID>, JpaSpecificat
 
     boolean existsByUsernameAndDeletedFalse(String username);
 
+    Optional<User> findByUsernameAndDeletedFalse(String username);
+
     @Query("""
             select u from User u
             where u.deleted = false and u.role.id = :roleId

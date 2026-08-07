@@ -80,6 +80,13 @@ public class UserController {
         return ResponseEntity.noContent().build();
     }
 
+    @DeleteMapping("/by-username/{username}")
+    @PreAuthorize("@perm.has('staff.delete')")
+    public ResponseEntity<Void> deleteUserByUsername(@PathVariable String username) {
+        userService.deleteByUsername(username);
+        return ResponseEntity.noContent().build();
+    }
+
     @DeleteMapping("/{id}/role")
     @PreAuthorize("@perm.has('role.assign')")
     public ResponseEntity<Void> unassignRole(@PathVariable UUID id) {

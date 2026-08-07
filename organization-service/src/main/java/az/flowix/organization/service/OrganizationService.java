@@ -3,7 +3,6 @@ package az.flowix.organization.service;
 import az.flowix.common.exception.handling.dto.ApiResponse;
 import az.flowix.common.security.model.UserPrincipal;
 import az.flowix.organization.client.OrderServiceClient;
-import az.flowix.organization.dto.CreateOrganizationRequest;
 import az.flowix.organization.dto.OrganizationDto;
 import az.flowix.organization.dto.QrCodeResponse;
 import az.flowix.organization.entity.Organization;
@@ -18,18 +17,14 @@ import com.google.zxing.qrcode.QRCodeWriter;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.text.Normalizer;
 import java.util.Base64;
 import java.util.List;
-import java.util.Locale;
 import java.util.UUID;
-import java.util.regex.Pattern;
 
 import javax.imageio.ImageIO;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -101,28 +96,6 @@ public class OrganizationService {
     }
 
     @Transactional
-    public Organization persistOrganization(CreateOrganizationRequest request) {
-        var slug = generateSlug(request.getName());
-        if (organizationRepository.existsBySlugAndDeletedFalse(slug)) {
-            throw OrganizationErrorCode.ORGANIZATION_SLUG_DUPLICATE.conflict();
-        }
-
-        var organization = Organization.builder()
-                .name(request.getName().trim())
-                .slug(slug)
-                .adminName(request.getAdminName().trim())
-                .adminEmail(request.getAdminEmail().trim().toLowerCase())
-                .build();
-        try {
-            var saved = organizationRepository.saveAndFlush(organization);
-            log.info("Organization persisted: {} ({})", saved.getName(), saved.getId());
-            return saved;
-        } catch (DataIntegrityViolationException ex) {
-            throw OrganizationErrorCode.ORGANIZATION_SLUG_DUPLICATE.conflict();
-        }
-    }
-
-    @Transactional
     public void deleteOrganizationInternal(UUID id) {
         var org = getOrganizationEntity(id);
         org.softDelete(null);
@@ -151,20 +124,6 @@ public class OrganizationService {
             throw new RuntimeException("External service returned unsuccessful response");
         }
         return response.getData();
-    }
-
-    private static String generateSlug(String name) {
-        var normalized = Normalizer.normalize(name.trim(), Normalizer.Form.NFD);
-        var pattern = Pattern.compile("[^a-zA-Z0-9\\s-]");
-        var cleaned = pattern.matcher(normalized).replaceAll("");
-        var slug = cleaned.toLowerCase(Locale.ROOT)
-                .replaceAll("\\s+", "-")
-                .replaceAll("-+", "-")
-                .replaceAll("^-|-$", "");
-        if (slug.isBlank()) {
-            slug = UUID.randomUUID().toString().substring(0, 8);
-        }
-        return slug;
     }
 
 }

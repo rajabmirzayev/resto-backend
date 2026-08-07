@@ -21,4 +21,7 @@ public interface UserServiceClient {
     @DeleteMapping("/api/access-ms/v1/users/{id}")
     ApiResponse<Void> deleteUser(@PathVariable("id") UUID id);
 
+    @DeleteMapping("/api/access-ms/v1/users/by-username/{username}")
+    ApiResponse<Void> deleteUserByUsername(@PathVariable("username") String username);
+
 }

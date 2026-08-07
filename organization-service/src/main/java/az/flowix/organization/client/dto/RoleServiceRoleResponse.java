@@ -20,7 +20,7 @@ public class RoleServiceRoleResponse {
     String code;
     String name;
     String uiScope;
-    List<String> permissions;
+    List<PermDto> permissions;
     Boolean isSystem;
     UUID orgId;
 }

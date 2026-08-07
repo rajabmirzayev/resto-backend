@@ -44,4 +44,4 @@ logging:
 
 security:
   internal-auth:
-    secret: ${INTERNAL_AUTH_SECRET:}
+    secret: ${INTERNAL_AUTH_SECRET}
