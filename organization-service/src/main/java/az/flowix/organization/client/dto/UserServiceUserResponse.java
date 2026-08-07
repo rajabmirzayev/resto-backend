@@ -20,7 +20,6 @@ public class UserServiceUserResponse {
     String username;
     String email;
     RoleBriefDto role;
-    UUID roleId;
     UUID orgId;
     Boolean isActive;
 }

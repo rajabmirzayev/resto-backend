@@ -200,8 +200,11 @@ public class OrganizationCreationOrchestrator {
     }
 
     private static <T> T unwrap(ApiResponse<T> response) {
-        if (response == null || !response.isSuccess() || response.getData() == null) {
-            throw new RuntimeException("Failed to create resource via internal service call");
+        if (response == null) {
+            throw new RuntimeException("No response from downstream service");
+        }
+        if (!response.isSuccess() || response.getData() == null) {
+            throw new RuntimeException(response.getMessage() != null ? response.getMessage() : "Downstream service call failed");
         }
         return response.getData();
     }

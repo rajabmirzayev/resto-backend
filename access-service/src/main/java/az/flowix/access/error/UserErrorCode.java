@@ -6,8 +6,9 @@ import org.springframework.http.HttpStatus;
 
 public enum UserErrorCode implements ErrorCode {
 
-    USER_NOT_FOUND("3001", "error.user.not-found.title", "error.user.not-found.message"),
+    USER_NOT_FOUND("4001", "error.user.not-found.title", "error.user.not-found.message"),
     USERNAME_DUPLICATE("3002", "error.user.username-duplicate.title", "error.user.username-duplicate.message"),
+    EMAIL_DUPLICATE("3005", "error.user.email-duplicate.title", "error.user.email-duplicate.message"),
     KEYCLOAK_UNAVAILABLE("3003", "error.user.keycloak-unavailable.title", "error.user.keycloak-unavailable.message"),
     USER_ORG_MISMATCH("4004", "error.user.org-mismatch.title", "error.user.org-mismatch.message");
 

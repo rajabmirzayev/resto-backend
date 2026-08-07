@@ -158,6 +158,35 @@ public class UserService {
         enforceUserOrgAccess(user);
 
         Map<String, Object> keycloakProfile = new LinkedHashMap<>();
+
+        if (request.getUsername() != null && !request.getUsername().isBlank()) {
+            String newUsername = request.getUsername().trim();
+            if (!newUsername.equals(user.getUsername())) {
+                if (userRepository.existsByUsernameAndDeletedFalse(newUsername)
+                        || keycloakAdminClient.userExistsByUsername(newUsername)) {
+                    throw UserErrorCode.USERNAME_DUPLICATE.conflict();
+                }
+                user.setUsername(newUsername);
+            }
+        }
+
+        if (request.getEmail() != null && !request.getEmail().isBlank()) {
+            String newEmail = normalizeEmail(request.getEmail());
+            if (!newEmail.equals(user.getEmail())) {
+                if (userRepository.existsByEmailAndDeletedFalseAndIdNot(newEmail, user.getId())
+                        || keycloakAdminClient.userExistsByEmail(newEmail)) {
+                    throw UserErrorCode.EMAIL_DUPLICATE.conflict();
+                }
+                user.setEmail(newEmail);
+                keycloakProfile.put("email", newEmail);
+            }
+        }
+
+        if (request.getPassword() != null && !request.getPassword().isBlank()) {
+            user.setPassword(passwordEncoder.encode(request.getPassword()));
+            keycloakUserProvisioner.updatePassword(user.getKeycloakId(), request.getPassword());
+        }
+
         if (request.getName() != null) {
             user.setName(request.getName().trim());
             keycloakProfile.put("firstName", user.getName());

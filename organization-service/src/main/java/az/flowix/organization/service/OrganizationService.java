@@ -120,8 +120,11 @@ public class OrganizationService {
     }
 
     private <T> T unwrap(ApiResponse<T> response) {
-        if (response == null || !response.isSuccess() || response.getData() == null) {
-            throw new RuntimeException("External service returned unsuccessful response");
+        if (response == null) {
+            throw new RuntimeException("No response from downstream service");
+        }
+        if (!response.isSuccess() || response.getData() == null) {
+            throw new RuntimeException(response.getMessage() != null ? response.getMessage() : "External service returned unsuccessful response");
         }
         return response.getData();
     }

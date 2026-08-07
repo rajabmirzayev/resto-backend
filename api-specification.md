@@ -565,7 +565,7 @@ Error (502): `ACCESS_MS_3003` — Keycloak əlçatan deyil (DB-də rollback olun
 
 #### `PUT /api/access-ms/v1/users/{id}`
 
-**İstifadəçini redaktə et** (name, phone, isActive). Dəyişənlər Keycloak-a da yazılır.
+**İstifadəçini redaktə et** (name, username, email, password, phone, isActive). Bütün field-lər optional-dır — null/blank gələn field dəyişdirilmir. `username` yalnız lokal bazada yenilənir (Keycloak username immutable-dır). Rol ayrıca `POST /roles/{id}/users` ilə təyin olunur. Dəyişənlər Keycloak-a da yazılır.
 
 - **Auth:** Bearer
 - **Permission:** `staff.edit`
@@ -574,13 +574,16 @@ Request:
 ```json
 {
   "name": "Nigar Hüseynova",
+  "username": "nigar.huseynova",
+  "email": "nigar@example.com",
+  "password": "yeniSifre123",
   "phone": "+994 55 111 22 33",
   "isActive": false
 }
 ```
 
 Success (200): `UserDto`.
-Error (403): `ACCESS_MS_4004`, Error (502): `ACCESS_MS_3003`.
+Error (403): `ACCESS_MS_4004`, Error (409): `ACCESS_MS_3002` (username duplicate), `ACCESS_MS_3005` (email duplicate), Error (502): `ACCESS_MS_3003`.
 
 #### `DELETE /api/access-ms/v1/users/{id}`
 

@@ -7,7 +7,7 @@ import org.springframework.http.HttpStatus;
 public enum RoleErrorCode implements ErrorCode {
 
     ROLE_NOT_FOUND("3001", "error.role.not-found.title", "error.role.not-found.message"),
-    ROLE_IS_SYSTEM("4003", "error.role.is-system.title", "error.role.is-system.message"),
+    ROLE_IS_SYSTEM("4005", "error.role.is-system.title", "error.role.is-system.message"),
     ROLE_CODE_DUPLICATE("3002", "error.role.code-duplicate.title", "error.role.code-duplicate.message"),
     ROLE_ORG_MISMATCH("4003", "error.role.org-mismatch.title", "error.role.org-mismatch.message"),
     PERMISSION_NOT_FOUND("3004", "error.role.permission-not-found.title", "error.role.permission-not-found.message");

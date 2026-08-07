@@ -2,6 +2,8 @@ package az.flowix.access.dto;
 
 import az.flowix.common.validation.ValidPhone;
 
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.Size;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -17,6 +19,14 @@ import lombok.experimental.FieldDefaults;
 public class UpdateUserRequest {
 
     String name;
+
+    String username;
+
+    @Email
+    String email;
+
+    @Size(min = 6)
+    String password;
 
     @ValidPhone
     String phone;
