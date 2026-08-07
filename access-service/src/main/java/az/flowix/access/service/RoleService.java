@@ -310,9 +310,6 @@ public class RoleService {
     }
 
     private Specification<Role> tenantScope() {
-        if (SecurityContextFacade.isPlatformAdmin()) {
-            return null;
-        }
         return RoleSpecifications.visibleToOrg(currentOrgId());
     }
 
