@@ -1,5 +1,6 @@
 package az.flowix.report.client.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -12,6 +13,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @AllArgsConstructor
 @FieldDefaults(level = AccessLevel.PRIVATE)
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class UserServiceUserResponse {
     UUID id;
     String name;
@@ -22,6 +24,7 @@ public class UserServiceUserResponse {
     @NoArgsConstructor
     @AllArgsConstructor
     @FieldDefaults(level = AccessLevel.PRIVATE)
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class RoleBrief {
         String code;
     }
