@@ -22,4 +22,6 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
 
     List<Order> findByOrgIdAndTableIdAndStatus(UUID orgId, UUID tableId, OrderStatus status);
 
+    boolean existsByTableIdAndStatusNotIn(UUID tableId, List<OrderStatus> statuses);
+
 }

@@ -1,12 +1,15 @@
 package az.flowix.order.service;
 
+import az.flowix.common.enums.OrderItemStatus;
 import az.flowix.common.enums.OrderMode;
 import az.flowix.common.enums.OrderSource;
 import az.flowix.common.enums.OrderStatus;
 import az.flowix.common.enums.PaymentMethod;
 import az.flowix.common.enums.PaymentStatus;
 import az.flowix.common.enums.PaymentTiming;
+import az.flowix.common.enums.TableStatus;
 import az.flowix.common.exception.handling.dto.ApiResponse;
+import az.flowix.common.security.context.SecurityContextFacade;
 import az.flowix.order.client.MenuServiceClient;
 import az.flowix.order.client.SettingServiceClient;
 import az.flowix.order.client.TableServiceClient;
@@ -43,13 +46,6 @@ public class OrderService {
 
     private static final Logger log = LoggerFactory.getLogger(OrderService.class);
 
-    private static final Set<String> CANCELLABLE_STATUSES = Set.of(
-            OrderStatus.PENDING.name(),
-            OrderStatus.CONFIRMED.name(),
-            OrderStatus.PREPARING.name(),
-            OrderStatus.READY.name()
-    );
-
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
     private final OrderMapper orderMapper;
@@ -84,27 +80,22 @@ public class OrderService {
         } else {
             orders = orderRepository.findByOrgId(orgId);
         }
-        return orders.stream()
-                .map(order -> buildResponse(order))
-                .collect(Collectors.toList());
+        return orders.stream().map(this::buildResponse).collect(Collectors.toList());
     }
 
     public OrderResponse getOrder(UUID id) {
-        var order = findOrder(id);
-        return buildResponse(order);
+        return buildResponse(findOrder(id));
     }
 
     @Transactional
     public OrderResponse createOrder(OrderRequest request) {
         var source = OrderSource.valueOf(request.getOrderSource().toUpperCase());
 
-        // 1. Validate table exists and is AVAILABLE
         var tableResponse = unwrap(tableServiceClient.getTable(request.getTableId()));
-        if (!"AVAILABLE".equals(tableResponse.getStatus())) {
+        if (!TableStatus.AVAILABLE.name().equals(tableResponse.getStatus())) {
             throw OrderErrorCode.TABLE_NOT_AVAILABLE.badRequest();
         }
 
-        // 2. Validate all menu items exist and are available
         var menuItems = unwrap(menuServiceClient.getItems(request.getOrgId()));
         var menuItemMap = menuItems.stream()
                 .collect(Collectors.toMap(mi -> mi.getId(), mi -> mi));
@@ -118,7 +109,6 @@ public class OrderService {
             }
         }
 
-        // 3. Fetch org settings
         var settings = unwrap(settingServiceClient.getSettings(request.getOrgId()));
 
         boolean isWaiter = source == OrderSource.WAITER;
@@ -162,16 +152,11 @@ public class OrderService {
 
         var items = createOrderItems(order.getId(), request.getItems(), request.getOrgId());
         var total = calculateTotal(items);
-
         order.setTotalAmount(total);
         order = orderRepository.save(order);
 
-        // 4. Set table status to OCCUPIED with current order id
-        var statusUpdate = ClientStatusUpdateRequest.builder()
-                .status("OCCUPIED")
-                .currentOrderId(order.getId())
-                .build();
-        tableServiceClient.updateTableStatus(request.getTableId(), statusUpdate);
+        unwrap(tableServiceClient.updateTableStatus(request.getTableId(),
+                ClientStatusUpdateRequest.builder().status(TableStatus.OCCUPIED.name()).currentOrderId(order.getId()).build()));
 
         log.info("Order created: {} for table {} (source: {})", order.getId(), request.getTableId(), source);
         return buildResponse(order);
@@ -204,7 +189,7 @@ public class OrderService {
             throw OrderErrorCode.ITEM_NOT_FOUND.notFound();
         }
 
-        var newStatus = request.getStatus().toUpperCase();
+        var newStatus = OrderItemStatus.valueOf(request.getStatus().toUpperCase());
         validateItemStatusTransition(item.getStatus(), newStatus);
 
         item.setStatus(newStatus);
@@ -222,6 +207,15 @@ public class OrderService {
 
         if (order.getStatus() == OrderStatus.COMPLETED || order.getStatus() == OrderStatus.CANCELLED) {
             throw OrderErrorCode.ORDER_NOT_ACTIVE.badRequest();
+        }
+
+        var menuItems = unwrap(menuServiceClient.getItems(order.getOrgId()));
+        var menuItemMap = menuItems.stream()
+                .collect(Collectors.toMap(mi -> mi.getId(), mi -> mi));
+        for (var itemReq : request.getItems()) {
+            var menuItem = menuItemMap.get(itemReq.getMenuItemId());
+            if (menuItem == null) throw OrderErrorCode.MENU_ITEM_NOT_FOUND.badRequest();
+            if (!menuItem.isAvailable()) throw OrderErrorCode.MENU_ITEM_NOT_AVAILABLE.badRequest();
         }
 
         var newItems = createOrderItems(orderId, request.getItems(), order.getOrgId());
@@ -242,7 +236,6 @@ public class OrderService {
         if (order.getStatus() != OrderStatus.PENDING) {
             throw OrderErrorCode.ORDER_NOT_PENDING.badRequest();
         }
-
         if (order.getOrderSource() != OrderSource.CUSTOMER) {
             throw OrderErrorCode.INVALID_STATUS_TRANSITION.badRequest();
         }
@@ -262,7 +255,7 @@ public class OrderService {
     public OrderResponse cancelOrder(UUID orderId, CancelRequest request) {
         var order = findOrder(orderId);
 
-        if (!CANCELLABLE_STATUSES.contains(order.getStatus().name())) {
+        if (order.getStatus() == OrderStatus.COMPLETED || order.getStatus() == OrderStatus.CANCELLED) {
             throw OrderErrorCode.ORDER_NOT_CANCELLABLE.badRequest();
         }
 
@@ -270,10 +263,13 @@ public class OrderService {
         order.setCancelReason(request != null ? request.getReason() : null);
         order = orderRepository.save(order);
 
-        var statusUpdate = ClientStatusUpdateRequest.builder()
-                .status("CLEANING")
-                .build();
-        tableServiceClient.updateTableStatus(order.getTableId(), statusUpdate);
+        boolean hasOtherActive = orderRepository.existsByTableIdAndStatusNotIn(
+                order.getTableId(), List.of(OrderStatus.COMPLETED, OrderStatus.CANCELLED));
+
+        if (!hasOtherActive) {
+            unwrap(tableServiceClient.updateTableStatus(order.getTableId(),
+                    ClientStatusUpdateRequest.builder().status(TableStatus.CLEANING.name()).build()));
+        }
 
         log.info("Order {} cancelled", orderId);
         return buildResponse(order);
@@ -298,19 +294,16 @@ public class OrderService {
         if (order.getPaymentStatus() == PaymentStatus.PAID) {
             throw OrderErrorCode.PAYMENT_ALREADY_COMPLETED.conflict();
         }
-
-        if (order.getStatus() != OrderStatus.SERVED) {
-            throw OrderErrorCode.INVALID_STATUS_TRANSITION.badRequest();
+        if (order.getStatus() == OrderStatus.COMPLETED || order.getStatus() == OrderStatus.CANCELLED) {
+            throw OrderErrorCode.ORDER_NOT_ACTIVE.badRequest();
         }
 
         order.setPaymentStatus(PaymentStatus.PAID);
         order.setStatus(OrderStatus.COMPLETED);
         order = orderRepository.save(order);
 
-        var statusUpdate = ClientStatusUpdateRequest.builder()
-                .status("AVAILABLE")
-                .build();
-        tableServiceClient.updateTableStatus(order.getTableId(), statusUpdate);
+        unwrap(tableServiceClient.updateTableStatus(order.getTableId(),
+                ClientStatusUpdateRequest.builder().status(TableStatus.AVAILABLE.name()).build()));
 
         log.info("Payment completed for order {}", orderId);
         return buildResponse(order);
@@ -320,14 +313,14 @@ public class OrderService {
     public OrderResponse startPreparing(UUID orderId) {
         var order = findOrder(orderId);
 
-        if (order.getStatus() != OrderStatus.CONFIRMED && order.getStatus() != OrderStatus.PENDING) {
+        if (order.getStatus() != OrderStatus.CONFIRMED) {
             throw OrderErrorCode.INVALID_STATUS_TRANSITION.badRequest();
         }
 
         var items = orderItemRepository.findByOrderId(orderId);
         items.forEach(item -> {
-            if ("PENDING".equals(item.getStatus()) || "CONFIRMED".equals(item.getStatus())) {
-                item.setStatus("PREPARING");
+            if (item.getStatus() == OrderItemStatus.PENDING || item.getStatus() == OrderItemStatus.CONFIRMED) {
+                item.setStatus(OrderItemStatus.PREPARING);
             }
         });
         orderItemRepository.saveAll(items);
@@ -345,8 +338,8 @@ public class OrderService {
 
         var items = orderItemRepository.findByOrderId(orderId);
         items.forEach(item -> {
-            if ("PREPARING".equals(item.getStatus())) {
-                item.setStatus("READY");
+            if (item.getStatus() == OrderItemStatus.PREPARING) {
+                item.setStatus(OrderItemStatus.READY);
             }
         });
         orderItemRepository.saveAll(items);
@@ -359,25 +352,29 @@ public class OrderService {
     }
 
     private Order findOrder(UUID id) {
-        return orderRepository.findById(id)
+        var order = orderRepository.findById(id)
                 .orElseThrow(OrderErrorCode.ORDER_NOT_FOUND::notFound);
+        if (!SecurityContextFacade.isPlatformAdmin()) {
+            String currentOrgId = SecurityContextFacade.getCurrentOrgId();
+            if (currentOrgId != null && !currentOrgId.equals(order.getOrgId().toString())) {
+                throw OrderErrorCode.ORDER_NOT_FOUND.notFound();
+            }
+        }
+        return order;
     }
 
     private List<OrderItem> createOrderItems(UUID orderId, List<OrderRequest.OrderItemRequest> items, UUID orgId) {
         return items.stream()
-                .map(req -> {
-                    var item = OrderItem.builder()
-                            .orderId(orderId)
-                            .menuItemId(req.getMenuItemId())
-                            .menuItemName(req.getMenuItemName())
-                            .quantity(req.getQuantity())
-                            .price(req.getPrice())
-                            .notes(req.getNotes() != null ? req.getNotes() : "")
-                            .status("PENDING")
-                            .orgId(orgId)
-                            .build();
-                    return orderItemRepository.save(item);
-                })
+                .map(req -> orderItemRepository.save(OrderItem.builder()
+                        .orderId(orderId)
+                        .menuItemId(req.getMenuItemId())
+                        .menuItemName(req.getMenuItemName())
+                        .quantity(req.getQuantity())
+                        .price(req.getPrice())
+                        .notes(req.getNotes() != null ? req.getNotes() : "")
+                        .status(OrderItemStatus.PENDING)
+                        .orgId(orgId)
+                        .build()))
                 .collect(Collectors.toList());
     }
 
@@ -394,27 +391,26 @@ public class OrderService {
             case PREPARING -> Set.of(OrderStatus.READY, OrderStatus.CANCELLED);
             case READY -> Set.of(OrderStatus.SERVED, OrderStatus.CANCELLED);
             case SERVED -> Set.of(OrderStatus.COMPLETED, OrderStatus.CANCELLED);
-            case COMPLETED -> Set.<OrderStatus>of();
-            case CANCELLED -> Set.<OrderStatus>of();
+            case COMPLETED, CANCELLED -> Set.<OrderStatus>of();
         };
         if (!validNext.contains(next)) {
             throw OrderErrorCode.INVALID_STATUS_TRANSITION.badRequest();
         }
     }
 
-    private static final Set<String> ITEM_STATUS_TRANSITIONS = Set.of(
-            "PENDING_PREPARING", "PENDING_CANCELLED",
-            "CONFIRMED_PREPARING", "CONFIRMED_CANCELLED",
-            "PREPARING_READY", "PREPARING_CANCELLED",
-            "READY_SERVED", "READY_CANCELLED"
-    );
-
-    private void validateItemStatusTransition(String current, String next) {
-        if (current.equals(next)) return;
-        if ("CANCELLED".equals(current) || "SERVED".equals(current)) {
+    private void validateItemStatusTransition(OrderItemStatus current, OrderItemStatus next) {
+        if (current == next) return;
+        if (current == OrderItemStatus.CANCELLED || current == OrderItemStatus.SERVED) {
             throw OrderErrorCode.INVALID_ITEM_STATUS.badRequest();
         }
-        if (!ITEM_STATUS_TRANSITIONS.contains(current + "_" + next)) {
+        var valid = switch (current) {
+            case PENDING -> Set.of(OrderItemStatus.PREPARING, OrderItemStatus.CANCELLED);
+            case CONFIRMED -> Set.of(OrderItemStatus.PREPARING, OrderItemStatus.CANCELLED);
+            case PREPARING -> Set.of(OrderItemStatus.READY, OrderItemStatus.CANCELLED);
+            case READY -> Set.of(OrderItemStatus.SERVED, OrderItemStatus.CANCELLED);
+            default -> Set.<OrderItemStatus>of();
+        };
+        if (!valid.contains(next)) {
             throw OrderErrorCode.INVALID_ITEM_STATUS.badRequest();
         }
     }
@@ -424,12 +420,19 @@ public class OrderService {
         if (allItems.isEmpty()) return;
 
         var nonCancelled = allItems.stream()
-                .filter(i -> !"CANCELLED".equals(i.getStatus()))
+                .filter(i -> i.getStatus() != OrderItemStatus.CANCELLED)
                 .collect(Collectors.toList());
-        if (nonCancelled.isEmpty()) return;
 
-        boolean allReady = nonCancelled.stream().allMatch(i -> "READY".equals(i.getStatus()) || "SERVED".equals(i.getStatus()));
-        boolean allServed = nonCancelled.stream().allMatch(i -> "SERVED".equals(i.getStatus()));
+        if (nonCancelled.isEmpty()) {
+            order.setStatus(OrderStatus.CANCELLED);
+            orderRepository.save(order);
+            return;
+        }
+
+        boolean allReady = nonCancelled.stream()
+                .allMatch(i -> i.getStatus() == OrderItemStatus.READY || i.getStatus() == OrderItemStatus.SERVED);
+        boolean allServed = nonCancelled.stream()
+                .allMatch(i -> i.getStatus() == OrderItemStatus.SERVED);
 
         if (allServed && order.getStatus() == OrderStatus.READY) {
             order.setStatus(OrderStatus.SERVED);
@@ -440,9 +443,13 @@ public class OrderService {
         }
     }
 
-    private <T> T unwrap(ApiResponse<T> response) {
-        if (response == null || !response.isSuccess() || response.getData() == null) {
-            throw new RuntimeException("External service returned unsuccessful response");
+    private static <T> T unwrap(ApiResponse<T> response) {
+        if (response == null) {
+            throw new RuntimeException("No response from downstream service");
+        }
+        if (!response.isSuccess() || response.getData() == null) {
+            throw new RuntimeException(
+                    response.getMessage() != null ? response.getMessage() : "External service returned unsuccessful response");
         }
         return response.getData();
     }
@@ -453,9 +460,7 @@ public class OrderService {
                 .id(order.getId().toString())
                 .tableId(order.getTableId())
                 .tableNumber(order.getTableNumber())
-                .items(items.stream()
-                        .map(orderMapper::toItemDto)
-                        .collect(Collectors.toList()))
+                .items(items.stream().map(orderMapper::toItemDto).collect(Collectors.toList()))
                 .status(order.getStatus().name())
                 .paymentStatus(order.getPaymentStatus().name())
                 .totalAmount(order.getTotalAmount())

@@ -15,7 +15,7 @@ import lombok.experimental.FieldDefaults;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class StatusRequest {
 
-    @NotBlank
+    @NotBlank(message = "Status is required")
     String status;
 
 }

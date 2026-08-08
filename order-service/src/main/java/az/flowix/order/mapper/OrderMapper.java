@@ -1,24 +1,12 @@
 package az.flowix.order.mapper;
 
 import az.flowix.order.dto.OrderResponse;
-import az.flowix.order.entity.Order;
 import az.flowix.order.entity.OrderItem;
 
 import org.mapstruct.Mapper;
-import org.mapstruct.Mapping;
-
-import java.util.List;
 
 @Mapper(componentModel = "spring")
 public interface OrderMapper {
-
-    @Mapping(target = "id", source = "entity.id")
-    @Mapping(target = "items", source = "items")
-    OrderResponse toDto(Order entity, List<OrderItem> items);
-
-    default OrderResponse map(Order entity, List<OrderItem> items) {
-        return toDto(entity, items);
-    }
 
     default OrderResponse.OrderItemResponse toItemDto(OrderItem item) {
         if (item == null) return null;
@@ -29,7 +17,7 @@ public interface OrderMapper {
                 .quantity(item.getQuantity())
                 .price(item.getPrice())
                 .notes(item.getNotes())
-                .status(item.getStatus())
+                .status(item.getStatus().name())
                 .build();
     }
 

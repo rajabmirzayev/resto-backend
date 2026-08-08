@@ -95,7 +95,6 @@ public class TableController {
     }
 
     @GetMapping("/tables/{id}")
-    @PreAuthorize("@perm.has('table.view')")
     public ResponseEntity<ApiResponse<TableResponse>> getTable(
             @PathVariable UUID id,
             @AuthenticationPrincipal UserPrincipal principal) {

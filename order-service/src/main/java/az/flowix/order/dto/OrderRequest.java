@@ -1,6 +1,10 @@
 package az.flowix.order.dto;
 
+import az.flowix.common.enums.OrderSource;
+import az.flowix.common.exception.handling.validation.ValidEnum;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
@@ -22,20 +26,21 @@ import java.util.UUID;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class OrderRequest {
 
-    @NotNull
+    @NotNull(message = "Organization ID is required")
     UUID orgId;
 
-    @NotNull
+    @NotNull(message = "Table ID is required")
     UUID tableId;
 
     UUID waiterId;
 
     String waiterName;
 
-    @NotBlank
+    @NotBlank(message = "Order source is required")
+    @ValidEnum(enumClass = OrderSource.class, message = "Invalid order source. Allowed: WAITER, CUSTOMER")
     String orderSource;
 
-    @NotEmpty
+    @NotEmpty(message = "Order must contain at least one item")
     @Valid
     List<OrderItemRequest> items;
 
@@ -50,16 +55,18 @@ public class OrderRequest {
     @FieldDefaults(level = AccessLevel.PRIVATE)
     public static class OrderItemRequest {
 
-        @NotNull
+        @NotNull(message = "Menu item ID is required")
         UUID menuItemId;
 
-        @NotBlank
+        @NotBlank(message = "Menu item name is required")
         String menuItemName;
 
-        @NotNull
+        @NotNull(message = "Quantity is required")
+        @Min(value = 1, message = "Quantity must be at least 1")
         Integer quantity;
 
-        @NotNull
+        @NotNull(message = "Price is required")
+        @DecimalMin(value = "0.01", message = "Price must be greater than 0")
         BigDecimal price;
 
         String notes;

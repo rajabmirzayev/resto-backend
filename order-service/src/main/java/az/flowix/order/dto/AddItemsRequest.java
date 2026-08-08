@@ -18,7 +18,7 @@ import java.util.List;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class AddItemsRequest {
 
-    @NotEmpty
+    @NotEmpty(message = "Items list must not be empty")
     @Valid
     List<OrderRequest.OrderItemRequest> items;
 

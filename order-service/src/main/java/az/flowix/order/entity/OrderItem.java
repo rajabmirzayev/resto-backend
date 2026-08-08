@@ -1,8 +1,11 @@
 package az.flowix.order.entity;
 
+import az.flowix.common.enums.OrderItemStatus;
 import az.flowix.common.jpa.entity.CoreEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -43,8 +46,9 @@ public class OrderItem extends CoreEntity {
     @Column(name = "notes")
     String notes;
 
+    @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
-    String status;
+    OrderItemStatus status;
 
     @Column(name = "org_id", nullable = false)
     UUID orgId;

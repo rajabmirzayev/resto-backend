@@ -1,5 +1,7 @@
 package az.flowix.order.dto;
 
+import az.flowix.common.enums.PaymentMethod;
+import az.flowix.common.exception.handling.validation.ValidEnum;
 import jakarta.validation.constraints.NotBlank;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -15,7 +17,8 @@ import lombok.experimental.FieldDefaults;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class PaymentRequest {
 
-    @NotBlank
+    @NotBlank(message = "Payment method is required")
+    @ValidEnum(enumClass = PaymentMethod.class, message = "Invalid payment method. Allowed: CASH, CARD")
     String method;
 
 }

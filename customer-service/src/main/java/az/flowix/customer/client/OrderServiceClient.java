@@ -23,6 +23,6 @@ public interface OrderServiceClient {
     ApiResponse<OrderServiceOrderResponse> createOrder(@RequestBody OrderServiceOrderRequest request);
 
     @PostMapping("/api/order-ms/v1/orders/{id}/request-payment")
-    ApiResponse<Void> requestPayment(@PathVariable UUID id, @RequestBody Map<String, String> body);
+    ApiResponse<OrderServiceOrderResponse> requestPayment(@PathVariable UUID id, @RequestBody Map<String, String> body);
 
 }

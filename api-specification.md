@@ -1574,45 +1574,50 @@ Success (200): `TableResponse` (rezerv silinmiş).
 
 ### Tenant & Giriş Qayraları
 
-- Bütün endpoint-lər `Authorization: Bearer` tələb edir və `@PreAuthorize` permission kodu ilə qorunur.
-- `orderId` formatı **string**-dir (order nömrəsi, məs. `ORDER-000123`).
+- `GET /orders`, `GET /orders?orgId=...` — hər kəs (orqanizasiya filtirləməsi `orgId` query param vasitəsilə). Xarici servis çağırışları (customer-service, kitchen-service, waiter-service) üçün `X-Internal-Auth` kifayətdir.
+- `GET /orders/{id}` — `findOrder` daxilində `SecurityContextFacade` ilə cross-tenant yoxlanışı: platform admin istənilən sifarişi görür, qeyri-admin yalnız öz `orgId`-sinə aid sifarişi.
+- Bütün digər yazma əməliyyatları `Authorization: Bearer` + `@PreAuthorize` permission kodu ilə qorunur.
+- Servis daxilində Feign çağırışları (`table-service`, `menu-service`, `setting-service`) `X-Internal-Auth` ilə işləyir.
 
 ### Sifariş Status Maşını
 
-`PENDING` → `CONFIRMED` → `PREPARING` → `READY` → `SERVED` → `COMPLETED`
-`PENDING`/`CONFIRMED` vəziyyətindən `CANCELLED` mümkündür (ödəniş edilmiş sifariş ləğv oluna bilməz).
+**OrderStatus**: `PENDING` → `CONFIRMED` → `PREPARING` → `READY` → `SERVED` → `COMPLETED`
+- `PENDING`/`CONFIRMED`/`PREPARING`/`READY`/`SERVED` vəziyyətindən `CANCELLED` mümkündür (yalnız `CANCELLED`-ə keçid `cancelOrder` endpoint-i ilə).
+- `COMPLETED` statusu `completePayment` ilə set olunur (ödəniş tamamlananda).
+- `startPreparing` yalnız `CONFIRMED` statusdan `PREPARING`-ə keçir (PENDING sifarişi birbaşa PREPARING edə bilməz — ofisiant təsdiqi lazımdır).
 
-**`OrderStatus`**: `PENDING`, `CONFIRMED`, `PREPARING`, `READY`, `SERVED`, `COMPLETED`, `CANCELLED`.
-**`PaymentStatus`**: `PENDING`, `PAID`. **`PaymentMethod`**: `CASH`, `CARD`. **`OrderSource`**: `WAITER`, `CUSTOMER`.
+**OrderItemStatus**: `PENDING` → `PREPARING` → `READY` → `SERVED`; `CANCELLED` (PENDING/CONFIRMED/PREPARING/READY-dən)
+- Bütün item-lər `SERVED` olduqda order avtomatik `SERVED` olur.
+- Bütün item-lər `READY`/`SERVED` olduqda order `READY` olur (əgər `PREPARING`dədirsə).
+- Bütün item-lər `CANCELLED` olarsa order avtomatik `CANCELLED` olur.
 
-> `request-payment` sifarişi `paymentRequested=true` edir (ofisiant tərəfindən təsdiq gözləyir); `complete-payment` ilə `paymentStatus=PAID` olur.
+**PaymentStatus**: `PENDING` → `PAID`; **PaymentMethod**: `CASH`, `CARD`; **OrderSource**: `WAITER`, `CUSTOMER`.
+
+> `request-payment` sifarişi `paymentRequested=true` edir + `paymentMethod` set olunur. `complete-payment` ilə `paymentStatus=PAID`, order `COMPLETED` olur, masa `AVAILABLE` edilir.
 
 ### Order-servis Error Kodları
 
-| Kod | HTTP | Açıqlama |
-|---|---|---|
-| `ORDER_MS_3001` | 404 | Sifariş tapılmadı |
-| `ORDER_MS_4001` | 400 | Qeyri-keçərli status keçidi |
-| `ORDER_MS_4002` | 400 | Tamamlanmış sifariş ləğv oluna bilməz |
-| `ORDER_MS_4003` | 400 | Ödənilmiş sifariş ləğv oluna bilməz |
-| `ORDER_MS_4004` | 400 | Sifariş PENDING deyil (waiter-confirm) |
-| `ORDER_MS_4005` | 400 | Sifariş aktiv deyil |
-| `ORDER_MS_4006` | 404 | Sifarişdəki item tapılmadı |
-| `ORDER_MS_4007` | 400 | Qeyri-keçərli item statusu |
-| `ORDER_MS_4008` | 409 | Ödəniş artıq tamamlanıb |
-| `ORDER_MS_4009` | 400 | Sifariş ləğv oluna bilməz |
-| `ORDER_MS_4010` | 400 | Masa tapılmadı |
-| `ORDER_MS_4011` | 400 | Masa mövcud deyil (dolu/silinmiş) |
-| `ORDER_MS_4012` | 400 | Menyu elementi tapılmadı |
-| `ORDER_MS_4013` | 400 | Menyu elementi mövcud deyil (qeyri-aktiv) |
+| Kod | HTTP | Açıqlama | İstifadə Yeri |
+|---|---|---|---|
+| `ORDER_MS_3001` | 404 | Sifariş tapılmadı | `findOrder`, cross-tenant yoxlanışı |
+| `ORDER_MS_4001` | 400 | Qeyri-keçərli status keçidi | `validateStatusTransition`, `updateStatus`, `completePayment`, `startPreparing` |
+| `ORDER_MS_4004` | 400 | Sifariş PENDING deyil | `waiterConfirm` |
+| `ORDER_MS_4005` | 400 | Sifariş aktiv deyil (COMPLETED/CANCELLED) | `addItems`, `completePayment` |
+| `ORDER_MS_4006` | 404 | Sifarişdəki item tapılmadı | `updateItemStatus` |
+| `ORDER_MS_4007` | 400 | Qeyri-keçərli item status keçidi | `validateItemStatusTransition` |
+| `ORDER_MS_4008` | 409 | Ödəniş artıq tamamlanıb | `completePayment` |
+| `ORDER_MS_4009` | 400 | Sifariş ləğv oluna bilməz | `cancelOrder` (COMPLETED/CANCELLED sifariş) |
+| `ORDER_MS_4011` | 400 | Masa mövcud deyil (dolu/silinmiş) | `createOrder` |
+| `ORDER_MS_4012` | 400 | Menyu elementi tapılmadı | `createOrder`, `addItems` |
+| `ORDER_MS_4013` | 400 | Menyu elementi mövcud deyil (qeyri-aktiv) | `createOrder`, `addItems` |
 
 ### Data Modelləri
 
-**`OrderResponse`**: `id`(String), `tableId`, `tableNumber`, `items[]`, `status`, `paymentStatus`, `totalAmount`, `waiterId`, `waiterName`, `orderSource`, `waiterConfirmed`, `confirmedBy`, `customerPhoto`, `paymentMethod`, `paymentRequested`, `cancelReason`, `orgId`, `createdAt`, `updatedAt`.
+**`OrderResponse`**: `id`(String), `tableId`(UUID), `tableNumber`(Integer), `items[]`(OrderItemResponse), `status`(OrderStatus string), `paymentStatus`(PaymentStatus string), `totalAmount`(BigDecimal), `waiterId`(UUID, optional), `waiterName`(String, optional), `orderSource`(OrderSource string), `waiterConfirmed`(boolean), `confirmedBy`(String, optional), `customerPhoto`(String, optional), `paymentMethod`(PaymentMethod string, optional), `paymentRequested`(boolean), `cancelReason`(String, optional), `orgId`(UUID), `createdAt`(Instant), `updatedAt`(Instant).
 
-**`OrderItemResponse`**: `id`(String), `menuItemId`, `menuItemName`, `quantity`, `price`, `notes`, `status`.
+**`OrderItemResponse`**: `id`(String), `menuItemId`(UUID), `menuItemName`(String), `quantity`(Integer), `price`(BigDecimal), `notes`(String), `status`(OrderItemStatus string).
 
-**`OrderRequest`**:
+**`OrderRequest`** — yeni sifariş yaratma:
 ```json
 {
   "orgId": "01234567-89ab-cdef-0123-456789abcdef",
@@ -1634,119 +1639,231 @@ Success (200): `TableResponse` (rezerv silinmiş).
 }
 ```
 
-### Endpoints
+Validation: `orgId` (`@NotNull`), `tableId` (`@NotNull`), `orderSource` (`@NotBlank` + `@ValidEnum(OrderSource.class)`), `items` (`@NotEmpty` + `@Valid`). Hər item: `menuItemId` (`@NotNull`), `menuItemName` (`@NotBlank`), `quantity` (`@NotNull` + `@Min(1)`), `price` (`@NotNull` + `@DecimalMin("0.01")`).
 
-#### `GET /api/order-ms/v1/orders`
-
-- **Auth:** Bearer
-- **Permission:** `order.view`
-- Query: `orgId` (required), `status` (optional), `tableId` (optional), `waiterId` (optional)
-
-Success (200): `OrderResponse[]` (yuxarıdakı modelə uyğun).
-
-#### `GET /api/order-ms/v1/orders/{id}`
-
-- **Auth:** Bearer
-- **Permission:** `order.view`
-
-Success (200): `OrderResponse`. Error (404): `ORDER_MS_3001`.
-
-#### `POST /api/order-ms/v1/orders`
-
-- **Auth:** Bearer
-- **Permission:** `order.create`
-
-Request: `OrderRequest` (yuxarıda).
-
-Success (201): `OrderResponse` (status `PENDING`).
-
-#### `PUT /api/order-ms/v1/orders/{id}/status`
-
-- **Auth:** Bearer
-- **Permission:** `order.manage`
-
-Request: `{ "status": "CONFIRMED" }`
-
-Success (200): `OrderResponse`. Error (400): `ORDER_MS_4001`.
-
-#### `PUT /api/order-ms/v1/orders/{id}/items/{itemId}/status`
-
-- **Auth:** Bearer
-- **Permission:** `order.manage`
-
-Request: `{ "status": "READY" }`
-
-Success (200): `OrderResponse`. Error (404): `ORDER_MS_4006`, Error (400): `ORDER_MS_4007`.
-
-#### `POST /api/order-ms/v1/orders/{id}/items`
-
-- **Auth:** Bearer
-- **Permission:** `order.manage`
-
-Request:
+**`AddItemsRequest`**:
 ```json
 {
   "items": [
-    { "menuItemId": "bbbbbbbb-0000-4000-8000-000000000102", "menuItemName": "Qarışıq Doner", "quantity": 1, "price": 11.00 }
+    { "menuItemId": "...", "menuItemName": "Qarışıq Doner", "quantity": 1, "price": 11.00 }
   ]
 }
 ```
 
-Success (200): `OrderResponse`.
+**`StatusRequest`**: `{ "status": "CONFIRMED" }` — `@NotBlank`.
 
-#### `PUT /api/order-ms/v1/orders/{id}/waiter-confirm`
+**`WaiterConfirmRequest`**: `{ "waiterId": "...", "waiterName": "Aysel Məmmədova" }` — `waiterId` (`@NotNull`), `waiterName` (`@NotBlank`).
+
+**`PaymentRequest`**: `{ "method": "CARD" }` — `@NotBlank` + `@ValidEnum(PaymentMethod.class)`.
+
+**`CancelRequest`** (optional body): `{ "reason": "Müştəri imtina etdi" }`.
+
+### Endpoints
+
+#### `GET /api/order-ms/v1/orders`
+
+**Sifarişləri siyahıla** (filterlənə bilər).
+
+- **Auth:** Bearer (xarici servis — `X-Internal-Auth`)
+- Query: `orgId` (UUID, **required**), `status` (optional — `PENDING`/`CONFIRMED`/`PREPARING`/`READY`/`SERVED`/`COMPLETED`/`CANCELLED`), `tableId` (UUID, optional), `waiterId` (UUID, optional)
+- Xidmət: `getOrders(orgId, status, tableId, waiterId)` → `orgId` ilə filterlənir (tenant isolation)
+
+Success (200):
+```json
+{
+  "data": [
+    {
+      "id": "ORDER-000123",
+      "tableId": "bbbbbbbb-0000-4000-8000-000000000201",
+      "tableNumber": 5,
+      "items": [
+        { "id": "...", "menuItemId": "...", "menuItemName": "Toyuq Doner", "quantity": 2, "price": 9.50, "notes": "", "status": "PENDING" }
+      ],
+      "status": "PENDING",
+      "paymentStatus": "PENDING",
+      "totalAmount": 19.00,
+      "waiterId": "...",
+      "waiterName": "Aysel",
+      "orderSource": "WAITER",
+      "waiterConfirmed": true,
+      "confirmedBy": null,
+      "customerPhoto": null,
+      "paymentMethod": null,
+      "paymentRequested": false,
+      "cancelReason": null,
+      "orgId": "01234567-89ab-cdef-0123-456789abcdef",
+      "createdAt": "2026-08-01T10:00:00Z",
+      "updatedAt": "2026-08-01T10:00:00Z"
+    }
+  ]
+}
+```
+
+#### `GET /api/order-ms/v1/orders/{id}`
+
+**Tək sifarişin detalları.**
+
+- **Auth:** Bearer (xarici servis — `X-Internal-Auth`)
+- Cross-tenant: platform admin istənilən sifarişi görür; qeyri-admin yalnız öz org-unun sifarişini
+
+Success (200): `OrderResponse` (yuxarıdakı kimi).
+Error (404): `ORDER_MS_3001` — sifariş tapılmadı və ya başqa org-a aiddir.
+
+#### `POST /api/order-ms/v1/orders`
+
+**Yeni sifariş yarat.** Masa `AVAILABLE` olmalıdır, menyu elementləri mövcud və aktiv olmalıdır.
+
+- **Auth:** Bearer (xarici servis — `X-Internal-Auth`)
+- Request: `OrderRequest` (`@Valid`)
+- Business logic:
+  1. Masa `tableServiceClient.getTable(tableId)` → status `AVAILABLE` deyilsə `ORDER_MS_4011`
+  2. Menyu `menuServiceClient.getItems(orgId)` → hər item `menuItemMap`-da olmalıdır (`ORDER_MS_4012`), `isAvailable=true` olmalıdır (`ORDER_MS_4013`)
+  3. `settingServiceClient.getSettings(orgId)` → `orderMode` (`CUSTOMER_WAITER_CONFIRM` → `PENDING`, əks halda `CONFIRMED`) + `paymentTiming` (`BEFORE` → `PAID`, əks halda `PENDING`)
+  4. Masa `OCCUPIED` edilir (table-service `updateTableStatus`)
+- Tenant: `orgId` request-dən götürülür
+
+Success (201):
+```json
+{
+  "data": {
+    "id": "ORDER-000123",
+    "status": "CONFIRMED",
+    "paymentStatus": "PENDING",
+    "totalAmount": 19.00,
+    ...
+  },
+  "message": "Order created"
+}
+```
+Error (400): `ORDER_MS_4011`, `ORDER_MS_4012`, `ORDER_MS_4013`.
+
+#### `PUT /api/order-ms/v1/orders/{id}/status`
+
+**Sifariş statusunu dəyiş.** Status keçidi validasiya olunur.
 
 - **Auth:** Bearer
 - **Permission:** `order.manage`
+- Request: `{ "status": "CONFIRMED" }` — `@Valid` `StatusRequest` (`@NotBlank status`)
+- `CANCELLED` statusu bu endpoint-dən keçmir (`ORDER_MS_4009`)
 
-Request:
-```json
-{ "waiterId": "bbbbbbbb-0000-4000-8000-000000000002", "waiterName": "Aysel Məmmədova" }
-```
+Success (200): `OrderResponse`.
+Error (400): `ORDER_MS_4001`.
 
-Success (200): `OrderResponse` (`waiterConfirmed=true`). Error (400): `ORDER_MS_4004`.
+#### `PUT /api/order-ms/v1/orders/{id}/items/{itemId}/status`
+
+**Tək sifariş maddəsinin statusunu dəyiş.** Status keçidi validasiya olunur, sonra order statusu avtomatik yenilənir (`updateOrderStatusFromItems`).
+
+- **Auth:** Bearer
+- **Permission:** `order.manage`
+- Request: `{ "status": "READY" }` — `@Valid` `StatusRequest`
+- Item status keçid qaydası: `PENDING→PREPARING`, `CONFIRMED→PREPARING`, `PREPARING→READY`, `READY→SERVED`; hər birindən `CANCELLED` mümkündür
+
+Success (200): `OrderResponse`.
+Error (404): `ORDER_MS_4006`. Error (400): `ORDER_MS_4007`.
+
+#### `POST /api/order-ms/v1/orders/{id}/items`
+
+**Mövcud sifarişə yeni maddələr əlavə et.** Menyu validasiyası tətbiq olunur.
+
+- **Auth:** Bearer
+- **Permission:** `order.manage`
+- Request: `AddItemsRequest` (`@NotEmpty` + `@Valid` items)
+- Hər əlavə olunan item üçün menyuda mövcudluq və aktivlik yoxlanır (`ORDER_MS_4012`, `ORDER_MS_4013`)
+- `COMPLETED`/`CANCELLED` sifarişə əlavə etmək olmaz (`ORDER_MS_4005`)
+- `totalAmount` yenidən hesablanır
+
+Success (200): `OrderResponse`.
+Error (400): `ORDER_MS_4005`, `ORDER_MS_4012`, `ORDER_MS_4013`.
+
+#### `PUT /api/order-ms/v1/orders/{id}/waiter-confirm`
+
+**Ofisiant sifarişi təsdiqləyir** (CUSTOMER rejimində PENDING → CONFIRMED).
+
+- **Auth:** Bearer
+- **Permission:** `order.manage`
+- Request: `{ "waiterId": "...", "waiterName": "Aysel Məmmədova" }` — `@Valid`
+- Yalnız `PENDING` statuslu + `orderSource=CUSTOMER` sifarişlər təsdiqlənə bilər
+
+Success (200): `OrderResponse` (`waiterConfirmed=true`, `status=CONFIRMED`).
+Error (400): `ORDER_MS_4004` (PENDING deyilsə), `ORDER_MS_4001` (source CUSTOMER deyilsə).
 
 #### `POST /api/order-ms/v1/orders/{id}/cancel`
 
+**Sifarişi ləğv et.** Yalnız aktiv sifarişlər ləğv oluna bilər.
+
 - **Auth:** Bearer
 - **Permission:** `order.cancel`
-
-Request (optional): `{ "reason": "Müştəri imtina etdi" }`
+- Request (optional): `{ "reason": "Müştəri imtina etdi" }`
+- `COMPLETED`/`CANCELLED` sifariş ləğv oluna bilməz (`ORDER_MS_4009`)
+- Masada başqa aktiv sifariş yoxdursa masa `CLEANING` edilir (`tableServiceClient.updateTableStatus`)
 
 Success (200): `OrderResponse` (`status=CANCELLED`, `cancelReason` dolu).
-Error (400): `ORDER_MS_4002`, `ORDER_MS_4003`, `ORDER_MS_4009`.
+Error (400): `ORDER_MS_4009`.
 
 #### `POST /api/order-ms/v1/orders/{id}/request-payment`
 
+**Hesab istə** (müştəri və ya ofisiant tərəfindən). `paymentRequested=true` + `paymentMethod` set olunur.
+
 - **Auth:** Bearer
 - **Permission:** `order.payment`
-
-Request: `{ "method": "CARD" }`
+- Request: `{ "method": "CARD" }` — `@Valid` `PaymentRequest` (`@NotBlank` + `@ValidEnum(PaymentMethod.class)`)
 
 Success (200): `OrderResponse` (`paymentRequested=true`).
 
 #### `POST /api/order-ms/v1/orders/{id}/complete-payment`
 
+**Ödənişi tamamla.** `paymentStatus=PAID`, order `COMPLETED`, masa `AVAILABLE`.
+
 - **Auth:** Bearer
 - **Permission:** `order.payment`
+- Request: *empty body*
+- Artıq `PAID` sifarişə təkrar ödəniş olmaz (`ORDER_MS_4008`)
+- `COMPLETED`/`CANCELLED` sifarişə ödəniş olmaz (`ORDER_MS_4005`)
 
-Request: *empty body*
-
-Success (200): `OrderResponse` (`paymentStatus=PAID`). Error (409): `ORDER_MS_4008`.
+Success (200): `OrderResponse` (`paymentStatus=PAID`, `status=COMPLETED`).
+Error (400): `ORDER_MS_4005`. Error (409): `ORDER_MS_4008`.
 
 #### `POST /api/order-ms/v1/orders/{id}/start-preparing`
 
+**Sifarişi hazırlanmaya başla.** Yalnız `CONFIRMED` sifarişlər.
+
 - **Auth:** Bearer
 - **Permission:** `order.manage`
+- Bütün `PENDING`/`CONFIRMED` item-lər `PREPARING` edilir, order `PREPARING` olur
+- `PENDING` sifarişi birbaşa hazırlanmaya başlamaq olmaz — əvvəlcə ofisiant təsdiqi lazımdır
 
 Success (200): `OrderResponse` (`status=PREPARING`).
+Error (400): `ORDER_MS_4001`.
 
 #### `POST /api/order-ms/v1/orders/{id}/mark-all-ready`
 
+**Bütün hazırlanan item-ləri hazır et.** Yalnız `PREPARING` item-lər `READY` edilir.
+
 - **Auth:** Bearer
 - **Permission:** `order.manage`
+- Yalnız `PREPARING` statuslu item-lər `READY` olur (artıq `READY`/`SERVED` olanlar dəyişmir)
 
-Success (200): `OrderResponse` (bütün item-lər `READY`, order `READY`).
+Success (200): `OrderResponse` (`status=READY`).
+
+### Servisdaxili Feign Əlaqələri
+
+| Target | Metod | Məqsəd |
+|---|---|---|
+| `table-service` | `GET /tables/{id}` | Masa məlumatı (status, nömrə) |
+| `table-service` | `PUT /tables/{id}/status` | Masa statusu yeniləmə (`OCCUPIED`, `CLEANING`, `AVAILABLE`) |
+| `menu-service` | `GET /items?orgId=` | Menyu elementlərinin mövcudluq/aktivlik yoxlanışı |
+| `setting-service` | `GET /settings?orgId=` | Org ayarları (`orderMode`, `paymentTiming`) |
+
+Bütün Feign çağırışlarında `unwrap()` köməkçisi ilə response yoxlanılır (`success=true`, `data != null`). Xəta halında `RuntimeException` atılır.
+
+### Dizayn Qərarları
+
+- `updateOrderStatusFromItems`: bütün non-cancelled item-lər `SERVED` → order `SERVED`; hamısı `READY`/`SERVED` → order `READY`; hamısı `CANCELLED` → order `CANCELLED`.
+- `startPreparing`: PENDING sifarişdən birbaşa PREPARING-ə keçid yoxdur — yalnız CONFIRMED-dən. Bu, CUSTOMER_WAITER_CONFIRM modunda ofisiant təsdiqini məcburi edir.
+- `cancelOrder`: digər aktiv sifariş varsa masa `CLEANING` edilmir — çoxlu sifariş ssenarisi dəstəklənir.
+- Cross-tenant: `findOrder` platform admin üçün skip, qeyri-admin üçün `SecurityContextFacade.getCurrentOrgId()` ilə yoxlanır.
+- `OrderItem.status` — `OrderItemStatus` enum-u (PENDING, CONFIRMED, PREPARING, READY, SERVED, CANCELLED), DB-də `@Enumerated(EnumType.STRING)`.
+- `Order.status` — `OrderStatus` enum-u, `Order.paymentStatus` — `PaymentStatus`, `Order.orderSource` — `OrderSource`.
 
 ---
 

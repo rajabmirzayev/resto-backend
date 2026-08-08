@@ -18,10 +18,10 @@ import java.util.UUID;
 @FieldDefaults(level = AccessLevel.PRIVATE)
 public class WaiterConfirmRequest {
 
-    @NotNull
+    @NotNull(message = "Waiter ID is required")
     UUID waiterId;
 
-    @NotBlank
+    @NotBlank(message = "Waiter name is required")
     String waiterName;
 
 }
