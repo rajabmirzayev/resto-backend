@@ -1565,6 +1565,8 @@ Success (200): `TableResponse` (rezerv silinmiş).
 
 ---
 
+---
+
 ## 6. Order — `order-service` (port 8107)
 
 > API prefix: `/api/order-ms/v1/...`
@@ -1574,50 +1576,47 @@ Success (200): `TableResponse` (rezerv silinmiş).
 
 ### Tenant & Giriş Qayraları
 
-- `GET /orders`, `GET /orders?orgId=...` — hər kəs (orqanizasiya filtirləməsi `orgId` query param vasitəsilə). Xarici servis çağırışları (customer-service, kitchen-service, waiter-service) üçün `X-Internal-Auth` kifayətdir.
-- `GET /orders/{id}` — `findOrder` daxilində `SecurityContextFacade` ilə cross-tenant yoxlanışı: platform admin istənilən sifarişi görür, qeyri-admin yalnız öz `orgId`-sinə aid sifarişi.
-- Bütün digər yazma əməliyyatları `Authorization: Bearer` + `@PreAuthorize` permission kodu ilə qorunur.
-- Servis daxilində Feign çağırışları (`table-service`, `menu-service`, `setting-service`) `X-Internal-Auth` ilə işləyir.
+- Admin endpoint-ləri `Authorization: Bearer` + `@PreAuthorize` permission kodu ilə qorunur.
+- Internal endpoint-lər (`/v1/internal/...`) `X-Internal-Auth` ilə işləyir, `@PreAuthorize` yoxdur — servislərarası Feign üçün.
+- `findOrder` daxilində `SecurityContextFacade` ilə cross-tenant yoxlanışı: platform admin istənilən sifarişi görür, qeyri-admin yalnız öz `orgId`-sinə aid sifarişi.
 
 ### Sifariş Status Maşını
 
 **OrderStatus**: `PENDING` → `CONFIRMED` → `PREPARING` → `READY` → `SERVED` → `COMPLETED`
-- `PENDING`/`CONFIRMED`/`PREPARING`/`READY`/`SERVED` vəziyyətindən `CANCELLED` mümkündür (yalnız `CANCELLED`-ə keçid `cancelOrder` endpoint-i ilə).
-- `COMPLETED` statusu `completePayment` ilə set olunur (ödəniş tamamlananda).
-- `startPreparing` yalnız `CONFIRMED` statusdan `PREPARING`-ə keçir (PENDING sifarişi birbaşa PREPARING edə bilməz — ofisiant təsdiqi lazımdır).
+- `PENDING`/`CONFIRMED`/`PREPARING`/`READY`/`SERVED` → `CANCELLED` mümkündür (`cancelOrder`).
+- `startPreparing` yalnız `CONFIRMED`-dən `PREPARING`-ə keçir (PENDING sifarişi ofisiant təsdiqi olmadan PREPARING ola bilməz).
+- `completePayment` → `paymentStatus=PAID`, order `COMPLETED`, masa `AVAILABLE`.
 
-**OrderItemStatus**: `PENDING` → `PREPARING` → `READY` → `SERVED`; `CANCELLED` (PENDING/CONFIRMED/PREPARING/READY-dən)
-- Bütün item-lər `SERVED` olduqda order avtomatik `SERVED` olur.
-- Bütün item-lər `READY`/`SERVED` olduqda order `READY` olur (əgər `PREPARING`dədirsə).
-- Bütün item-lər `CANCELLED` olarsa order avtomatik `CANCELLED` olur.
+**OrderItemStatus**: `PENDING` → `PREPARING` → `READY` → `SERVED`; istənilən statusdan `CANCELLED`
+- Bütün item-lər `SERVED` → order avtomatik `SERVED`
+- Bütün item-lər `READY`/`SERVED` → order `READY` (`PREPARING`dədirsə)
+- Bütün item-lər `CANCELLED` → order `CANCELLED`
 
 **PaymentStatus**: `PENDING` → `PAID`; **PaymentMethod**: `CASH`, `CARD`; **OrderSource**: `WAITER`, `CUSTOMER`.
-
-> `request-payment` sifarişi `paymentRequested=true` edir + `paymentMethod` set olunur. `complete-payment` ilə `paymentStatus=PAID`, order `COMPLETED` olur, masa `AVAILABLE` edilir.
 
 ### Order-servis Error Kodları
 
 | Kod | HTTP | Açıqlama | İstifadə Yeri |
 |---|---|---|---|
 | `ORDER_MS_3001` | 404 | Sifariş tapılmadı | `findOrder`, cross-tenant yoxlanışı |
-| `ORDER_MS_4001` | 400 | Qeyri-keçərli status keçidi | `validateStatusTransition`, `updateStatus`, `completePayment`, `startPreparing` |
+| `ORDER_MS_4001` | 400 | Qeyri-keçərli status keçidi | `updateStatus`, `completePayment`, `startPreparing` |
 | `ORDER_MS_4004` | 400 | Sifariş PENDING deyil | `waiterConfirm` |
 | `ORDER_MS_4005` | 400 | Sifariş aktiv deyil (COMPLETED/CANCELLED) | `addItems`, `completePayment` |
 | `ORDER_MS_4006` | 404 | Sifarişdəki item tapılmadı | `updateItemStatus` |
 | `ORDER_MS_4007` | 400 | Qeyri-keçərli item status keçidi | `validateItemStatusTransition` |
 | `ORDER_MS_4008` | 409 | Ödəniş artıq tamamlanıb | `completePayment` |
-| `ORDER_MS_4009` | 400 | Sifariş ləğv oluna bilməz | `cancelOrder` (COMPLETED/CANCELLED sifariş) |
-| `ORDER_MS_4011` | 400 | Masa mövcud deyil (dolu/silinmiş) | `createOrder` |
+| `ORDER_MS_4009` | 400 | Sifariş ləğv oluna bilməz (COMPLETED/CANCELLED) | `cancelOrder` |
+| `ORDER_MS_4011` | 400 | Masa mövcud deyil (dolu) | `createOrder` |
 | `ORDER_MS_4012` | 400 | Menyu elementi tapılmadı | `createOrder`, `addItems` |
-| `ORDER_MS_4013` | 400 | Menyu elementi mövcud deyil (qeyri-aktiv) | `createOrder`, `addItems` |
+| `ORDER_MS_4013` | 400 | Menyu elementi qeyri-aktivdir | `createOrder`, `addItems` |
 
 ### Data Modelləri
 
-**`OrderResponse`**: `id`(String), `tableId`(UUID), `tableNumber`(Integer), `items[]`(OrderItemResponse), `status`(OrderStatus string), `paymentStatus`(PaymentStatus string), `totalAmount`(BigDecimal), `waiterId`(UUID, optional), `waiterName`(String, optional), `orderSource`(OrderSource string), `waiterConfirmed`(boolean), `confirmedBy`(String, optional), `customerPhoto`(String, optional), `paymentMethod`(PaymentMethod string, optional), `paymentRequested`(boolean), `cancelReason`(String, optional), `orgId`(UUID), `createdAt`(Instant), `updatedAt`(Instant).
+**`OrderResponse`**: `id`(String), `tableId`(UUID), `tableNumber`(Integer), `items[]`(OrderItemResponse), `status`(String), `paymentStatus`(String), `totalAmount`(BigDecimal), `waiterId`(UUID, optional), `waiterName`(String, optional), `orderSource`(String), `waiterConfirmed`(boolean), `confirmedBy`(String, optional), `customerPhoto`(String, optional), `paymentMethod`(String, optional), `paymentRequested`(boolean), `cancelReason`(String, optional), `orgId`(UUID), `createdAt`(Instant), `updatedAt`(Instant).
 
-**`OrderItemResponse`**: `id`(String), `menuItemId`(UUID), `menuItemName`(String), `quantity`(Integer), `price`(BigDecimal), `notes`(String), `status`(OrderItemStatus string).
+**`OrderItemResponse`**: `id`(String), `menuItemId`(UUID), `menuItemName`(String), `quantity`(Integer), `price`(BigDecimal), `notes`(String), `status`(String).
 
-**`OrderRequest`** — yeni sifariş yaratma:
+**`OrderRequest`** (yeni sifariş):
 ```json
 {
   "orgId": "01234567-89ab-cdef-0123-456789abcdef",
@@ -1626,244 +1625,118 @@ Success (200): `TableResponse` (rezerv silinmiş).
   "waiterName": "Aysel Məmmədova",
   "orderSource": "WAITER",
   "items": [
-    {
-      "menuItemId": "bbbbbbbb-0000-4000-8000-000000000101",
-      "menuItemName": "Toyuq Doner",
-      "quantity": 2,
-      "price": 9.50,
-      "notes": "Çox ədviyyatlı olmasın"
-    }
+    { "menuItemId": "...", "menuItemName": "Toyuq Doner", "quantity": 2, "price": 9.50, "notes": "Ədviyyatsız" }
   ],
   "customerPhoto": null,
   "paymentMethod": "CASH"
 }
 ```
+Validation: `orgId` `@NotNull`, `tableId` `@NotNull`, `orderSource` `@NotBlank` + `@ValidEnum(OrderSource)`, `items` `@NotEmpty` + `@Valid`. Item: `menuItemId` `@NotNull`, `menuItemName` `@NotBlank`, `quantity` `@NotNull` + `@Min(1)`, `price` `@NotNull` + `@DecimalMin("0.01")`.
 
-Validation: `orgId` (`@NotNull`), `tableId` (`@NotNull`), `orderSource` (`@NotBlank` + `@ValidEnum(OrderSource.class)`), `items` (`@NotEmpty` + `@Valid`). Hər item: `menuItemId` (`@NotNull`), `menuItemName` (`@NotBlank`), `quantity` (`@NotNull` + `@Min(1)`), `price` (`@NotNull` + `@DecimalMin("0.01")`).
-
-**`AddItemsRequest`**:
-```json
-{
-  "items": [
-    { "menuItemId": "...", "menuItemName": "Qarışıq Doner", "quantity": 1, "price": 11.00 }
-  ]
-}
-```
-
+**`AddItemsRequest`**: `{ "items": [ OrderItemRequest... ] }` — `@NotEmpty` + `@Valid`.
 **`StatusRequest`**: `{ "status": "CONFIRMED" }` — `@NotBlank`.
+**`WaiterConfirmRequest`**: `{ "waiterId": "...", "waiterName": "Aysel" }` — `@NotNull` + `@NotBlank`.
+**`PaymentRequest`**: `{ "method": "CARD" }` — `@NotBlank` + `@ValidEnum(PaymentMethod)`.
+**`CancelRequest`** (optional): `{ "reason": "Müştəri imtina etdi" }`.
 
-**`WaiterConfirmRequest`**: `{ "waiterId": "...", "waiterName": "Aysel Məmmədova" }` — `waiterId` (`@NotNull`), `waiterName` (`@NotBlank`).
-
-**`PaymentRequest`**: `{ "method": "CARD" }` — `@NotBlank` + `@ValidEnum(PaymentMethod.class)`.
-
-**`CancelRequest`** (optional body): `{ "reason": "Müştəri imtina etdi" }`.
-
-### Endpoints
+### Admin Endpoints (`@PreAuthorize` ilə)
 
 #### `GET /api/order-ms/v1/orders`
-
-**Sifarişləri siyahıla** (filterlənə bilər).
-
-- **Auth:** Bearer (xarici servis — `X-Internal-Auth`)
-- Query: `orgId` (UUID, **required**), `status` (optional — `PENDING`/`CONFIRMED`/`PREPARING`/`READY`/`SERVED`/`COMPLETED`/`CANCELLED`), `tableId` (UUID, optional), `waiterId` (UUID, optional)
-- Xidmət: `getOrders(orgId, status, tableId, waiterId)` → `orgId` ilə filterlənir (tenant isolation)
-
-Success (200):
-```json
-{
-  "data": [
-    {
-      "id": "ORDER-000123",
-      "tableId": "bbbbbbbb-0000-4000-8000-000000000201",
-      "tableNumber": 5,
-      "items": [
-        { "id": "...", "menuItemId": "...", "menuItemName": "Toyuq Doner", "quantity": 2, "price": 9.50, "notes": "", "status": "PENDING" }
-      ],
-      "status": "PENDING",
-      "paymentStatus": "PENDING",
-      "totalAmount": 19.00,
-      "waiterId": "...",
-      "waiterName": "Aysel",
-      "orderSource": "WAITER",
-      "waiterConfirmed": true,
-      "confirmedBy": null,
-      "customerPhoto": null,
-      "paymentMethod": null,
-      "paymentRequested": false,
-      "cancelReason": null,
-      "orgId": "01234567-89ab-cdef-0123-456789abcdef",
-      "createdAt": "2026-08-01T10:00:00Z",
-      "updatedAt": "2026-08-01T10:00:00Z"
-    }
-  ]
-}
-```
+**Sifarişləri siyahıla.** `orgId` ilə filterlənir (tenant isolation).
+- **Permission:** `order.view` | Query: `orgId` (required), `status`, `tableId`, `waiterId` (optional)
+- Success (200): `List<OrderResponse>`.
 
 #### `GET /api/order-ms/v1/orders/{id}`
-
-**Tək sifarişin detalları.**
-
-- **Auth:** Bearer (xarici servis — `X-Internal-Auth`)
-- Cross-tenant: platform admin istənilən sifarişi görür; qeyri-admin yalnız öz org-unun sifarişini
-
-Success (200): `OrderResponse` (yuxarıdakı kimi).
-Error (404): `ORDER_MS_3001` — sifariş tapılmadı və ya başqa org-a aiddir.
+**Tək sifariş.**
+- **Permission:** `order.view`
+- Success (200): `OrderResponse`. Error (404): `ORDER_MS_3001`.
 
 #### `POST /api/order-ms/v1/orders`
-
-**Yeni sifariş yarat.** Masa `AVAILABLE` olmalıdır, menyu elementləri mövcud və aktiv olmalıdır.
-
-- **Auth:** Bearer (xarici servis — `X-Internal-Auth`)
-- Request: `OrderRequest` (`@Valid`)
-- Business logic:
-  1. Masa `tableServiceClient.getTable(tableId)` → status `AVAILABLE` deyilsə `ORDER_MS_4011`
-  2. Menyu `menuServiceClient.getItems(orgId)` → hər item `menuItemMap`-da olmalıdır (`ORDER_MS_4012`), `isAvailable=true` olmalıdır (`ORDER_MS_4013`)
-  3. `settingServiceClient.getSettings(orgId)` → `orderMode` (`CUSTOMER_WAITER_CONFIRM` → `PENDING`, əks halda `CONFIRMED`) + `paymentTiming` (`BEFORE` → `PAID`, əks halda `PENDING`)
-  4. Masa `OCCUPIED` edilir (table-service `updateTableStatus`)
-- Tenant: `orgId` request-dən götürülür
-
-Success (201):
-```json
-{
-  "data": {
-    "id": "ORDER-000123",
-    "status": "CONFIRMED",
-    "paymentStatus": "PENDING",
-    "totalAmount": 19.00,
-    ...
-  },
-  "message": "Order created"
-}
-```
-Error (400): `ORDER_MS_4011`, `ORDER_MS_4012`, `ORDER_MS_4013`.
+**Sifariş yarat.** Masa AVAILABLE olmalı, menyu elementləri mövcud + aktiv olmalı, orderMode/paymentTiming setting-lərə baxılır.
+- **Permission:** `order.create` | Body: `@Valid OrderRequest`
+- Success (201): `OrderResponse`. Error (400): `ORDER_MS_4011`, `4012`, `4013`.
 
 #### `PUT /api/order-ms/v1/orders/{id}/status`
-
-**Sifariş statusunu dəyiş.** Status keçidi validasiya olunur.
-
-- **Auth:** Bearer
-- **Permission:** `order.manage`
-- Request: `{ "status": "CONFIRMED" }` — `@Valid` `StatusRequest` (`@NotBlank status`)
-- `CANCELLED` statusu bu endpoint-dən keçmir (`ORDER_MS_4009`)
-
-Success (200): `OrderResponse`.
-Error (400): `ORDER_MS_4001`.
+**Order status keçidi.**
+- **Permission:** `order.manage` | Body: `@Valid StatusRequest`
+- Success (200): `OrderResponse`. Error (400): `ORDER_MS_4001`.
 
 #### `PUT /api/order-ms/v1/orders/{id}/items/{itemId}/status`
-
-**Tək sifariş maddəsinin statusunu dəyiş.** Status keçidi validasiya olunur, sonra order statusu avtomatik yenilənir (`updateOrderStatusFromItems`).
-
-- **Auth:** Bearer
-- **Permission:** `order.manage`
-- Request: `{ "status": "READY" }` — `@Valid` `StatusRequest`
-- Item status keçid qaydası: `PENDING→PREPARING`, `CONFIRMED→PREPARING`, `PREPARING→READY`, `READY→SERVED`; hər birindən `CANCELLED` mümkündür
-
-Success (200): `OrderResponse`.
-Error (404): `ORDER_MS_4006`. Error (400): `ORDER_MS_4007`.
+**Item status keçidi.**
+- **Permission:** `order.manage` | Body: `@Valid StatusRequest`
+- Success (200): `OrderResponse`. Error (404): `ORDER_MS_4006`. Error (400): `ORDER_MS_4007`.
 
 #### `POST /api/order-ms/v1/orders/{id}/items`
-
-**Mövcud sifarişə yeni maddələr əlavə et.** Menyu validasiyası tətbiq olunur.
-
-- **Auth:** Bearer
-- **Permission:** `order.manage`
-- Request: `AddItemsRequest` (`@NotEmpty` + `@Valid` items)
-- Hər əlavə olunan item üçün menyuda mövcudluq və aktivlik yoxlanır (`ORDER_MS_4012`, `ORDER_MS_4013`)
-- `COMPLETED`/`CANCELLED` sifarişə əlavə etmək olmaz (`ORDER_MS_4005`)
-- `totalAmount` yenidən hesablanır
-
-Success (200): `OrderResponse`.
-Error (400): `ORDER_MS_4005`, `ORDER_MS_4012`, `ORDER_MS_4013`.
+**Sifarişə yeni item əlavə et.** Menyu validasiyası tətbiq olunur, totalAmount yenilənir.
+- **Permission:** `order.manage` | Body: `@Valid AddItemsRequest`
+- Success (200): `OrderResponse`. Error (400): `ORDER_MS_4005`, `4012`, `4013`.
 
 #### `PUT /api/order-ms/v1/orders/{id}/waiter-confirm`
-
-**Ofisiant sifarişi təsdiqləyir** (CUSTOMER rejimində PENDING → CONFIRMED).
-
-- **Auth:** Bearer
-- **Permission:** `order.manage`
-- Request: `{ "waiterId": "...", "waiterName": "Aysel Məmmədova" }` — `@Valid`
-- Yalnız `PENDING` statuslu + `orderSource=CUSTOMER` sifarişlər təsdiqlənə bilər
-
-Success (200): `OrderResponse` (`waiterConfirmed=true`, `status=CONFIRMED`).
-Error (400): `ORDER_MS_4004` (PENDING deyilsə), `ORDER_MS_4001` (source CUSTOMER deyilsə).
+**Ofisiant təsdiqi.** PENDING + CUSTOMER sifarişi CONFIRMED edir.
+- **Permission:** `order.manage` | Body: `@Valid WaiterConfirmRequest`
+- Success (200): `OrderResponse`. Error (400): `ORDER_MS_4004`, `4001`.
 
 #### `POST /api/order-ms/v1/orders/{id}/cancel`
-
-**Sifarişi ləğv et.** Yalnız aktiv sifarişlər ləğv oluna bilər.
-
-- **Auth:** Bearer
-- **Permission:** `order.cancel`
-- Request (optional): `{ "reason": "Müştəri imtina etdi" }`
-- `COMPLETED`/`CANCELLED` sifariş ləğv oluna bilməz (`ORDER_MS_4009`)
-- Masada başqa aktiv sifariş yoxdursa masa `CLEANING` edilir (`tableServiceClient.updateTableStatus`)
-
-Success (200): `OrderResponse` (`status=CANCELLED`, `cancelReason` dolu).
-Error (400): `ORDER_MS_4009`.
+**Sifarişi ləğv et.** Digər aktiv order yoxdursa masa CLEANING olur.
+- **Permission:** `order.cancel` | Body: `CancelRequest` (optional)
+- Success (200): `OrderResponse`. Error (400): `ORDER_MS_4009`.
 
 #### `POST /api/order-ms/v1/orders/{id}/request-payment`
-
-**Hesab istə** (müştəri və ya ofisiant tərəfindən). `paymentRequested=true` + `paymentMethod` set olunur.
-
-- **Auth:** Bearer
-- **Permission:** `order.payment`
-- Request: `{ "method": "CARD" }` — `@Valid` `PaymentRequest` (`@NotBlank` + `@ValidEnum(PaymentMethod.class)`)
-
-Success (200): `OrderResponse` (`paymentRequested=true`).
+**Hesab istə.** `paymentRequested=true` + `paymentMethod` set olunur.
+- **Permission:** `order.payment` | Body: `@Valid PaymentRequest`
+- Success (200): `OrderResponse`.
 
 #### `POST /api/order-ms/v1/orders/{id}/complete-payment`
-
 **Ödənişi tamamla.** `paymentStatus=PAID`, order `COMPLETED`, masa `AVAILABLE`.
-
-- **Auth:** Bearer
 - **Permission:** `order.payment`
-- Request: *empty body*
-- Artıq `PAID` sifarişə təkrar ödəniş olmaz (`ORDER_MS_4008`)
-- `COMPLETED`/`CANCELLED` sifarişə ödəniş olmaz (`ORDER_MS_4005`)
-
-Success (200): `OrderResponse` (`paymentStatus=PAID`, `status=COMPLETED`).
-Error (400): `ORDER_MS_4005`. Error (409): `ORDER_MS_4008`.
+- Success (200): `OrderResponse`. Error (400): `ORDER_MS_4005`. Error (409): `ORDER_MS_4008`.
 
 #### `POST /api/order-ms/v1/orders/{id}/start-preparing`
-
-**Sifarişi hazırlanmaya başla.** Yalnız `CONFIRMED` sifarişlər.
-
-- **Auth:** Bearer
+**Hazırlanmaya başla.** Yalnız CONFIRMED sifarişlər.
 - **Permission:** `order.manage`
-- Bütün `PENDING`/`CONFIRMED` item-lər `PREPARING` edilir, order `PREPARING` olur
-- `PENDING` sifarişi birbaşa hazırlanmaya başlamaq olmaz — əvvəlcə ofisiant təsdiqi lazımdır
-
-Success (200): `OrderResponse` (`status=PREPARING`).
-Error (400): `ORDER_MS_4001`.
+- Success (200): `OrderResponse`. Error (400): `ORDER_MS_4001`.
 
 #### `POST /api/order-ms/v1/orders/{id}/mark-all-ready`
-
-**Bütün hazırlanan item-ləri hazır et.** Yalnız `PREPARING` item-lər `READY` edilir.
-
-- **Auth:** Bearer
+**PREPARING item-ləri READY et.**
 - **Permission:** `order.manage`
-- Yalnız `PREPARING` statuslu item-lər `READY` olur (artıq `READY`/`SERVED` olanlar dəyişmir)
+- Success (200): `OrderResponse`.
 
-Success (200): `OrderResponse` (`status=READY`).
+### Internal Endpoints (Feign üçün, `@PreAuthorize` yoxdur)
+
+| Method | Path | Açıqlama |
+|---|---|---|
+| GET | `/api/order-ms/v1/internal/orders` | Sifarişlər (orgId, status, tableId, waiterId) |
+| GET | `/api/order-ms/v1/internal/orders/{id}` | Tək sifariş |
+| POST | `/api/order-ms/v1/internal/orders` | Sifariş yarat |
+| POST | `/api/order-ms/v1/internal/orders/{id}/request-payment` | Hesab istə |
 
 ### Servisdaxili Feign Əlaqələri
 
-| Target | Metod | Məqsəd |
+| Target | Endpoint | Məqsəd |
 |---|---|---|
-| `table-service` | `GET /tables/{id}` | Masa məlumatı (status, nömrə) |
-| `table-service` | `PUT /tables/{id}/status` | Masa statusu yeniləmə (`OCCUPIED`, `CLEANING`, `AVAILABLE`) |
-| `menu-service` | `GET /items?orgId=` | Menyu elementlərinin mövcudluq/aktivlik yoxlanışı |
-| `setting-service` | `GET /settings?orgId=` | Org ayarları (`orderMode`, `paymentTiming`) |
+| `table-service` | `GET /v1/internal/tables/{id}` | Masa məlumatı |
+| `table-service` | `PUT /v1/internal/tables/{id}/status` | Masa statusu yeniləmə |
+| `menu-service` | `GET /v1/internal/items?orgId=` | Menyu yoxlanışı |
+| `setting-service` | `GET /v1/internal/settings?orgId=` | Org ayarları |
+| `order-service` | Orders & payments | 8107 | `/api/order-ms` | `ORDER_MS` |
+| `kitchen-service` | Kitchen panel (read) | 8108 | `/api/kitchen-ms` | `KITCHEN_MS` |
+| `waiter-service` | Waiter panel (read) | 8109 | `/api/waiter-ms` | `WAITER_MS` |
+| `customer-service` | Customer QR flow | 8110 | `/api/customer-ms` | `CUSTOMER_MS` |
+| `setting-service` | Org settings | 8111 | `/api/setting-ms` | `SETTING_MS` |
+| `dashboard-service` | Dashboard stats | 8112 | `/api/dashboard-ms` | `DASHBOARD_MS` |
+| `report-service` | Reports | 8113 | `/api/report-ms` | `REPORT_MS` |
 
-Bütün Feign çağırışlarında `unwrap()` köməkçisi ilə response yoxlanılır (`success=true`, `data != null`). Xəta halında `RuntimeException` atılır.
+Bütün Feign çağırışlarında `unwrap()` ilə response yoxlanılır.
 
 ### Dizayn Qərarları
 
-- `updateOrderStatusFromItems`: bütün non-cancelled item-lər `SERVED` → order `SERVED`; hamısı `READY`/`SERVED` → order `READY`; hamısı `CANCELLED` → order `CANCELLED`.
-- `startPreparing`: PENDING sifarişdən birbaşa PREPARING-ə keçid yoxdur — yalnız CONFIRMED-dən. Bu, CUSTOMER_WAITER_CONFIRM modunda ofisiant təsdiqini məcburi edir.
-- `cancelOrder`: digər aktiv sifariş varsa masa `CLEANING` edilmir — çoxlu sifariş ssenarisi dəstəklənir.
-- Cross-tenant: `findOrder` platform admin üçün skip, qeyri-admin üçün `SecurityContextFacade.getCurrentOrgId()` ilə yoxlanır.
-- `OrderItem.status` — `OrderItemStatus` enum-u (PENDING, CONFIRMED, PREPARING, READY, SERVED, CANCELLED), DB-də `@Enumerated(EnumType.STRING)`.
-- `Order.status` — `OrderStatus` enum-u, `Order.paymentStatus` — `PaymentStatus`, `Order.orderSource` — `OrderSource`.
+- `OrderItem.status` — `OrderItemStatus` enum-u, `@Enumerated(STRING)`.
+- `startPreparing` — PENDING-dən birbaşa PREPARING-ə keçid yoxdur (ofisiant təsdiqi məcburi).
+- `cancelOrder` — digər aktiv sifariş varsa masa CLEANING edilmir.
+- `completePayment` — `paymentRequested` flag-i yoxlanmır; COMPLETED/CANCELLED yoxlanır.
+- Hardcoded string-statuslar `TableStatus` enum-u ilə əvəz olunub.
+- `ClientMenuItemResponse.name/description` — `LocalizedString` tipi.
+- Tenant: `findOrder`-də `SecurityContextFacade` ilə org yoxlanışı.
 
 ---
 
@@ -1871,46 +1744,31 @@ Bütün Feign çağırışlarında `unwrap()` köməkçisi ilə response yoxlan�
 
 > API prefix: `/api/kitchen-ms/v1/...`
 > Response: `ApiResponse<T>` wrapper
-> Error: Spring `ProblemDetail`; servis-specific `KitchenErrorCode` yoxdur — bütün xətalar **upstream** (`order-ms`, `ORDER_MS_*`) və ya ümumi kodlardan (`*_1000`, `*_4001`, `*_4003`, `*_9999`) gəlir
+> Error: Spring `ProblemDetail`; servis-specific error code yoxdur — xətalar upstream (`ORDER_MS_*`) və ya ümumi kodlardan gəlir
 > Context path: `/api/kitchen-ms`; gateway marşrutu: `/api/kitchen-ms/**` → `http://localhost:8108`
 
 ### Tenant & Giriş Qayraları
 
-- Bütün endpoint-lər `Authorization: Bearer` tələb edir və `@PreAuthorize` permission kodu ilə qorunur.
-- Non-admin istifadəçi yalnız öz org-unun sifarişlərini görür; başqa org → **403** (`*_4003`).
+- `GET /orders` `Authorization: Bearer` + `@PreAuthorize("@perm.has('kitchen.view')")`.
+- Order-service-dən gələn sifarişlər `orgId` ilə filterlənir.
 
 ### Data Modelləri
 
-**`KitchenOrderResponse`**: `id`(String), `items[]`, `tableId`, `tableNumber`, `status`, `paymentStatus`, `totalAmount`, `waiterName`, `orderSource`, `createdAt`(Instant).
-
-**`KitchenItemResponse`**: `id`(String), `menuItemId`, `menuItemName`, `quantity`, `price`, `notes`, `status`.
-
-**`KitchenOrderGroup`** (kitchen xüsusi): sifarişləri statusa görə qruplaşdırılmış wrapper.
+**`KitchenOrdersResponse`**: `new` (OrderResponse[]), `preparing` (OrderResponse[]), `ready` (OrderResponse[]). Sifarişlər statusa görə 3 qrupa bölünür.
 
 ### Endpoints
 
 #### `GET /api/kitchen-ms/v1/orders`
+**Mətbəx sifarişləri.** Order-service-dən PREPARING + READY sifarişlər götürülür, statusa görə qruplaşdırılır.
+- **Permission:** `kitchen.view` | Query: `orgId` (required)
+- Success (200): `ApiResponse<KitchenOrdersResponse>`.
 
-- **Auth:** Bearer
-- **Permission:** `kitchen.view`
-- Query: `orgId` (required)
+### Servisdaxili Feign Əlaqələri
 
-Məntiq: `order-ms`-dən **PREPARING / READY** sifarişlər götürülür, statusa görə qruplaşdırılır.
-
-Success (200): `KitchenOrderGroup`:
-```json
-{
-  "success": true,
-  "message": "Success",
-  "errorCode": null,
-  "data": {
-    "preparing": [ /* KitchenOrderResponse[] */ ],
-    "ready": [ /* KitchenOrderResponse[] */ ]
-  }
-}
-```
-
-> Qeyd: bu endpoint `KitchenService` vasitəsilə `order-ms`-ə **upstream** çağırış edir; `order-ms` əlçatmaz olarsa 502/503.
+| Target | Endpoint | Məqsəd |
+|---|---|---|
+| `order-service` | `GET /v1/internal/orders?orgId=&status=PREPARING` | PREPARING sifarişlər |
+| `order-service` | `GET /v1/internal/orders?orgId=&status=READY` | READY sifarişlər |
 
 ---
 
@@ -1923,75 +1781,51 @@ Success (200): `KitchenOrderGroup`:
 
 ### Tenant & Giriş Qayraları
 
-- Bütün endpoint-lər `Authorization: Bearer` tələb edir və `@PreAuthorize` permission kodu ilə qorunur.
-- Non-admin istifadəçi yalnız öz org-unun məlumatlarına girişir; başqa org → **403** (`WAITER_MS_3003`).
-- Bu servis yalnız **oxuma** (read) əməliyyatları edir; yazma əməliyyatları `order-ms`/`table-ms` üzərindədir.
+- Bütün endpoint-lər `Authorization: Bearer` + `@PreAuthorize("@perm.has('waiter.view')")`.
+- `assertCanReadOrg` — `principal == null` → `ACCESS_DENIED` (403). Platform admin skip, qeyri-admin öz org-u ilə yoxlanır.
 
 ### Waiter-servis Error Kodları
 
 | Kod | HTTP | Açıqlama |
 |---|---|---|
-| `WAITER_MS_3003` | 403 | Giriş qadağandır |
-| `WAITER_MS_9001` | 503 | Upstream servis əlçatmaz |
-| `WAITER_MS_9002` | 502 | Upstream servis xətası |
+| `WAITER_MS_3003` | 403 | Giriş qadağandır (başqa org / principal yoxdur) |
+| `WAITER_MS_9001` | 502 | Upstream xətası (order/table servisi cavab vermir) |
+| `WAITER_MS_9002` | 502 | Upstream servis qeyri-keçərli cavab qaytarır |
 
 ### Data Modelləri
 
-**`WaiterTablesWrapper`**: masalar (status daxil) + tələb olunan köməkçi məlumat (məs. aktiv sifariş varlığı) ilə wrapper.
+**`WaiterTablesWrapper`**: `{ "tables": [ WaiterTableResponse... ] }`
 
-**`WaiterOrderResponse`**: `id`(String), `tableId`, `tableNumber`, `items[]`, `status`, `paymentStatus`, `totalAmount`, `customerPhoto`, `paymentMethod`, `waiterConfirmed`, `paymentRequested`, `cancelReason`, `orgId`, `createdAt`, `updatedAt`.
+**`WaiterTableResponse`**: `id`(UUID), `tableNumber`(Integer), `capacity`(Integer), `status`(String), `section`(String — seksiya adı), `currentOrderId`(UUID, optional), `orderSummary`(object, optional), `orgId`(UUID).
+- `orderSummary`: `totalAmount`(BigDecimal), `itemCount`(int), `status`(String).
+
+**`WaiterOrderResponse`**: `id`(String), `items[]`(ItemResponse), `tableId`(UUID), `tableNumber`(Integer), `status`(String), `paymentStatus`(String), `totalAmount`(BigDecimal), `waiterId`(UUID), `waiterName`(String), `orderSource`(String), `waiterConfirmed`(boolean), `confirmedBy`(String), `customerPhoto`(String), `paymentMethod`(String), `paymentRequested`(boolean), `cancelReason`(String), `orgId`(UUID), `createdAt`(Instant), `updatedAt`(Instant).
 
 ### Endpoints
 
 #### `GET /api/waiter-ms/v1/tables`
-
-- **Auth:** Bearer
-- **Permission:** `waiter.view`
-- Query: `orgId` (required)
-
-Məntiq: `table-ms`-dən masalar götürülür, hər masada aktiv sifariş varmı işarələnir.
-
-Success (200): `WaiterTablesWrapper`:
-```json
-{
-  "success": true,
-  "message": "Success",
-  "errorCode": null,
-  "data": {
-    "tables": [
-      {
-        "id": "bbbbbbbb-0000-4000-8000-000000000201",
-        "tableNumber": 1,
-        "capacity": 4,
-        "status": "OCCUPIED",
-        "sectionId": "aaaaaaaa-0000-4000-8000-000000000001",
-        "activeOrder": true,
-        "orgId": "01234567-89ab-cdef-0123-456789abcdef"
-      }
-    ]
-  }
-}
-```
+**Masalar + aktiv sifariş xülasəsi.** Table-service-dən masalar + order-service-dən aktiv sifarişlər birləşdirilir. COMPLETED/CANCELLED sifarişlər filterlənir. MAX 200 nəticə.
+- **Permission:** `waiter.view` | Query: `orgId` (required)
+- Success (200): `ApiResponse<WaiterTablesWrapper>`.
 
 #### `GET /api/waiter-ms/v1/orders/pending-confirm`
-
-- **Auth:** Bearer
-- **Permission:** `waiter.view`
-- Query: `orgId` (required)
-
-Məntiq: `order-ms`-dən **PENDING + waiterConfirmed=false** sifarişlər (ofisiant təsdiqi gözləyənlər).
-
-Success (200): `WaiterOrderResponse[]`.
+**Təsdiq gözləyən sifarişlər.** PENDING + `waiterConfirmed=false` + `orderSource=CUSTOMER`. MAX 200.
+- **Permission:** `waiter.view` | Query: `orgId` (required)
+- Success (200): `ApiResponse<List<WaiterOrderResponse>>`.
 
 #### `GET /api/waiter-ms/v1/orders/payment-requests`
+**Hesab istənmiş sifarişlər.** `paymentRequested=true` + `paymentStatus=PENDING`. MAX 200.
+- **Permission:** `waiter.view` | Query: `orgId` (required)
+- Success (200): `ApiResponse<List<WaiterOrderResponse>>`.
 
-- **Auth:** Bearer
-- **Permission:** `waiter.view`
-- Query: `orgId` (required)
+### Servisdaxili Feign Əlaqələri
 
-Məntiq: `order-ms`-dən **paymentRequested=true + paymentStatus=PENDING** sifarişlər (müştəri hesab istəyib).
-
-Success (200): `WaiterOrderResponse[]`.
+| Target | Endpoint | Məqsəd |
+|---|---|---|
+| `table-service` | `GET /v1/internal/tables?orgId=` | Masalar |
+| `table-service` | `GET /v1/internal/sections?orgId=` | Seksiyalar |
+| `order-service` | `GET /v1/internal/orders?orgId=&status=PENDING` | PENDING sifarişlər |
+| `order-service` | `GET /v1/internal/orders?orgId=` | Bütün sifarişlər (payment requests üçün) |
 
 ---
 
@@ -1999,88 +1833,58 @@ Success (200): `WaiterOrderResponse[]`.
 
 > API prefix: `/api/customer-ms/v1/...`
 > Response: `ApiResponse<T>` wrapper
-> Error: Spring `ProblemDetail`; servis-specific `CustomerErrorCode` yoxdur — xətalar ümumi kodlardan (`*_1000` validation, `*_3001` 404, `*_9999` 500) və ya **upstream** (`MENU_MS_*`, `TABLE_MS_*`, `ORDER_MS_*`) gəlir
-> Context path: `/api/customer-ms`; gateway marşrutu: `/api/customer-ms/**` → `http://localhost:8110`
+> Error: Spring `ProblemDetail`; servis-specific error code yoxdur — xətalar upstream (`MENU_MS_*`, `TABLE_MS_*`, `ORDER_MS_*`) və ya ümumi kodlardan gəlir
+> Context path: `/api/customer-ms`; gateway-də `permitAll` (publik)
 
-### Giriş Qayraları
+### Tenant & Giriş Qayraları
 
-- **Auth tələb olunmur** — bu bölmə müştəri (QR skan edərək) tərəfindən istifadə olunur. Gateway-də `/api/customer-ms/**` **permitAll**.
-- Bütün əməliyyatlar `orgId` (path/query) üzərindən tenant-a bağlıdır.
+- **Bütün endpoint-lər publikdir** — gateway-də `/api/customer-ms/**` `permitAll`.
+- Internal Feign çağırışları `X-Internal-Auth` ilə işləyir.
 
 ### Data Modelləri
 
-**`CustomerMenuResponse`**: `categories[]`, `items[]`.
-- **`CategoryResponse`** (customer): `id`, `name`(`LocalizedString`), `icon`.
-- **`ItemResponse`** (customer): `id`, `name`(`LocalizedString`), `description`(`LocalizedString`), `price`, `categoryId`, `imageUrl`, `@JsonProperty("isAvailable")`, `preparationTime`.
-
-**`CustomerOrderRequest`**:
-```json
-{
-  "orgId": "01234567-89ab-cdef-0123-456789abcdef",
-  "tableId": "bbbbbbbb-0000-4000-8000-000000000201",
-  "items": [
-    { "menuItemId": "bbbbbbbb-0000-4000-8000-000000000101", "menuItemName": "Toyuq Doner", "quantity": 2, "price": 9.50, "notes": "" }
-  ],
-  "customerPhoto": null,
-  "paymentMethod": "CARD"
-}
-```
-
-**`CustomerOrderResponse`**: müştəriyə qaytarılan yığcam sifariş modeli (`id`, `status`, `totalAmount`, `items[]`, ...).
+**`CustomerMenuResponse`**: `categories[]` (id, name, icon), `items[]` (id, name, description, price, categoryId, imageUrl, isAvailable, preparationTime).
+**`CustomerTableResponse`**: `id`(UUID), `tableNumber`(Integer), `capacity`(Integer), `sectionId`(UUID).
+**`CustomerOrderResponse`**: `id`(String), `status`(String), `totalAmount`(BigDecimal), `items[]`(ItemResponse), `paymentStatus`(String), `paymentMethod`(String).
 
 ### Endpoints
 
 #### `GET /api/customer-ms/v1/{orgId}/menu`
-
-- **Auth:** public
-- Path: `orgId`
-
-Müştəri menyusu (yalnız **isAvailable=true** item-lər).
-
-Success (200):
-```json
-{
-  "success": true,
-  "message": "Success",
-  "errorCode": null,
-  "data": {
-    "categories": [ { "id": "aaaaaaaa-0000-4000-8000-000000000001", "name": { "az": "Qrilla", "en": "Grill", "ru": "Гриль" }, "icon": "🔥" } ],
-    "items": [ { "id": "bbbbbbbb-0000-4000-8000-000000000101", "name": { "az": "Toyuq Doner", "en": "Chicken Doner", "ru": "Куриный донер" }, "price": 9.50, "isAvailable": true, "preparationTime": 15 } ]
-  }
-}
-```
+**Müştəri menyusu.** Menu-service-dən kateqoriyalar + item-lər gətirilir, flat struktura çevrilir.
+- **Auth:** public | Path: `orgId` (UUID)
+- Success (200): `ApiResponse<CustomerMenuResponse>`.
 
 #### `GET /api/customer-ms/v1/{orgId}/tables`
-
-- **Auth:** public
-- Path: `orgId`
-
-QR-dakı masanın etibarlılığını yoxlamaq üçün. Success (200): `CustomerTableResponse[]` (yığcam masa modeli: `id`, `tableNumber`, `status`).
+**Mövcud masalar.** Table-service-dən gətirilir.
+- **Auth:** public | Path: `orgId` (UUID)
+- Success (200): `ApiResponse<List<CustomerTableResponse>>`.
 
 #### `POST /api/customer-ms/v1/orders`
-
-- **Auth:** public
-
-Müştəri sifarişi yaradır (`order-ms`-ə upstream, `orderSource=CUSTOMER`).
-
-Request: `CustomerOrderRequest`. Success (201): `CustomerOrderResponse` (`status=PENDING`).
+**Müştəri sifarişi yarat.** Order-service-ə `orderSource=CUSTOMER` ilə yönləndirilir.
+- **Auth:** public | Body: `{ orgId, tableId, items[], customerPhoto?, paymentMethod? }`
+- Success (201): `ApiResponse<CustomerOrderResponse>`.
 
 #### `GET /api/customer-ms/v1/orders/{orderId}`
-
-- **Auth:** public
-
-Müştəri sifarişinin statusunu izləyir. Success (200): `CustomerOrderResponse`.
+**Sifariş statusu.**
+- **Auth:** public | Path: `orderId` (UUID)
+- Success (200): `ApiResponse<CustomerOrderResponse>`.
 
 #### `POST /api/customer-ms/v1/orders/{orderId}/request-bill`
+**Hesab istə.** Order-service-ə yönləndirilir.
+- **Auth:** public | Path: `orderId` (String) | Body: `{ method: "CASH"|"CARD" }`
+- Success (200): `ApiResponse<CustomerOrderResponse>`.
 
-- **Auth:** public
+### Servisdaxili Feign Əlaqələri
 
-Request:
-```json
-{ "method": "CASH" }
-```
-
-Success (200): `CustomerOrderResponse` (`paymentRequested=true` — ofisiant təsdiqi gözləyir).
+| Target | Endpoint | Məqsəd |
+|---|---|---|
+| `menu-service` | `GET /v1/internal/categories?orgId=` | Kateqoriyalar |
+| `menu-service` | `GET /v1/internal/items?orgId=` | Menyu item-ləri |
+| `table-service` | `GET /v1/internal/tables?orgId=` | Masalar |
+| `setting-service` | `GET /v1/internal/settings?orgId=` | Müştəri ayarları (theme, photo) |
+| `order-service` | `POST /v1/internal/orders` | Sifariş yarat |
+| `order-service` | `GET /v1/internal/orders/{id}` | Sifariş statusu |
+| `order-service` | `POST /v1/internal/orders/{id}/request-payment` | Hesab istə |
 
 ---
 
@@ -2093,56 +1897,49 @@ Success (200): `CustomerOrderResponse` (`paymentRequested=true` — ofisiant tə
 
 ### Tenant & Giriş Qayraları
 
-- Bütün endpoint-lər `Authorization: Bearer` tələb edir və `@PreAuthorize` permission kodu ilə qorunur.
-- Non-admin istifadəçi yalnız öz org-unun parametrlərini görür/dəyişir; başqa org → **403** (`*_4003`).
+- Admin endpoint-ləri `Authorization: Bearer` + `@PreAuthorize`.
+- Internal endpoint `GET /v1/internal/settings` + `PUT /v1/internal/settings` — `X-Internal-Auth` ilə.
 
 ### Setting-servis Error Kodları
 
-> `SettingErrorCode` enum-ından.
-
 | Kod | HTTP | Açıqlama |
 |---|---|---|
-| `SETTING_MS_3001` | 404 | Parametrlər tapılmadı (`SETTINGS_NOT_FOUND`) |
-| `SETTING_MS_4001` | 400 | Org tapılmadı (`ORGANIZATION_NOT_FOUND`) |
+| `SETTING_MS_3001` | 404 | Org parametrləri tapılmadı |
 
 ### Data Modelləri
 
-**`SettingRequest`**: `orgId` (required), parametrlər (org başına yeganə sənəd) — məs. `restaurantName`, `currency`, `taxRate`, `serviceChargeRate`, `workingHours`, `logoUrl`, `contactPhone` (bütün sahələr optional, ortaq `Setting` modeli).
+**`SettingResponse` / `SettingRequest`**: `orgId`(UUID, `@NotNull`), `orderMode`(String, `@NotBlank`+`@ValidEnum(OrderMode)`), `customerPhotoRequired`(boolean), `paymentTiming`(String, `@NotBlank`+`@ValidEnum(PaymentTiming)`), `customerTheme`(String, `@NotBlank`+`@ValidEnum(CustomerTheme)`).
 
-**`SettingResponse`**: `orgId` + parametrlər (yuxarıdakı struktura uyğun).
+Enum dəyərləri:
+- `OrderMode`: `WAITER`, `CUSTOMER`, `CUSTOMER_WAITER_CONFIRM`, `KITCHEN`
+- `PaymentTiming`: `BEFORE`, `AFTER`
+- `CustomerTheme`: `CLASSIC`, `EMERALD`, `SUNSET`, `ROSE`, `VIOLET`, `AMBER`
 
-### Endpoints
+### Admin Endpoints (`@PreAuthorize` ilə)
 
 #### `GET /api/setting-ms/v1/settings`
-
-- **Auth:** Bearer
-- **Permission:** `settings.view`
-- Query: `orgId` (required)
-
-Success (200):
-```json
-{
-  "success": true,
-  "message": "Success",
-  "errorCode": null,
-  "data": {
-    "orgId": "01234567-89ab-cdef-0123-456789abcdef",
-    "restaurantName": "RestoFlow Demo",
-    "currency": "AZN",
-    "taxRate": 0.18,
-    "serviceChargeRate": 0.10,
-    "logoUrl": "https://cdn.example.com/logo.png",
-    "contactPhone": "+994 12 000 00 00"
-  }
-}
-```
+**Org parametrlərini oxu.**
+- **Permission:** `settings.view` | Query: `orgId` (required)
+- Success (200): `ApiResponse<SettingResponse>`. Error (404): `SETTING_MS_3001`.
 
 #### `PUT /api/setting-ms/v1/settings`
+**Org parametrlərini yenilə (upsert).** Concurrent upsert race-condition `DataIntegrityViolationException` catch + retry ilə qorunur.
+- **Permission:** `settings.edit` | Body: `@Valid SettingRequest`
+- Success (200): `ApiResponse<SettingResponse>`.
 
-- **Auth:** Bearer
-- **Permission:** `settings.edit`
+### Internal Endpoints (Feign üçün, `@PreAuthorize` yoxdur)
 
-Request: `SettingRequest` (dəyişdiriləcək sahələr). Success (200): `SettingResponse`.
+| Method | Path | Açıqlama |
+|---|---|---|
+| GET | `/api/setting-ms/v1/internal/settings?orgId=` | Parametrləri oxu |
+| PUT | `/api/setting-ms/v1/internal/settings` | Parametrləri yenilə (upsert) |
+
+### Dizayn Qərarları
+
+- `GET` — `findByOrgId` → yoxdursa 404.
+- `PUT` — `findByOrgId` → yoxdursa yeni `OrgSetting` yaradılır. `save()` zamanı `DataIntegrityViolationException` → re-read + retry.
+- `Enum.valueOf(...)` çağırışları `toUpperCase(Locale.ROOT)` ilə.
+- `customerPhotoRequired` — primitive `boolean`, `@NotNull` yoxdur (default `false`).
 
 ---
 
@@ -2150,73 +1947,49 @@ Request: `SettingRequest` (dəyişdiriləcək sahələr). Success (200): `Settin
 
 > API prefix: `/api/dashboard-ms/v1/...`
 > Response: `ApiResponse<T>` wrapper
-> Error: Spring `ProblemDetail`; servis-specific `DashboardErrorCode` yoxdur — bütün xətalar **upstream** (`ORDER_MS_*`, `ACCESS_MS_*`) və ya ümumi kodlardan (`*_4001`, `*_4003`, `*_9999`) gəlir
+> Error: Spring `ProblemDetail`; servis-specific error code yoxdur — xətalar upstream (`ORDER_MS_*`, `ACCESS_MS_*`) və ya ümumi kodlardan gəlir
 > Context path: `/api/dashboard-ms`; gateway marşrutu: `/api/dashboard-ms/**` → `http://localhost:8112`
 
 ### Tenant & Giriş Qayraları
 
-- Bütün endpoint-lər `Authorization: Bearer` tələb edir və `@PreAuthorize` permission kodu ilə qorunur.
-- Non-admin istifadəçi yalnız öz org-unun statistika məlumatlarına girişir; başqa org → **403** (`*_4003`).
-- Bu servis **oxuma** üçündür; bütün məlumat `order-ms`/`staff` üzərindən **upstream** toplanır.
+- Bütün endpoint-lər `Authorization: Bearer` + `@PreAuthorize("@perm.has('dashboard.view')")`.
 
 ### Data Modelləri
 
-**`DashboardStatsResponse`**: bugünkü ümumi statistikalar — məs. `totalOrders`, `totalRevenue`, `averageOrderValue`, `activeOrders`, `cancelledOrders`, `topCategory`.
-
-**`RecentOrderResponse`**: yığcam sifariş sətri — `id`, `tableNumber`, `totalAmount`, `status`, `paymentStatus`, `createdAt`.
-
-**`StaffListResponse`**: işçi xülasəsi — `userId`, `name`, `role`, `activeOrders`, `completedOrders`.
-
-**`TopItemResponse`**: ən çox satılan — `menuItemId`, `menuItemName`, `quantity`, `revenue`.
+**`DashboardStatsResponse`**: `totalRevenue`(BigDecimal), `completedOrders`(long), `activeOrders`(long), `occupiedTables`(long).
+**`TopItemResponse`**: `menuItemId`(String), `name`(LocalizedString), `count`(long), `revenue`(BigDecimal).
+**`RecentOrderResponse`**: `id`(String), `tableNumber`(Integer), `waiterName`(String), `totalAmount`(BigDecimal), `status`(String), `createdAt`(Instant).
+**`StaffListResponse`**: `id`(String), `name`(String), `role`(String), `activeOrders`(int).
 
 ### Endpoints
 
 #### `GET /api/dashboard-ms/v1/stats`
-
-- **Auth:** Bearer
-- **Permission:** `dashboard.view`
-- Query: `orgId` (required)
-
-Success (200): `DashboardStatsResponse`:
-```json
-{
-  "success": true,
-  "message": "Success",
-  "errorCode": null,
-  "data": {
-    "totalOrders": 42,
-    "totalRevenue": 785.50,
-    "averageOrderValue": 18.70,
-    "activeOrders": 6,
-    "cancelledOrders": 2,
-    "topCategory": "Qrilla"
-  }
-}
-```
+**Ümumi statistika.** Order + table statistikası.
+- **Permission:** `dashboard.view` | Query: `orgId` (required)
+- Success (200): `ApiResponse<DashboardStatsResponse>`.
 
 #### `GET /api/dashboard-ms/v1/top-items`
-
-- **Auth:** Bearer
-- **Permission:** `dashboard.view`
-- Query: `orgId` (required), `limit` (optional, default 5)
-
-Success (200): `TopItemResponse[]`.
+**Ən çox satılan məhsullar.**
+- **Permission:** `dashboard.view` | Query: `orgId` (required)
+- Success (200): `ApiResponse<List<TopItemResponse>>`.
 
 #### `GET /api/dashboard-ms/v1/recent-orders`
-
-- **Auth:** Bearer
-- **Permission:** `dashboard.view`
-- Query: `orgId` (required), `limit` (optional)
-
-Success (200): `RecentOrderResponse[]`.
+**Son sifarişlər.**
+- **Permission:** `dashboard.view` | Query: `orgId` (required)
+- Success (200): `ApiResponse<List<RecentOrderResponse>>`.
 
 #### `GET /api/dashboard-ms/v1/staff-list`
+**İşçi siyahısı + aktiv sifariş sayı.**
+- **Permission:** `dashboard.view` | Query: `orgId` (required)
+- Success (200): `ApiResponse<List<StaffListResponse>>`.
 
-- **Auth:** Bearer
-- **Permission:** `dashboard.view`
-- Query: `orgId` (required)
+### Servisdaxili Feign Əlaqələri
 
-Success (200): `StaffListResponse[]`.
+| Target | Endpoint | Məqsəd |
+|---|---|---|
+| `order-service` | `GET /v1/internal/orders?orgId=` | Sifariş statistikası |
+| `table-service` | `GET /v1/internal/tables?orgId=` | Masa statistikası |
+| `access-service` | `GET /v1/users?orgId=` | İşçi siyahısı |
 
 ---
 
@@ -2224,104 +1997,63 @@ Success (200): `StaffListResponse[]`.
 
 > API prefix: `/api/report-ms/v1/...`
 > Response: `ApiResponse<T>` wrapper
-> Error: Spring `ProblemDetail`; servis-specific `ReportErrorCode` yoxdur — bütün xətalar **upstream** (`ORDER_MS_*`, `ACCESS_MS_*`) və ya ümumi kodlardan (`*_4001`, `*_4003`, `*_9999`) gəlir
+> Error: Spring `ProblemDetail`; servis-specific error code yoxdur — xətalar upstream (`ORDER_MS_*`, `ACCESS_MS_*`) və ya ümumi kodlardan gəlir
 > Context path: `/api/report-ms`; gateway marşrutu: `/api/report-ms/**` → `http://localhost:8113`
 
 ### Tenant & Giriş Qayraları
 
-- Bütün endpoint-lər `Authorization: Bearer` tələb edir və `@PreAuthorize` permission kodu ilə qorunur.
-- Non-admin istifadəçi yalnız öz org-unun hesabatlarına girişir; başqa org → **403** (`*_4003`).
-- Tarix aralığı query ilə: `startDate`, `endDate` (ISO `LocalDate`, optional — göstərilməsə **bugün**). Bu servis **oxuma** üçündür.
+- Bütün endpoint-lər `Authorization: Bearer` + `@PreAuthorize("@perm.has('report.view')")`.
 
 ### Data Modelləri
 
-**`SummaryResponse`**: `totalRevenue`, `totalOrders`, `averageOrderValue`, `totalItemsSold`, `completedOrders`, `cancelledOrders`.
-
-**`DailyRevenueResponse`**: `date`, `revenue`, `orderCount`.
-
-**`HourlyResponse`**: `hour` (0-23), `revenue`, `orderCount`.
-
-**`SalesByCategoryResponse`**: `categoryName`, `quantity`, `revenue`.
-
-**`TopItemResponse`** (report): `menuItemId`, `menuItemName`, `quantity`, `revenue`.
-
-**`StaffPerformanceResponse`**: `userId`, `name`, `role`, `totalOrders`, `completedOrders`, `revenue`, `activeOrders`.
+**`ReportSummaryResponse`**: `totalRevenue`(BigDecimal), `completed`(long), `cancelled`(long), `avgOrderValue`(BigDecimal).
+**`DailyRevenueResponse`**: `date`(String), `revenue`(BigDecimal), `orderCount`(long).
+**`HourlyReportResponse`**: `hour`(int), `revenue`(BigDecimal), `orderCount`(long).
+**`SalesByCategoryResponse`**: `categoryId`(String), `name`(LocalizedString), `count`(long).
+**`TopItemReportResponse`**: `menuItemId`(String), `name`(LocalizedString), `count`(long), `revenue`(BigDecimal).
+**`StaffPerformanceResponse`**: `userId`(String), `name`(String), `role`(String), `totalOrders`(long), `completedOrders`(long), `revenue`(BigDecimal).
 
 ### Endpoints
 
 #### `GET /api/report-ms/v1/summary`
-
-- **Auth:** Bearer
-- **Permission:** `report.view`
-- Query: `orgId` (required), `startDate`, `endDate` (optional)
-
-Success (200):
-```json
-{
-  "success": true,
-  "message": "Success",
-  "errorCode": null,
-  "data": {
-    "totalRevenue": 4520.00,
-    "totalOrders": 240,
-    "averageOrderValue": 18.83,
-    "totalItemsSold": 610,
-    "completedOrders": 228,
-    "cancelledOrders": 12
-  }
-}
-```
+**Dövr xülasəsi.**
+- **Permission:** `report.view` | Query: `orgId` (required)
+- Success (200): `ApiResponse<ReportSummaryResponse>`.
 
 #### `GET /api/report-ms/v1/daily-revenue`
-
-- **Auth:** Bearer
-- **Permission:** `report.view`
-- Query: `orgId` (required), `startDate`, `endDate` (optional)
-
-Success (200): `DailyRevenueResponse[]`:
-```json
-{ "data": [ { "date": "2026-08-06", "revenue": 1520.50, "orderCount": 80 } ] }
-```
+**Gündəlik gəlir.**
+- **Permission:** `report.view` | Query: `orgId` (required)
+- Success (200): `ApiResponse<List<DailyRevenueResponse>>`.
 
 #### `GET /api/report-ms/v1/hourly`
-
-- **Auth:** Bearer
-- **Permission:** `report.view`
-- Query: `orgId` (required), `startDate`, `endDate` (optional)
-
-Success (200): `HourlyResponse[]`:
-```json
-{ "data": [ { "hour": 13, "revenue": 210.00, "orderCount": 12 } ] }
-```
+**Saatlıq gəlir.**
+- **Permission:** `report.view` | Query: `orgId` (required)
+- Success (200): `ApiResponse<HourlyReportResponse>`.
 
 #### `GET /api/report-ms/v1/sales-by-category`
-
-- **Auth:** Bearer
-- **Permission:** `report.view`
-- Query: `orgId` (required), `startDate`, `endDate` (optional)
-
-Success (200): `SalesByCategoryResponse[]`:
-```json
-{ "data": [ { "categoryName": "Qrilla", "quantity": 180, "revenue": 1650.00 } ] }
-```
+**Kateqoriya üzrə satış.**
+- **Permission:** `report.view` | Query: `orgId` (required)
+- Success (200): `ApiResponse<List<SalesByCategoryResponse>>`.
 
 #### `GET /api/report-ms/v1/top-items`
-
-- **Auth:** Bearer
-- **Permission:** `report.view`
-- Query: `orgId` (required), `startDate`, `endDate` (optional), `limit` (optional, default 10)
-
-Success (200): `TopItemResponse[]`.
+**Ən çox satılanlar (report).**
+- **Permission:** `report.view` | Query: `orgId` (required)
+- Success (200): `ApiResponse<List<TopItemReportResponse>>`.
 
 #### `GET /api/report-ms/v1/staff-performance`
+**İşçi performansı.**
+- **Permission:** `report.view` | Query: `orgId` (required)
+- Success (200): `ApiResponse<List<StaffPerformanceResponse>>`.
 
-- **Auth:** Bearer
-- **Permission:** `report.view`
-- Query: `orgId` (required), `startDate`, `endDate` (optional)
+### Servisdaxili Feign Əlaqələri
 
-Success (200): `StaffPerformanceResponse[]`.
+| Target | Endpoint | Məqsəd |
+|---|---|---|
+| `order-service` | `GET /v1/internal/orders?orgId=` | Sifariş statistikası |
+| `access-service` | `GET /v1/users?orgId=` | İşçi siyahısı (performans üçün) |
 
 ---
+
 
 ## 13. Microservice Architecture & Port Plan
 
@@ -2348,13 +2080,6 @@ Success (200): `StaffPerformanceResponse[]`.
 | `organization-service` | Organization + Org admin bootstrap | 8102 | `/api/organization-ms` | `ORG` |
 | `menu-service` | Menu categories & items | 8105 | `/api/menu-ms` | `MENU_MS` |
 | `table-service` | Tables & sections | 8106 | `/api/table-ms` | `TABLE_MS` |
-| `order-service` | Orders & payments | 8107 | `/api/order-ms` | `ORDER_MS` |
-| `kitchen-service` | Kitchen panel (read) | 8108 | `/api/kitchen-ms` | `KITCHEN_MS` |
-| `waiter-service` | Waiter panel (read) | 8109 | `/api/waiter-ms` | `WAITER_MS` |
-| `customer-service` | Customer QR flow | 8110 | `/api/customer-ms` | `CUSTOMER_MS` |
-| `setting-service` | Org settings | 8111 | `/api/setting-ms` | `SETTING_MS` |
-| `dashboard-service` | Dashboard stats | 8112 | `/api/dashboard-ms` | `DASHBOARD_MS` |
-| `report-service` | Reports | 8113 | `/api/report-ms` | `REPORT_MS` |
 
 ### Autentifikasiya axını
 
@@ -2379,15 +2104,6 @@ Client ──Bearer JWT──► Gateway ──► Service
 - **ORG_ADMIN** yalnız öz org-u üzərində — bütün `organization.view/create/edit/delete`, `staff.*`, `role.*`, `permission.*`, `settings.*` (ümumilikdə 38 perm) icazəsinə sahibdir.
 
 ### Upstream (feign) əlaqələri
-
-| Service | Çağırır | Port |
-|---|---|---|
-| `organization-service` | `access-service` (role assign), `setting-service`, `table-service`, `order-service` | 8120, 8111, 8106, 8107 |
-| `kitchen-service` | `order-service` (PREPARING/READY sifarişlər) | 8107 |
-| `waiter-service` | `table-service`, `order-service` | 8106, 8107 |
-| `customer-service` | `menu-service`, `table-service`, `order-service` | 8105, 8106, 8107 |
-| `dashboard-service` | `order-service`, `access-service` (staff) | 8107, 8120 |
-| `report-service` | `order-service`, `access-service` | 8107, 8120 |
 
 ---
 
@@ -2475,6 +2191,21 @@ Client ──Bearer JWT──► Gateway ──► Service
 | PUT | `/api/table-ms/v1/sections/{id}` | Bearer | `table.edit` | Seksiya redaktə |
 | DELETE | `/api/table-ms/v1/sections/{id}` | Bearer | `table.delete` | Seksiya sil |
 
+---|---|---|---|---|
+| GET | `/api/report-ms/v1/summary` | Bearer | `report.view` | Xülasə |
+| GET | `/api/report-ms/v1/daily-revenue` | Bearer | `report.view` | Gündəlik gəlir |
+| GET | `/api/report-ms/v1/hourly` | Bearer | `report.view` | Saatlıq gəlir |
+| GET | `/api/report-ms/v1/sales-by-category` | Bearer | `report.view` | Kateqoriya üzrə satış |
+| GET | `/api/report-ms/v1/top-items` | Bearer | `report.view` | Ən çox satılanlar |
+| GET | `/api/report-ms/v1/staff-performance` | Bearer | `report.view` | İşçi performansı |
+
+---
+
+## 15. Common Shared Types (for reference)
+
+> `common-*` modullarında tanımlanır; bütün servislərdə istifadə olunur.
+
+
 ### Order — order-service (:8107)
 
 | Method | Path | Auth | Perm | Açıqlama |
@@ -2487,7 +2218,7 @@ Client ──Bearer JWT──► Gateway ──► Service
 | POST | `/api/order-ms/v1/orders/{id}/items` | Bearer | `order.manage` | Item-lər əlavə et |
 | PUT | `/api/order-ms/v1/orders/{id}/waiter-confirm` | Bearer | `order.manage` | Ofisiant təsdiqi |
 | POST | `/api/order-ms/v1/orders/{id}/cancel` | Bearer | `order.cancel` | Ləğv et |
-| POST | `/api/order-ms/v1/orders/{id}/request-payment` | Bearer | `order.payment` | Hesab istə (paylaşımlı) |
+| POST | `/api/order-ms/v1/orders/{id}/request-payment` | Bearer | `order.payment` | Hesab istə |
 | POST | `/api/order-ms/v1/orders/{id}/complete-payment` | Bearer | `order.payment` | Ödənişi tamamla |
 | POST | `/api/order-ms/v1/orders/{id}/start-preparing` | Bearer | `order.manage` | Hazırlanmaya başla |
 | POST | `/api/order-ms/v1/orders/{id}/mark-all-ready` | Bearer | `order.manage` | Hamısı hazır |
@@ -2543,11 +2274,6 @@ Client ──Bearer JWT──► Gateway ──► Service
 | GET | `/api/report-ms/v1/top-items` | Bearer | `report.view` | Ən çox satılanlar |
 | GET | `/api/report-ms/v1/staff-performance` | Bearer | `report.view` | İşçi performansı |
 
----
-
-## 15. Common Shared Types (for reference)
-
-> `common-*` modullarında tanımlanır; bütün servislərdə istifadə olunur.
 
 ### `ApiResponse<T>`
 
