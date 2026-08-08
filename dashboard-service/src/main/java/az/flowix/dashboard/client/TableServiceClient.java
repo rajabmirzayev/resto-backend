@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 @FeignClient(name = "table-service", url = "${service.table.url}")
 public interface TableServiceClient {
 
-    @GetMapping("/api/table-ms/v1/tables")
+    @GetMapping("/api/table-ms/v1/internal/tables")
     ApiResponse<List<TableServiceTableResponse>> getTables(@RequestParam UUID orgId);
 
 }

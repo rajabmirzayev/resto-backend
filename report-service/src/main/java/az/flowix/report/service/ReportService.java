@@ -1,5 +1,6 @@
 package az.flowix.report.service;
 
+import az.flowix.common.enums.OrderStatus;
 import az.flowix.common.exception.handling.dto.ApiResponse;
 import az.flowix.common.type.LocalizedString;
 import az.flowix.report.client.MenuServiceClient;
@@ -34,9 +35,6 @@ public class ReportService {
 
     private static final Logger log = LoggerFactory.getLogger(ReportService.class);
 
-    private static final List<String> COMPLETED_STATUSES = List.of("COMPLETED", "PAID");
-    private static final List<String> CANCELLED_STATUSES = List.of("CANCELLED");
-
     private final OrderServiceClient orderServiceClient;
     private final MenuServiceClient menuServiceClient;
     private final UserServiceClient userServiceClient;
@@ -49,14 +47,14 @@ public class ReportService {
     }
 
     public SummaryResponse getSummary(UUID orgId) {
-        log.debug("Fetching report summary for org: {}", orgId);
-        var orders = unwrapList(orderServiceClient.getOrders(orgId));
+        log.info("Fetching report summary for org: {}", orgId);
+        var orders = unwrapList(orderServiceClient.getOrders(orgId), "order-service");
 
         var completed = orders.stream()
-                .filter(o -> COMPLETED_STATUSES.contains(o.getStatus()))
+                .filter(o -> isCompleted(o.getStatus()))
                 .toList();
         var cancelled = orders.stream()
-                .filter(o -> CANCELLED_STATUSES.contains(o.getStatus()))
+                .filter(o -> isCancelled(o.getStatus()))
                 .toList();
 
         var totalRevenue = completed.stream()
@@ -75,24 +73,19 @@ public class ReportService {
     }
 
     public List<DailyRevenueResponse> getDailyRevenue(UUID orgId) {
-        log.debug("Fetching daily revenue for org: {}", orgId);
-        var orders = unwrapList(orderServiceClient.getOrders(orgId));
+        log.info("Fetching daily revenue for org: {}", orgId);
+        var orders = unwrapList(orderServiceClient.getOrders(orgId), "order-service");
 
-        var completed = orders.stream()
-                .filter(o -> COMPLETED_STATUSES.contains(o.getStatus()) && o.getCreatedAt() != null)
-                .toList();
-
-        var byDate = completed.stream()
+        var byDate = orders.stream()
+                .filter(o -> isCompleted(o.getStatus()) && o.getCreatedAt() != null)
                 .collect(Collectors.groupingBy(
                         o -> LocalDate.ofInstant(o.getCreatedAt(), ZoneId.systemDefault()).toString(),
-                        Collectors.collectingAndThen(
-                                Collectors.toList(),
-                                list -> {
-                                    var revenue = list.stream()
-                                            .map(o -> o.getTotalAmount() != null ? o.getTotalAmount() : BigDecimal.ZERO)
-                                            .reduce(BigDecimal.ZERO, BigDecimal::add);
-                                    return Map.entry(revenue, list.size());
-                                })));
+                        Collectors.collectingAndThen(Collectors.toList(), list -> {
+                            var revenue = list.stream()
+                                    .map(o -> o.getTotalAmount() != null ? o.getTotalAmount() : BigDecimal.ZERO)
+                                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+                            return Map.entry(revenue, list.size());
+                        })));
 
         return byDate.entrySet().stream()
                 .sorted(Map.Entry.comparingByKey(Comparator.reverseOrder()))
@@ -106,8 +99,8 @@ public class ReportService {
     }
 
     public HourlyResponse getHourly(UUID orgId) {
-        log.debug("Fetching hourly data for org: {}", orgId);
-        var orders = unwrapList(orderServiceClient.getOrders(orgId));
+        log.info("Fetching hourly data for org: {}", orgId);
+        var orders = unwrapList(orderServiceClient.getOrders(orgId), "order-service");
 
         var hourly = new int[24];
         for (var order : orders) {
@@ -122,29 +115,30 @@ public class ReportService {
     }
 
     public List<SalesByCategoryResponse> getSalesByCategory(UUID orgId) {
-        log.debug("Fetching sales by category for org: {}", orgId);
-        var orders = unwrapList(orderServiceClient.getOrders(orgId));
-        var items = unwrapList(menuServiceClient.getItems(orgId));
-        var categories = unwrapList(menuServiceClient.getCategories(orgId));
+        log.info("Fetching sales by category for org: {}", orgId);
+        var orders = unwrapList(orderServiceClient.getOrders(orgId), "order-service");
+        var items = unwrapList(menuServiceClient.getItems(orgId), "menu-service");
+        var categories = unwrapList(menuServiceClient.getCategories(orgId), "menu-service");
+
         var categoryNames = categories.stream()
                 .collect(Collectors.toMap(
                         c -> c.getId(),
                         c -> c.getName() != null && c.getName().getEn() != null ? c.getName().getEn() : ""));
 
         var itemToCategory = items.stream()
-                .collect(Collectors.toMap(
-                        i -> i.getId(),
-                        i -> i.getCategoryId() != null ? i.getCategoryId() : UUID.randomUUID()));
+                .filter(i -> i.getCategoryId() != null)
+                .collect(Collectors.toMap(i -> i.getId(), i -> i.getCategoryId()));
 
         var categoryCounts = orders.stream()
-                .filter(o -> COMPLETED_STATUSES.contains(o.getStatus()))
+                .filter(o -> isCompleted(o.getStatus()))
                 .flatMap(o -> o.getItems().stream())
                 .filter(i -> i.getMenuItemId() != null)
                 .collect(Collectors.groupingBy(
-                        i -> itemToCategory.getOrDefault(i.getMenuItemId(), UUID.randomUUID()),
+                        i -> itemToCategory.getOrDefault(i.getMenuItemId(), null),
                         Collectors.summingInt(i -> i.getQuantity() != null ? i.getQuantity() : 0)));
 
         return categoryCounts.entrySet().stream()
+                .filter(e -> e.getKey() != null)
                 .map(e -> SalesByCategoryResponse.builder()
                         .categoryId(e.getKey())
                         .name(new LocalizedString(null, categoryNames.getOrDefault(e.getKey(), ""), null))
@@ -154,9 +148,9 @@ public class ReportService {
     }
 
     public List<TopItemResponse> getTopItems(UUID orgId) {
-        log.debug("Fetching top items for org: {}", orgId);
-        var orders = unwrapList(orderServiceClient.getOrders(orgId));
-        var items = unwrapList(menuServiceClient.getItems(orgId));
+        log.info("Fetching top items for org: {}", orgId);
+        var orders = unwrapList(orderServiceClient.getOrders(orgId), "order-service");
+        var items = unwrapList(menuServiceClient.getItems(orgId), "menu-service");
 
         var itemNames = items.stream()
                 .collect(Collectors.toMap(
@@ -164,24 +158,20 @@ public class ReportService {
                         i -> i.getName() != null && i.getName().getEn() != null ? i.getName().getEn() : ""));
 
         var itemData = orders.stream()
-                .filter(o -> COMPLETED_STATUSES.contains(o.getStatus()))
+                .filter(o -> isCompleted(o.getStatus()))
                 .flatMap(o -> o.getItems().stream())
                 .filter(i -> i.getMenuItemId() != null)
                 .collect(Collectors.groupingBy(
                         i -> i.getMenuItemId(),
-                        Collectors.collectingAndThen(
-                                Collectors.toList(),
-                                list -> {
-                                    var qty = list.stream()
-                                            .mapToInt(i -> i.getQuantity() != null ? i.getQuantity() : 0)
-                                            .sum();
-                                    var rev = list.stream()
-                                            .map(i -> i.getPrice() != null
-                                                    ? i.getPrice().multiply(BigDecimal.valueOf(i.getQuantity() != null ? i.getQuantity() : 0))
-                                                    : BigDecimal.ZERO)
-                                            .reduce(BigDecimal.ZERO, BigDecimal::add);
-                                    return Map.entry(qty, rev);
-                                })));
+                        Collectors.collectingAndThen(Collectors.toList(), list -> {
+                            var qty = list.stream().mapToInt(i -> i.getQuantity() != null ? i.getQuantity() : 0).sum();
+                            var rev = list.stream()
+                                    .map(i -> i.getPrice() != null
+                                            ? i.getPrice().multiply(BigDecimal.valueOf(i.getQuantity() != null ? i.getQuantity() : 0))
+                                            : BigDecimal.ZERO)
+                                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+                            return Map.entry(qty, rev);
+                        })));
 
         return itemData.entrySet().stream()
                 .sorted((a, b) -> b.getValue().getValue().compareTo(a.getValue().getValue()))
@@ -196,24 +186,23 @@ public class ReportService {
     }
 
     public List<StaffPerformanceResponse> getStaffPerformance(UUID orgId) {
-        log.debug("Fetching staff performance for org: {}", orgId);
-        var users = unwrapList(userServiceClient.getUsers(orgId));
-        var orders = unwrapList(orderServiceClient.getOrders(orgId));
+        log.info("Fetching staff performance for org: {}", orgId);
+        var users = unwrapPage(userServiceClient.getUsers(orgId, 100), "access-service");
+        var orders = unwrapList(orderServiceClient.getOrders(orgId), "order-service");
 
         var byWaiter = orders.stream()
                 .filter(o -> o.getWaiterId() != null)
                 .collect(Collectors.groupingBy(o -> o.getWaiterId()));
 
         return users.stream()
-                .filter(u -> u.getRole() != null && !u.getRole().equals("ADMIN"))
+                .filter(u -> u.getRole() != null && !"ADMIN".equals(u.getRole()))
                 .map(u -> {
                     var userOrders = byWaiter.getOrDefault(u.getId(), List.<OrderServiceOrderResponse>of());
                     var total = userOrders.size();
                     var completed = (int) userOrders.stream()
-                            .filter(o -> COMPLETED_STATUSES.contains(o.getStatus()))
-                            .count();
+                            .filter(o -> isCompleted(o.getStatus())).count();
                     var revenue = userOrders.stream()
-                            .filter(o -> COMPLETED_STATUSES.contains(o.getStatus()))
+                            .filter(o -> isCompleted(o.getStatus()))
                             .map(o -> o.getTotalAmount() != null ? o.getTotalAmount() : BigDecimal.ZERO)
                             .reduce(BigDecimal.ZERO, BigDecimal::add);
                     return StaffPerformanceResponse.builder()
@@ -228,9 +217,30 @@ public class ReportService {
                 .toList();
     }
 
-    private static <T> List<T> unwrapList(ApiResponse<List<T>> response) {
-        return response != null && response.isSuccess() && response.getData() != null
-                ? response.getData() : List.of();
+    private static boolean isCompleted(String status) {
+        return status != null && (OrderStatus.COMPLETED.name().equals(status)
+                || "PAID".equalsIgnoreCase(status));
+    }
+
+    private static boolean isCancelled(String status) {
+        return status != null && OrderStatus.CANCELLED.name().equals(status);
+    }
+
+    private static <T> List<T> unwrapList(ApiResponse<List<T>> response, String source) {
+        if (response == null || !response.isSuccess() || response.getData() == null) {
+            log.warn("Upstream service '{}' returned invalid response", source);
+            return List.of();
+        }
+        return response.getData();
+    }
+
+    private static <T> List<T> unwrapPage(ApiResponse<UserServiceClient.PageDto<T>> response, String source) {
+        if (response == null || !response.isSuccess() || response.getData() == null) {
+            log.warn("Upstream service '{}' returned invalid response", source);
+            return List.of();
+        }
+        var content = response.getData().content();
+        return content != null ? content : List.of();
     }
 
 }

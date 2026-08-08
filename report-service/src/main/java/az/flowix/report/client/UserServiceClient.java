@@ -14,6 +14,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 public interface UserServiceClient {
 
     @GetMapping("/api/access-ms/v1/users")
-    ApiResponse<List<UserServiceUserResponse>> getUsers(@RequestParam UUID orgId);
+    ApiResponse<PageDto<UserServiceUserResponse>> getUsers(@RequestParam UUID orgId,
+                                                           @RequestParam(defaultValue = "100") int size);
+
+    record PageDto<T>(List<T> content, int page, int size, long totalElements, int totalPages) {}
 
 }

@@ -1,5 +1,6 @@
 package az.flowix.dashboard.service;
 
+import az.flowix.common.enums.OrderStatus;
 import az.flowix.common.exception.handling.dto.ApiResponse;
 import az.flowix.common.type.LocalizedString;
 import az.flowix.dashboard.client.MenuServiceClient;
@@ -27,9 +28,6 @@ public class DashboardService {
 
     private static final Logger log = LoggerFactory.getLogger(DashboardService.class);
 
-    private static final List<String> ACTIVE_STATUSES = List.of("PENDING", "CONFIRMED", "PREPARING", "READY");
-    private static final List<String> COMPLETED_STATUSES = List.of("COMPLETED", "PAID");
-
     private final OrderServiceClient orderServiceClient;
     private final TableServiceClient tableServiceClient;
     private final MenuServiceClient menuServiceClient;
@@ -44,21 +42,22 @@ public class DashboardService {
     }
 
     public DashboardStatsResponse getStats(UUID orgId) {
-        log.debug("Fetching dashboard stats for org: {}", orgId);
-        var orders = unwrapList(orderServiceClient.getOrders(orgId));
-        var tables = unwrapList(tableServiceClient.getTables(orgId));
+        log.info("Fetching dashboard stats for org: {}", orgId);
+        var orders = unwrapList(orderServiceClient.getOrders(orgId), "order-service");
+        var tables = unwrapList(tableServiceClient.getTables(orgId), "table-service");
 
         var completed = orders.stream()
-                .filter(o -> COMPLETED_STATUSES.contains(o.getStatus()))
+                .filter(o -> isCompleted(o.getStatus()))
                 .toList();
         var active = orders.stream()
-                .filter(o -> ACTIVE_STATUSES.contains(o.getStatus()))
+                .filter(o -> isActive(o.getStatus()))
                 .toList();
         var totalRevenue = completed.stream()
                 .map(o -> o.getTotalAmount() != null ? o.getTotalAmount() : BigDecimal.ZERO)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         var occupiedTables = (int) tables.stream()
-                .filter(t -> "OCCUPIED".equals(t.getStatus()))
+                .filter(t -> OrderStatus.PENDING.name().equals(t.getStatus())
+                        || "OCCUPIED".equals(t.getStatus()))
                 .count();
 
         return DashboardStatsResponse.builder()
@@ -70,9 +69,9 @@ public class DashboardService {
     }
 
     public List<TopItemResponse> getTopItems(UUID orgId) {
-        log.debug("Fetching top items for org: {}", orgId);
-        var orders = unwrapList(orderServiceClient.getOrders(orgId));
-        var items = unwrapList(menuServiceClient.getItems(orgId));
+        log.info("Fetching top items for org: {}", orgId);
+        var orders = unwrapList(orderServiceClient.getOrders(orgId), "order-service");
+        var items = unwrapList(menuServiceClient.getItems(orgId), "menu-service");
         var itemNames = items.stream()
                 .collect(Collectors.toMap(
                         i -> i.getId(),
@@ -96,8 +95,8 @@ public class DashboardService {
     }
 
     public List<RecentOrderResponse> getRecentOrders(UUID orgId) {
-        log.debug("Fetching recent orders for org: {}", orgId);
-        return unwrapList(orderServiceClient.getOrders(orgId)).stream()
+        log.info("Fetching recent orders for org: {}", orgId);
+        return unwrapList(orderServiceClient.getOrders(orgId), "order-service").stream()
                 .sorted(Comparator.comparing(o -> o.getCreatedAt(), Comparator.nullsLast(Comparator.reverseOrder())))
                 .limit(6)
                 .map(o -> RecentOrderResponse.builder()
@@ -112,18 +111,16 @@ public class DashboardService {
     }
 
     public List<StaffListResponse> getStaffList(UUID orgId) {
-        log.debug("Fetching staff list for org: {}", orgId);
-        var users = unwrapList(userServiceClient.getUsers(orgId));
-        var orders = unwrapList(orderServiceClient.getOrders(orgId));
+        log.info("Fetching staff list for org: {}", orgId);
+        var users = unwrapPage(userServiceClient.getUsers(orgId, 100), "access-service");
+        var orders = unwrapList(orderServiceClient.getOrders(orgId), "order-service");
 
         var activeOrdersByWaiter = orders.stream()
-                .filter(o -> o.getWaiterId() != null && ACTIVE_STATUSES.contains(o.getStatus()))
-                .collect(Collectors.groupingBy(
-                        o -> o.getWaiterId(),
-                        Collectors.counting()));
+                .filter(o -> o.getWaiterId() != null && isActive(o.getStatus()))
+                .collect(Collectors.groupingBy(o -> o.getWaiterId(), Collectors.counting()));
 
         return users.stream()
-                .filter(u -> u.getRole() != null && !u.getRole().equals("ADMIN"))
+                .filter(u -> u.getRole() != null && !"ADMIN".equals(u.getRole()))
                 .map(u -> StaffListResponse.builder()
                         .id(u.getId())
                         .name(u.getName())
@@ -133,9 +130,33 @@ public class DashboardService {
                 .toList();
     }
 
-    private static <T> List<T> unwrapList(ApiResponse<List<T>> response) {
-        return response != null && response.isSuccess() && response.getData() != null
-                ? response.getData() : List.of();
+    private static boolean isCompleted(String status) {
+        return status != null && (OrderStatus.COMPLETED.name().equals(status)
+                || "PAID".equalsIgnoreCase(status));
+    }
+
+    private static boolean isActive(String status) {
+        return status != null && (OrderStatus.PENDING.name().equals(status)
+                || OrderStatus.CONFIRMED.name().equals(status)
+                || OrderStatus.PREPARING.name().equals(status)
+                || OrderStatus.READY.name().equals(status));
+    }
+
+    private static <T> List<T> unwrapList(ApiResponse<List<T>> response, String source) {
+        if (response == null || !response.isSuccess() || response.getData() == null) {
+            log.warn("Upstream service '{}' returned invalid response", source);
+            return List.of();
+        }
+        return response.getData();
+    }
+
+    private static <T> List<T> unwrapPage(ApiResponse<UserServiceClient.PageDto<T>> response, String source) {
+        if (response == null || !response.isSuccess() || response.getData() == null) {
+            log.warn("Upstream service '{}' returned invalid response", source);
+            return List.of();
+        }
+        var content = response.getData().content();
+        return content != null ? content : List.of();
     }
 
 }

@@ -14,10 +14,10 @@ import org.springframework.web.bind.annotation.RequestParam;
 @FeignClient(name = "menu-service", url = "${service.menu.url}")
 public interface MenuServiceClient {
 
-    @GetMapping("/api/menu-ms/v1/items")
+    @GetMapping("/api/menu-ms/v1/internal/items")
     ApiResponse<List<MenuServiceItemResponse>> getItems(@RequestParam UUID orgId);
 
-    @GetMapping("/api/menu-ms/v1/categories")
+    @GetMapping("/api/menu-ms/v1/internal/categories")
     ApiResponse<List<MenuServiceCategoryResponse>> getCategories(@RequestParam UUID orgId);
 
 }
