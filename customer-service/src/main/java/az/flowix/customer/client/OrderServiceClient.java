@@ -16,13 +16,13 @@ import org.springframework.web.bind.annotation.RequestBody;
 @FeignClient(name = "order-service", url = "${service.order.url}")
 public interface OrderServiceClient {
 
-    @GetMapping("/api/order-ms/v1/orders/{id}")
+    @GetMapping("/api/order-ms/v1/internal/orders/{id}")
     ApiResponse<OrderServiceOrderResponse> getOrder(@PathVariable UUID id);
 
-    @PostMapping("/api/order-ms/v1/orders")
+    @PostMapping("/api/order-ms/v1/internal/orders")
     ApiResponse<OrderServiceOrderResponse> createOrder(@RequestBody OrderServiceOrderRequest request);
 
-    @PostMapping("/api/order-ms/v1/orders/{id}/request-payment")
+    @PostMapping("/api/order-ms/v1/internal/orders/{id}/request-payment")
     ApiResponse<OrderServiceOrderResponse> requestPayment(@PathVariable UUID id, @RequestBody Map<String, String> body);
 
 }

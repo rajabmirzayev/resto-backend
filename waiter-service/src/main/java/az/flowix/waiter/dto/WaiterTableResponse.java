@@ -24,6 +24,7 @@ public class WaiterTableResponse {
     String section;
     UUID currentOrderId;
     OrderSummary orderSummary;
+    UUID orgId;
 
     @Data
     @Builder

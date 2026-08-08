@@ -20,6 +20,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -35,6 +36,10 @@ public class WaiterService {
 
     private static final int MAX_RESULTS = 200;
 
+    private static final Set<OrderStatus> ACTIVE_STATUSES = Set.of(
+            OrderStatus.PENDING, OrderStatus.CONFIRMED, OrderStatus.PREPARING,
+            OrderStatus.READY, OrderStatus.SERVED);
+
     private final OrderServiceClient orderServiceClient;
     private final TableServiceClient tableServiceClient;
 
@@ -45,7 +50,7 @@ public class WaiterService {
 
     public WaiterTablesWrapper getTables(UUID orgId, UserPrincipal principal) {
         assertCanReadOrg(orgId, principal);
-        log.debug("Fetching waiter tables for org: {}", orgId);
+        log.info("Fetching waiter tables for org: {}", orgId);
 
         var tables = unwrapList(tableServiceClient.getTables(orgId), "table-service.tables");
         var sections = unwrapList(tableServiceClient.getSections(orgId), "table-service.sections");
@@ -58,6 +63,7 @@ public class WaiterService {
 
         Map<String, OrderServiceOrderResponse> ordersById = orders.stream()
                 .filter(o -> o != null && o.getId() != null)
+                .filter(o -> o.getStatus() != null && ACTIVE_STATUSES.contains(OrderStatus.valueOf(o.getStatus())))
                 .collect(Collectors.toMap(
                         OrderServiceOrderResponse::getId, o -> o, (a, b) -> a));
 
@@ -65,6 +71,7 @@ public class WaiterService {
                 .filter(Objects::nonNull)
                 .sorted(Comparator.comparing(TableServiceTableResponse::getTableNumber,
                         Comparator.nullsLast(Integer::compareTo)))
+                .limit(MAX_RESULTS)
                 .map(t -> {
                     WaiterTableResponse.OrderSummary summary = null;
                     if (t.getCurrentOrderId() != null) {
@@ -74,7 +81,7 @@ public class WaiterService {
                                     .totalAmount(order.getTotalAmount() != null
                                             ? order.getTotalAmount() : BigDecimal.ZERO)
                                     .itemCount(order.getItems() != null ? order.getItems().size() : 0)
-                                    .status(order.getStatus() != null ? order.getStatus() : "")
+                                    .status(order.getStatus())
                                     .build();
                         }
                     }
@@ -88,6 +95,7 @@ public class WaiterService {
                             .section(section != null ? section.getName() : "")
                             .currentOrderId(t.getCurrentOrderId())
                             .orderSummary(summary)
+                            .orgId(t.getOrgId())
                             .build();
                 })
                 .toList();
@@ -97,14 +105,14 @@ public class WaiterService {
 
     public List<WaiterOrderResponse> getPendingConfirmOrders(UUID orgId, UserPrincipal principal) {
         assertCanReadOrg(orgId, principal);
-        log.debug("Fetching pending confirm orders for org: {}", orgId);
+        log.info("Fetching pending confirm orders for org: {}", orgId);
 
         var orders = unwrapList(orderServiceClient.getOrders(orgId, OrderStatus.PENDING.name(), null),
                 "order-service.orders");
         return orders.stream()
                 .filter(Objects::nonNull)
                 .filter(o -> !o.isWaiterConfirmed())
-                .filter(o -> OrderSource.CUSTOMER.name().equalsIgnoreCase(o.getOrderSource()))
+                .filter(o -> OrderSource.CUSTOMER.name().equals(o.getOrderSource()))
                 .sorted(createdAtDescending())
                 .limit(MAX_RESULTS)
                 .map(this::toWaiterOrderResponse)
@@ -113,13 +121,13 @@ public class WaiterService {
 
     public List<WaiterOrderResponse> getPaymentRequests(UUID orgId, UserPrincipal principal) {
         assertCanReadOrg(orgId, principal);
-        log.debug("Fetching payment requests for org: {}", orgId);
+        log.info("Fetching payment requests for org: {}", orgId);
 
         var allOrders = unwrapList(orderServiceClient.getOrders(orgId, null, null), "order-service.orders");
         return allOrders.stream()
                 .filter(Objects::nonNull)
                 .filter(OrderServiceOrderResponse::isPaymentRequested)
-                .filter(o -> PaymentStatus.PENDING.name().equalsIgnoreCase(o.getPaymentStatus()))
+                .filter(o -> PaymentStatus.PENDING.name().equals(o.getPaymentStatus()))
                 .sorted(createdAtDescending())
                 .limit(MAX_RESULTS)
                 .map(this::toWaiterOrderResponse)
@@ -127,7 +135,10 @@ public class WaiterService {
     }
 
     private void assertCanReadOrg(UUID orgId, UserPrincipal principal) {
-        if (orgId == null || principal == null) {
+        if (principal == null) {
+            throw WaiterErrorCode.ACCESS_DENIED.forbidden();
+        }
+        if (orgId == null) {
             return;
         }
         if (principal.getUserId() != null

@@ -11,6 +11,6 @@ import java.util.UUID;
 @FeignClient(name = "setting-service", url = "${service.setting.url}")
 public interface SettingServiceClient {
 
-    @GetMapping("/api/setting-ms/v1/settings")
+    @GetMapping("/api/setting-ms/v1/internal/settings")
     ApiResponse<ClientSettingResponse> getSettings(@RequestParam("orgId") UUID orgId);
 }

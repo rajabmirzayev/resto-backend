@@ -38,6 +38,7 @@ public class OrderController {
     }
 
     @GetMapping
+    @PreAuthorize("@perm.has('order.view')")
     public ResponseEntity<ApiResponse<List<OrderResponse>>> getOrders(
             @RequestParam UUID orgId,
             @RequestParam(required = false) String status,
@@ -48,12 +49,14 @@ public class OrderController {
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("@perm.has('order.view')")
     public ResponseEntity<ApiResponse<OrderResponse>> getOrder(@PathVariable UUID id) {
         var order = orderService.getOrder(id);
         return ResponseEntity.ok(ApiResponse.success(order));
     }
 
     @PostMapping
+    @PreAuthorize("@perm.has('order.create')")
     public ResponseEntity<ApiResponse<OrderResponse>> createOrder(
             @Valid @RequestBody OrderRequest request) {
         var order = orderService.createOrder(request);
@@ -108,6 +111,7 @@ public class OrderController {
     }
 
     @PostMapping("/{id}/request-payment")
+    @PreAuthorize("@perm.has('order.payment')")
     public ResponseEntity<ApiResponse<OrderResponse>> requestPayment(
             @PathVariable UUID id,
             @Valid @RequestBody PaymentRequest request) {

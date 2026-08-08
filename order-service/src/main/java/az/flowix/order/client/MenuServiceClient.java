@@ -12,6 +12,6 @@ import java.util.UUID;
 @FeignClient(name = "menu-service", url = "${service.menu.url}")
 public interface MenuServiceClient {
 
-    @GetMapping("/api/menu-ms/v1/items")
+    @GetMapping("/api/menu-ms/v1/internal/items")
     ApiResponse<List<ClientMenuItemResponse>> getItems(@RequestParam("orgId") UUID orgId);
 }

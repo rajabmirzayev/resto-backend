@@ -14,10 +14,10 @@ import java.util.UUID;
 @FeignClient(name = "table-service", url = "${service.table.url}")
 public interface TableServiceClient {
 
-    @GetMapping("/api/table-ms/v1/tables/{id}")
+    @GetMapping("/api/table-ms/v1/internal/tables/{id}")
     ApiResponse<ClientTableResponse> getTable(@PathVariable("id") UUID id);
 
-    @PutMapping("/api/table-ms/v1/tables/{id}/status")
+    @PutMapping("/api/table-ms/v1/internal/tables/{id}/status")
     ApiResponse<ClientTableResponse> updateTableStatus(@PathVariable("id") UUID id,
                                                        @RequestBody ClientStatusUpdateRequest request);
 }

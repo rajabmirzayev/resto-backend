@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 @FeignClient(name = "setting-service", url = "${service.setting.url}")
 public interface SettingServiceClient {
 
-    @GetMapping("/api/setting-ms/v1/settings")
+    @GetMapping("/api/setting-ms/v1/internal/settings")
     ApiResponse<SettingServiceSettingResponse> getSettings(@RequestParam UUID orgId);
 
 }
