@@ -355,9 +355,9 @@ public class TableService {
     // ======================== Org tenancy ========================
 
     private void assertOrgAccess(UUID orgId, UserPrincipal principal) {
-        if (principal != null
-                && (principal.isPlatformAdmin()
-                    || (principal.getOrgId() != null && principal.getOrgId().equals(orgId.toString())))) {
+        if (principal == null
+                || principal.isPlatformAdmin()
+                || (principal.getOrgId() != null && principal.getOrgId().equals(orgId.toString()))) {
             return;
         }
         throw TableErrorCode.ACCESS_DENIED.forbidden();

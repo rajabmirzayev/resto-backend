@@ -4,6 +4,9 @@ import az.flowix.common.exception.handling.dto.ApiResponse;
 import az.flowix.table.dto.SectionResponse;
 import az.flowix.table.dto.StatusUpdateRequest;
 import az.flowix.table.dto.TableResponse;
+import az.flowix.table.error.TableErrorCode;
+import az.flowix.table.mapper.TableMapper;
+import az.flowix.table.repository.RestaurantTableRepository;
 import az.flowix.table.service.TableService;
 
 import java.util.List;
@@ -25,9 +28,15 @@ import org.springframework.web.bind.annotation.RestController;
 public class InternalTableController {
 
     private final TableService tableService;
+    private final RestaurantTableRepository tableRepository;
+    private final TableMapper tableMapper;
 
-    public InternalTableController(TableService tableService) {
+    public InternalTableController(TableService tableService,
+                                   RestaurantTableRepository tableRepository,
+                                   TableMapper tableMapper) {
         this.tableService = tableService;
+        this.tableRepository = tableRepository;
+        this.tableMapper = tableMapper;
     }
 
     @GetMapping("/tables")
@@ -37,7 +46,9 @@ public class InternalTableController {
 
     @GetMapping("/tables/{id}")
     public ResponseEntity<ApiResponse<TableResponse>> getTable(@PathVariable UUID id) {
-        return ResponseEntity.ok(ApiResponse.success(tableService.getTableById(id, null)));
+        var table = tableRepository.findByIdAndDeletedFalse(id)
+                .orElseThrow(TableErrorCode.TABLE_NOT_FOUND::notFound);
+        return ResponseEntity.ok(ApiResponse.success(tableMapper.toDto(table)));
     }
 
     @GetMapping("/sections")
