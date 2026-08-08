@@ -1754,14 +1754,24 @@ Bütün Feign çağırışlarında `unwrap()` ilə response yoxlanılır.
 
 ### Data Modelləri
 
-**`KitchenOrdersResponse`**: `new` (OrderResponse[]), `preparing` (OrderResponse[]), `ready` (OrderResponse[]). Sifarişlər statusa görə 3 qrupa bölünür.
+**`KitchenOrderGroup`**: `newOrders` (KitchenOrderResponse[]), `preparing` (KitchenOrderResponse[]), `ready` (KitchenOrderResponse[]). Order-service-dən PREPARING + READY statuslu sifarişlər götürülür, statusa görə 3 qrupa bölünür (PENDING/CONFIRMED → new, PREPARING → preparing, READY → ready).
+
+**`KitchenOrderResponse`**: `id`(String), `items[]`(KitchenItemResponse), `tableId`(UUID), `tableNumber`(Integer), `status`(String), `paymentStatus`(String), `totalAmount`(BigDecimal), `waiterName`(String), `orderSource`(String), `createdAt`(Instant).
+
+**`KitchenItemResponse`**: `id`(String), `menuItemId`(UUID), `menuItemName`(String), `quantity`(Integer), `price`(BigDecimal), `notes`(String), `status`(String).
 
 ### Endpoints
 
 #### `GET /api/kitchen-ms/v1/orders`
-**Mətbəx sifarişləri.** Order-service-dən PREPARING + READY sifarişlər götürülür, statusa görə qruplaşdırılır.
+**Mətbəx sifarişləri.** Order-service-dən 2 sorğu ilə (`status=PREPARING`, `status=READY`) sifarişlər götürülür. PREPARING sorğusundan PENDING/CONFIRMED olanlar `newOrders`-a, PREPARING olanlar `preparing`-ə düşür. READY sorğusu birbaşa `ready`-ə düşür.
 - **Permission:** `kitchen.view` | Query: `orgId` (required)
-- Success (200): `ApiResponse<KitchenOrdersResponse>`.
+- Success (200): `ApiResponse<KitchenOrderGroup>`.
+
+### Dizayn Qərarları
+
+- `unwrap()` ilə Feign response yoxlanır, `success=true` + `data!=null`.
+- PENDING/CONFIRMED sifarişlər `newOrders` qrupunda göstərilir (yeni gələn, hələ hazırlanmayan).
+- Order-service-ə hər status üçün ayrı sorğu göndərilir (`status=PREPARING` + `status=READY`).
 
 ### Servisdaxili Feign Əlaqələri
 

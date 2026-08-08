@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 public interface OrderServiceClient {
 
     @GetMapping("/api/order-ms/v1/internal/orders")
-    ApiResponse<List<OrderServiceOrderResponse>> getOrders(@RequestParam UUID orgId);
+    ApiResponse<List<OrderServiceOrderResponse>> getOrders(@RequestParam UUID orgId,
+                                                           @RequestParam(required = false) String status);
 
 }
