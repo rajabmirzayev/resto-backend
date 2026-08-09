@@ -6,7 +6,7 @@ import az.flowix.auth.dto.LoginResponse;
 import az.flowix.auth.dto.LogoutRequest;
 import az.flowix.auth.dto.RefreshRequest;
 import az.flowix.auth.dto.RefreshResponse;
-import az.flowix.auth.security.JwtTokenValidator;
+import az.flowix.auth.security.JwtTokenDecoder;
 import az.flowix.common.enums.UiScope;
 
 import java.util.List;
@@ -23,14 +23,14 @@ public class KeycloakAuthService implements AuthService {
     private static final Logger log = LoggerFactory.getLogger(KeycloakAuthService.class);
 
     private final KeycloakClient keycloakClient;
-    private final JwtTokenValidator jwtTokenValidator;
+    private final JwtTokenDecoder jwtTokenDecoder;
     private final String platformAdminRole;
 
     public KeycloakAuthService(KeycloakClient keycloakClient,
-                               JwtTokenValidator jwtTokenValidator,
+                               JwtTokenDecoder jwtTokenDecoder,
                                @Value("${auth.super-admin-role}") String platformAdminRole) {
         this.keycloakClient = keycloakClient;
-        this.jwtTokenValidator = jwtTokenValidator;
+        this.jwtTokenDecoder = jwtTokenDecoder;
         this.platformAdminRole = platformAdminRole;
     }
 
@@ -40,7 +40,7 @@ public class KeycloakAuthService implements AuthService {
 
         var tokenResponse = keycloakClient.login(request.username(), request.password());
 
-        var claims = jwtTokenValidator.extractClaims(tokenResponse.accessToken());
+        var claims = jwtTokenDecoder.extractClaims(tokenResponse.accessToken());
         var roles = stringList(claims.get("roles"));
         var uiScope = resolveUiScope(claims);
         var permissions = stringList(claims.get("permissions"));

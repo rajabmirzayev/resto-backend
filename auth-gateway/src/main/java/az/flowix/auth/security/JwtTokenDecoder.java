@@ -11,9 +11,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 @Component
-public class JwtTokenValidator {
+public class JwtTokenDecoder {
 
-    private static final Logger log = LoggerFactory.getLogger(JwtTokenValidator.class);
+    private static final Logger log = LoggerFactory.getLogger(JwtTokenDecoder.class);
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public List<String> extractRoles(String accessToken) {

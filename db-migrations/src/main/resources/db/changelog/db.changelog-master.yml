@@ -25,3 +25,5 @@ databaseChangeLog:
       file: db/changelog/changes/v1/012-fix-access-uniqueness-soft-delete.yml
   - include:
       file: db/changelog/changes/v1/013-add-performance-indexes.yml
+  - include:
+      file: db/changelog/changes/v1/014-add-version-columns.yml

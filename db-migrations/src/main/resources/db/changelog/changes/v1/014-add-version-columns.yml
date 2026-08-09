@@ -1,0 +1,11 @@
+databaseChangeLog:
+  - changeSet:
+      id: 014-add-version-columns
+      author: rajabmirzayev
+      changes:
+        - sql:
+            dbms: postgresql
+            sql: ALTER TABLE resto_order.orders ADD COLUMN IF NOT EXISTS version BIGINT DEFAULT 0;
+        - sql:
+            dbms: postgresql
+            sql: ALTER TABLE resto_table.restaurant_tables ADD COLUMN IF NOT EXISTS version BIGINT DEFAULT 0;

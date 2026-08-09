@@ -306,6 +306,14 @@ public class OrderService {
             throw OrderErrorCode.ORDER_NOT_ACTIVE.badRequest();
         }
 
+        var items = orderItemRepository.findByOrderId(orderId);
+        var notServed = items.stream()
+                .filter(i -> i.getStatus() != OrderItemStatus.SERVED && i.getStatus() != OrderItemStatus.CANCELLED)
+                .count();
+        if (notServed > 0) {
+            log.warn("Completing payment for order {} with {} items not yet served", orderId, notServed);
+        }
+
         order.setPaymentStatus(PaymentStatus.PAID);
         order.setStatus(OrderStatus.COMPLETED);
         order = orderRepository.save(order);
@@ -467,7 +475,7 @@ public class OrderService {
         if (allServed && order.getStatus() == OrderStatus.READY) {
             order.setStatus(OrderStatus.SERVED);
             orderRepository.save(order);
-        } else if (allReady && order.getStatus() == OrderStatus.PREPARING) {
+        } else if (allReady && (order.getStatus() == OrderStatus.PREPARING || order.getStatus() == OrderStatus.CONFIRMED)) {
             order.setStatus(OrderStatus.READY);
             orderRepository.save(order);
         }
