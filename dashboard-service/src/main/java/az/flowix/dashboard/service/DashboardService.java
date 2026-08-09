@@ -1,6 +1,7 @@
 package az.flowix.dashboard.service;
 
 import az.flowix.common.enums.OrderStatus;
+import az.flowix.common.enums.TableStatus;
 import az.flowix.common.exception.handling.dto.ApiResponse;
 import az.flowix.common.type.LocalizedString;
 import az.flowix.dashboard.client.MenuServiceClient;
@@ -56,8 +57,7 @@ public class DashboardService {
                 .map(o -> o.getTotalAmount() != null ? o.getTotalAmount() : BigDecimal.ZERO)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         var occupiedTables = (int) tables.stream()
-                .filter(t -> OrderStatus.PENDING.name().equals(t.getStatus())
-                        || "OCCUPIED".equals(t.getStatus()))
+                .filter(t -> TableStatus.OCCUPIED.name().equals(t.getStatus()))
                 .count();
 
         return DashboardStatsResponse.builder()
@@ -132,7 +132,7 @@ public class DashboardService {
 
     private static boolean isCompleted(String status) {
         return status != null && (OrderStatus.COMPLETED.name().equals(status)
-                || "PAID".equalsIgnoreCase(status));
+                || OrderStatus.SERVED.name().equals(status));
     }
 
     private static boolean isActive(String status) {

@@ -321,7 +321,7 @@ public class OrderService {
 
         var items = orderItemRepository.findByOrderId(orderId);
         items.forEach(item -> {
-            if (item.getStatus() == OrderItemStatus.PENDING || item.getStatus() == OrderItemStatus.CONFIRMED) {
+            if (item.getStatus() == OrderItemStatus.CONFIRMED) {
                 item.setStatus(OrderItemStatus.PREPARING);
             }
         });
@@ -346,8 +346,16 @@ public class OrderService {
         });
         orderItemRepository.saveAll(items);
 
-        order.setStatus(OrderStatus.READY);
-        order = orderRepository.save(order);
+        var nonCancelled = items.stream()
+                .filter(i -> i.getStatus() != OrderItemStatus.CANCELLED)
+                .toList();
+        boolean allReady = !nonCancelled.isEmpty()
+                && nonCancelled.stream().allMatch(i ->
+                    i.getStatus() == OrderItemStatus.READY || i.getStatus() == OrderItemStatus.SERVED);
+        if (allReady) {
+            order.setStatus(OrderStatus.READY);
+            order = orderRepository.save(order);
+        }
 
         log.info("All items ready for order {}", orderId);
         return buildResponse(order);

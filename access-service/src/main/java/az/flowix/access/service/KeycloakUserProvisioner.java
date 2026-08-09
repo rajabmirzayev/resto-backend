@@ -115,7 +115,7 @@ public class KeycloakUserProvisioner {
         Map<String, List<String>> attributes = new HashMap<>();
         attributes.put(ATTR_ROLES, List.of(role.getCode()));
         attributes.put(ATTR_PERMISSIONS, permissions);
-        attributes.put(ATTR_UI_SCOPE, List.of(role.getUiScope().name()));
+        attributes.put(ATTR_UI_SCOPE, List.of(role.getUiScope() != null ? role.getUiScope().name() : ""));
         attributes.put(ATTR_ORG_ID, orgIdList(orgId));
         return attributes;
     }
