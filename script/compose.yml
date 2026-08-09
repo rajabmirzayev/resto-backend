@@ -28,7 +28,7 @@ services:
       db:
         condition: service_healthy
     environment:
-      POSTGRES_URL: jdbc:postgresql://db:5432/resto
+      POSTGRES_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-resto}
       POSTGRES_USER: $POSTGRES_USER
       POSTGRES_PASSWORD: $POSTGRES_PASSWORD
       TZ: Asia/Baku
@@ -162,7 +162,7 @@ services:
       migrations:
         condition: service_completed_successfully
     environment:
-      ACCESS_DB_URL: jdbc:postgresql://db:5432/resto?currentSchema=resto_access
+      ACCESS_DB_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-resto}?currentSchema=resto_access
       ACCESS_DB_USERNAME: $POSTGRES_USER
       ACCESS_DB_PASSWORD: $POSTGRES_PASSWORD
       JPA_DDL_AUTO: $JPA_DDL_AUTO
@@ -190,7 +190,7 @@ services:
       migrations:
         condition: service_completed_successfully
     environment:
-      ORG_DB_URL: jdbc:postgresql://db:5432/resto?currentSchema=resto_organization
+      ORG_DB_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-resto}?currentSchema=resto_organization
       ORG_DB_USERNAME: $POSTGRES_USER
       ORG_DB_PASSWORD: $POSTGRES_PASSWORD
       JPA_DDL_AUTO: $JPA_DDL_AUTO
@@ -218,7 +218,7 @@ services:
       migrations:
         condition: service_completed_successfully
     environment:
-      MENU_DB_URL: jdbc:postgresql://db:5432/resto?currentSchema=resto_menu
+      MENU_DB_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-resto}?currentSchema=resto_menu
       MENU_DB_USERNAME: $POSTGRES_USER
       MENU_DB_PASSWORD: $POSTGRES_PASSWORD
       JPA_DDL_AUTO: $JPA_DDL_AUTO
@@ -249,7 +249,7 @@ services:
       migrations:
         condition: service_completed_successfully
     environment:
-      TABLE_DB_URL: jdbc:postgresql://db:5432/resto?currentSchema=resto_table
+      TABLE_DB_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-resto}?currentSchema=resto_table
       TABLE_DB_USERNAME: $POSTGRES_USER
       TABLE_DB_PASSWORD: $POSTGRES_PASSWORD
       JPA_DDL_AUTO: $JPA_DDL_AUTO
@@ -276,7 +276,7 @@ services:
       migrations:
         condition: service_completed_successfully
     environment:
-      ORDER_DB_URL: jdbc:postgresql://db:5432/resto?currentSchema=resto_order
+      ORDER_DB_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-resto}?currentSchema=resto_order
       ORDER_DB_USERNAME: $POSTGRES_USER
       ORDER_DB_PASSWORD: $POSTGRES_PASSWORD
       JPA_DDL_AUTO: $JPA_DDL_AUTO
@@ -369,7 +369,7 @@ services:
       migrations:
         condition: service_completed_successfully
     environment:
-      SETTING_DB_URL: jdbc:postgresql://db:5432/resto?currentSchema=resto_setting
+      SETTING_DB_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-resto}?currentSchema=resto_setting
       SETTING_DB_USERNAME: $POSTGRES_USER
       SETTING_DB_PASSWORD: $POSTGRES_PASSWORD
       JPA_DDL_AUTO: $JPA_DDL_AUTO

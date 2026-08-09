@@ -83,7 +83,13 @@ public class OrderService {
         } else {
             orders = orderRepository.findByOrgId(orgId);
         }
-        return orders.stream().map(this::buildResponse).collect(Collectors.toList());
+
+        var orderIds = orders.stream().map(Order::getId).toList();
+        var itemsById = orderItemRepository.findByOrderIdIn(orderIds).stream()
+                .collect(Collectors.groupingBy(OrderItem::getOrderId));
+        return orders.stream()
+                .map(o -> buildResponse(o, itemsById.getOrDefault(o.getId(), List.of())))
+                .collect(Collectors.toList());
     }
 
     public OrderResponse getOrder(UUID id) {
@@ -496,6 +502,10 @@ public class OrderService {
 
     private OrderResponse buildResponse(Order order) {
         var items = orderItemRepository.findByOrderId(order.getId());
+        return buildResponse(order, items);
+    }
+
+    private OrderResponse buildResponse(Order order, List<OrderItem> items) {
         return OrderResponse.builder()
                 .id(order.getId().toString())
                 .tableId(order.getTableId())

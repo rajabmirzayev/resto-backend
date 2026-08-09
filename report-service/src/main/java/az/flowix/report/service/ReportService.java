@@ -34,6 +34,7 @@ import org.springframework.stereotype.Service;
 public class ReportService {
 
     private static final Logger log = LoggerFactory.getLogger(ReportService.class);
+    private static final ZoneId ORG_ZONE = ZoneId.of("Asia/Baku");
 
     private final OrderServiceClient orderServiceClient;
     private final MenuServiceClient menuServiceClient;
@@ -79,7 +80,7 @@ public class ReportService {
         var byDate = orders.stream()
                 .filter(o -> isCompleted(o.getStatus()) && o.getCreatedAt() != null)
                 .collect(Collectors.groupingBy(
-                        o -> LocalDate.ofInstant(o.getCreatedAt(), ZoneId.systemDefault()).toString(),
+                        o -> LocalDate.ofInstant(o.getCreatedAt(), ORG_ZONE).toString(),
                         Collectors.collectingAndThen(Collectors.toList(), list -> {
                             var revenue = list.stream()
                                     .map(o -> o.getTotalAmount() != null ? o.getTotalAmount() : BigDecimal.ZERO)
@@ -105,7 +106,7 @@ public class ReportService {
         var hourly = new int[24];
         for (var order : orders) {
             if (order.getCreatedAt() != null) {
-                var cal = GregorianCalendar.from(order.getCreatedAt().atZone(ZoneId.systemDefault()));
+                var cal = GregorianCalendar.from(order.getCreatedAt().atZone(ORG_ZONE));
                 int hour = cal.get(Calendar.HOUR_OF_DAY);
                 hourly[hour]++;
             }
@@ -219,7 +220,7 @@ public class ReportService {
 
     private static boolean isCompleted(String status) {
         return status != null && (OrderStatus.COMPLETED.name().equals(status)
-                || "PAID".equalsIgnoreCase(status));
+                || OrderStatus.SERVED.name().equals(status));
     }
 
     private static boolean isCancelled(String status) {
