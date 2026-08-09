@@ -8,6 +8,8 @@ import az.flowix.customer.dto.CustomerOrderResponse;
 import az.flowix.customer.dto.CustomerTableResponse;
 import az.flowix.customer.service.CustomerService;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.List;
 import java.util.UUID;
 
@@ -60,7 +62,10 @@ public class CustomerController {
         if (order == null) {
             return ResponseEntity.notFound().build();
         }
-        if (token == null || !token.equals(order.getAccessToken())) {
+        if (token == null || order.getAccessToken() == null
+                || !MessageDigest.isEqual(
+                    token.getBytes(StandardCharsets.UTF_8),
+                    order.getAccessToken().getBytes(StandardCharsets.UTF_8))) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
         return ResponseEntity.ok(ApiResponse.success(order));
@@ -75,7 +80,10 @@ public class CustomerController {
         if (order == null) {
             return ResponseEntity.notFound().build();
         }
-        if (token == null || !token.equals(order.getAccessToken())) {
+        if (token == null || order.getAccessToken() == null
+                || !MessageDigest.isEqual(
+                    token.getBytes(StandardCharsets.UTF_8),
+                    order.getAccessToken().getBytes(StandardCharsets.UTF_8))) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
         customerService.requestBill(orderId, request.getMethod());

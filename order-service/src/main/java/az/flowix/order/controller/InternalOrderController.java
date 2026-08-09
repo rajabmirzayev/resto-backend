@@ -41,8 +41,13 @@ public class InternalOrderController {
     }
 
     @GetMapping("/orders/{id}")
-    public ResponseEntity<ApiResponse<OrderResponse>> getOrder(@PathVariable UUID id) {
-        return ResponseEntity.ok(ApiResponse.success(orderService.getOrder(id)));
+    public ResponseEntity<ApiResponse<OrderResponse>> getOrder(@PathVariable UUID id,
+            @RequestParam(required = false) UUID orgId) {
+        var order = orderService.getOrder(id);
+        if (orgId != null && !orgId.equals(order.getOrgId())) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(ApiResponse.success(order));
     }
 
     @PostMapping("/orders")

@@ -45,9 +45,13 @@ public class InternalTableController {
     }
 
     @GetMapping("/tables/{id}")
-    public ResponseEntity<ApiResponse<TableResponse>> getTable(@PathVariable UUID id) {
+    public ResponseEntity<ApiResponse<TableResponse>> getTable(@PathVariable UUID id,
+            @RequestParam(required = false) UUID orgId) {
         var table = tableRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(TableErrorCode.TABLE_NOT_FOUND::notFound);
+        if (orgId != null && !orgId.equals(table.getOrgId())) {
+            throw TableErrorCode.TABLE_NOT_FOUND.notFound();
+        }
         return ResponseEntity.ok(ApiResponse.success(tableMapper.toDto(table)));
     }
 
