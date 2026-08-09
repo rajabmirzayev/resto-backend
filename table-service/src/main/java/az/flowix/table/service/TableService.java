@@ -78,6 +78,9 @@ public class TableService {
     public SectionResponse createSection(SectionRequest request, UserPrincipal principal) {
         var orgId = resolveOrgForCreate(principal, request.getOrgId());
         var name = normalizeName(request.getName());
+        if (name == null) {
+            throw TableErrorCode.SECTION_NAME_REQUIRED.badRequest();
+        }
         assertSectionNameFree(orgId, name, null);
 
         var section = Section.builder()

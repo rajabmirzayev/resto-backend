@@ -19,7 +19,8 @@ public enum TableErrorCode implements ErrorCode {
     CONFLICT("2006", "error.table.conflict.title", "error.table.conflict.message"),
     INVALID_STATUS("4001", "error.table.invalid-status.title", "error.table.invalid-status.message"),
     RESERVATION_EXCEEDS_CAPACITY("4002", "error.table.reservation-exceeds-capacity.title", "error.table.reservation-exceeds-capacity.message"),
-    ORDER_ID_REQUIRED("4003", "error.table.order-id-required.title", "error.table.order-id-required.message");
+    ORDER_ID_REQUIRED("4003", "error.table.order-id-required.title", "error.table.order-id-required.message"),
+    SECTION_NAME_REQUIRED("4004", "error.table.section-name-required.title", "error.table.section-name-required.message");
 
     private final String code;
     private final String titleKey;
