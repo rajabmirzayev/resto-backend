@@ -260,7 +260,8 @@ public class MenuService {
             }
             return requestedOrgId;
         }
-        if (principal.getOrgId() == null || !principal.getOrgId().equals(requestedOrgId.toString())) {
+        if (principal.getOrgId() == null || requestedOrgId == null
+                || !principal.getOrgId().equals(requestedOrgId.toString())) {
             throw MenuErrorCode.ACCESS_DENIED.forbidden();
         }
         return UUID.fromString(principal.getOrgId());

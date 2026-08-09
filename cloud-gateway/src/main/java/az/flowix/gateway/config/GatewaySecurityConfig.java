@@ -79,7 +79,6 @@ public class GatewaySecurityConfig {
                         ).permitAll()
                         .pathMatchers(HttpMethod.GET, "/api/menu-ms/v1/images/**").permitAll()
                         .pathMatchers("/api/customer-ms/**").permitAll()
-                        .pathMatchers("/api/**/v1/internal/**").denyAll()
                         .anyExchange().authenticated()
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2

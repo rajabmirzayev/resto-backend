@@ -99,6 +99,16 @@ public class KeycloakAuthService implements AuthService {
                 log.warn("Unknown uiScope claim '{}', falling back to role-based resolution", value);
             }
         }
+        if (scope instanceof List<?> list && !list.isEmpty()) {
+            var first = list.get(0);
+            if (first instanceof String value && !value.isBlank()) {
+                try {
+                    return UiScope.valueOf(value);
+                } catch (IllegalArgumentException ex) {
+                    log.warn("Unknown uiScope claim '{}', falling back to role-based resolution", value);
+                }
+            }
+        }
 
         if (stringList(claims.get("roles")).contains(platformAdminRole)) {
             return UiScope.SUPER_ADMIN_PANEL;
