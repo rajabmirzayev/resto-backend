@@ -1,0 +1,8 @@
+databaseChangeLog:
+  - changeSet:
+      id: 015-add-access-token
+      author: rajabmirzayev
+      changes:
+        - sql:
+            dbms: postgresql
+            sql: ALTER TABLE resto_order.orders ADD COLUMN IF NOT EXISTS access_token VARCHAR(64);

@@ -27,3 +27,5 @@ databaseChangeLog:
       file: db/changelog/changes/v1/013-add-performance-indexes.yml
   - include:
       file: db/changelog/changes/v1/014-add-version-columns.yml
+  - include:
+      file: db/changelog/changes/v1/015-add-access-token.yml

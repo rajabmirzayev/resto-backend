@@ -78,6 +78,9 @@ public class Order extends CoreEntity {
     @Column(name = "cancel_reason")
     String cancelReason;
 
+    @Column(name = "access_token", length = 64)
+    String accessToken;
+
     @Column(name = "org_id", nullable = false)
     UUID orgId;
 

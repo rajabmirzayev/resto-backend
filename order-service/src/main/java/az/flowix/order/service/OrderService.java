@@ -30,10 +30,12 @@ import az.flowix.order.repository.OrderRepository;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
+import java.security.SecureRandom;
 import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toMap;
@@ -48,6 +50,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class OrderService {
 
     private static final Logger log = LoggerFactory.getLogger(OrderService.class);
+    private static final SecureRandom RANDOM = new SecureRandom();
 
     private final OrderRepository orderRepository;
     private final OrderItemRepository orderItemRepository;
@@ -154,6 +157,7 @@ public class OrderService {
                 .waiterConfirmed(waiterConfirmed)
                 .customerPhoto(request.getCustomerPhoto())
                 .paymentRequested(false)
+                .accessToken(generateAccessToken())
                 .orgId(request.getOrgId())
                 .build();
 
@@ -531,10 +535,17 @@ public class OrderService {
                 .paymentMethod(order.getPaymentMethod() != null ? order.getPaymentMethod().name() : null)
                 .paymentRequested(order.isPaymentRequested())
                 .cancelReason(order.getCancelReason())
+                .accessToken(order.getAccessToken())
                 .orgId(order.getOrgId())
                 .createdAt(order.getCreatedAt())
                 .updatedAt(order.getUpdatedAt())
                 .build();
+    }
+
+    private static String generateAccessToken() {
+        byte[] bytes = new byte[32];
+        RANDOM.nextBytes(bytes);
+        return Base64.getEncoder().withoutPadding().encodeToString(bytes);
     }
 
 }

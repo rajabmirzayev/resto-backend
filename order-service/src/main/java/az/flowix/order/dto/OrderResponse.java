@@ -35,6 +35,7 @@ public class OrderResponse {
     String paymentMethod;
     boolean paymentRequested;
     String cancelReason;
+    String accessToken;
     UUID orgId;
     Instant createdAt;
     Instant updatedAt;

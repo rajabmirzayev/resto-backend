@@ -31,6 +31,7 @@ public class CustomerOrderResponse {
     String customerPhoto;
     String paymentMethod;
     boolean paymentRequested;
+    String accessToken;
     UUID orgId;
     Instant createdAt;
     Instant updatedAt;

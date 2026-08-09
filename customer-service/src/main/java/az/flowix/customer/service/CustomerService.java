@@ -162,6 +162,7 @@ public class CustomerService {
                 .customerPhoto(o.getCustomerPhoto())
                 .paymentMethod(o.getPaymentMethod())
                 .paymentRequested(o.isPaymentRequested())
+                .accessToken(o.getAccessToken())
                 .orgId(o.getOrgId())
                 .createdAt(o.getCreatedAt())
                 .updatedAt(o.getUpdatedAt())

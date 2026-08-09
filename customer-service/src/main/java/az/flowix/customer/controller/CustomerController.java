@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -53,14 +54,30 @@ public class CustomerController {
 
     @GetMapping("/orders/{orderId}")
     public ResponseEntity<ApiResponse<CustomerOrderResponse>> getOrder(
-            @PathVariable UUID orderId) {
-        return ResponseEntity.ok(ApiResponse.success(customerService.getOrder(orderId)));
+            @PathVariable UUID orderId,
+            @RequestParam(required = false) String token) {
+        var order = customerService.getOrder(orderId);
+        if (order == null) {
+            return ResponseEntity.notFound().build();
+        }
+        if (token == null || !token.equals(order.getAccessToken())) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+        return ResponseEntity.ok(ApiResponse.success(order));
     }
 
     @PostMapping("/orders/{orderId}/request-bill")
     public ResponseEntity<ApiResponse<Void>> requestBill(
             @PathVariable UUID orderId,
+            @RequestParam(required = false) String token,
             @Valid @RequestBody BillRequest request) {
+        var order = customerService.getOrder(orderId);
+        if (order == null) {
+            return ResponseEntity.notFound().build();
+        }
+        if (token == null || !token.equals(order.getAccessToken())) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         customerService.requestBill(orderId, request.getMethod());
         return ResponseEntity.ok(ApiResponse.success(null, "Bill requested"));
     }
