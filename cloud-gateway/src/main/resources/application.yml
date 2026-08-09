@@ -40,6 +40,13 @@ spring:
               uri: ${GW_AUTH_MANAGEMENT_URL:http://localhost:8002}
               predicates:
                 - Path=/api/auth-ms/**
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    redis-rate-limiter.replenishRate: 5
+                    redis-rate-limiter.burstCapacity: 10
+                    redis-rate-limiter.requestedTokens: 1
+                    key-resolver: "#{@userKeyResolver}"
             - id: organization-management
               uri: ${GW_ORGANIZATION_URL:http://localhost:8102}
               predicates:
@@ -93,12 +100,6 @@ spring:
                 - Path=/api/table-ms/**
           default-filters:
             - PreserveHostHeader
-            - name: RequestRateLimiter
-              args:
-                redis-rate-limiter.replenishRate: 10
-                redis-rate-limiter.burstCapacity: 20
-                redis-rate-limiter.requestedTokens: 1
-                key-resolver: "#{@userKeyResolver}"
             - name: RequestSize
               args:
                 maxSize: 10485760
