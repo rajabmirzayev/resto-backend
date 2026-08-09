@@ -8,6 +8,8 @@ import az.flowix.organization.dto.QrCodeResponse;
 import az.flowix.organization.entity.Organization;
 import az.flowix.organization.error.OrganizationErrorCode;
 import az.flowix.organization.mapper.OrganizationMapper;
+import az.flowix.organization.repository.LocalOrgSettingRepository;
+import az.flowix.organization.repository.LocalSectionRepository;
 import az.flowix.organization.repository.OrganizationRepository;
 
 import com.google.zxing.BarcodeFormat;
@@ -39,13 +41,19 @@ public class OrganizationService {
     private final OrganizationRepository organizationRepository;
     private final OrganizationMapper organizationMapper;
     private final OrderServiceClient orderServiceClient;
+    private final LocalSectionRepository localSectionRepository;
+    private final LocalOrgSettingRepository localOrgSettingRepository;
 
     public OrganizationService(OrganizationRepository organizationRepository,
                                OrganizationMapper organizationMapper,
-                               OrderServiceClient orderServiceClient) {
+                               OrderServiceClient orderServiceClient,
+                               LocalSectionRepository localSectionRepository,
+                               LocalOrgSettingRepository localOrgSettingRepository) {
         this.organizationRepository = organizationRepository;
         this.organizationMapper = organizationMapper;
         this.orderServiceClient = orderServiceClient;
+        this.localSectionRepository = localSectionRepository;
+        this.localOrgSettingRepository = localOrgSettingRepository;
     }
 
     public List<OrganizationDto> getAllOrganizations() {
@@ -117,6 +125,29 @@ public class OrganizationService {
         org.softDelete(null);
         organizationRepository.save(org);
         log.info("Organization {} soft-deleted", id);
+    }
+
+    /**
+     * Best-effort cleanup of the default section created during org provisioning.
+     * Called by the orchestrator during compensation; failures are not rethrown.
+     */
+    public void cleanupSection(UUID orgId) {
+        var sections = localSectionRepository.findAllByOrgIdAndDeletedFalseOrderByNameAsc(orgId);
+        if (!sections.isEmpty()) {
+            localSectionRepository.deleteAll(sections);
+            log.info("Compensated: removed {} section(s) for org {}", sections.size(), orgId);
+        }
+    }
+
+    /**
+     * Best-effort cleanup of the default settings created during org provisioning.
+     * Called by the orchestrator during compensation; failures are not rethrown.
+     */
+    public void cleanupSettings(UUID orgId) {
+        localOrgSettingRepository.findByOrgId(orgId).ifPresent(settings -> {
+            localOrgSettingRepository.delete(settings);
+            log.info("Compensated: removed settings for org {}", orgId);
+        });
     }
 
     private <T> T unwrap(ApiResponse<T> response) {

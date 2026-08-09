@@ -93,26 +93,32 @@ public class OrganizationCreationOrchestrator {
         log.info("Organization persisted: {} ({})", organization.getName(), orgId);
 
         UUID userId = null;
+        boolean settingsCreated = false;
+        boolean sectionCreated = false;
         try {
             var adminRole = getAdminRole();
             var adminUser = createAdminUser(request, orgId, adminRole.getId());
             userId = adminUser.getId();
 
-            createDefaultResources(orgId);
+            var settingsFuture = CompletableFuture.runAsync(() -> { createDefaultSettings(orgId); }, provisioningExecutor);
+            var sectionFuture = CompletableFuture.runAsync(() -> { createDefaultSection(orgId); }, provisioningExecutor);
+            CompletableFuture.allOf(settingsFuture, sectionFuture).join();
+            settingsCreated = true;
+            sectionCreated = true;
 
             log.info("Organization creation complete: {}", orgId);
             return buildResponse(organization, adminRole, adminUser);
         } catch (OrganizationException e) {
-            compensate(userId, orgId);
+            compensate(userId, orgId, settingsCreated, sectionCreated);
             throw e;
         } catch (FeignClientException e) {
             log.error("Downstream service error for org {}: status={}, key={}, title={}, detail={}",
                     orgId, e.getStatus(), e.getSourceKey(), e.getSourceTitle(), e.getDetail());
-            compensate(userId, orgId);
+            compensate(userId, orgId, settingsCreated, sectionCreated);
             throw e;
         } catch (Exception e) {
             log.error("Organization creation failed for {}, compensating resources", orgId, e);
-            compensate(userId, orgId);
+            compensate(userId, orgId, settingsCreated, sectionCreated);
             throw OrganizationErrorCode.ORGANIZATION_CREATION_FAILED.internal();
         }
     }
@@ -132,12 +138,6 @@ public class OrganizationCreationOrchestrator {
                 .orgId(orgId)
                 .build();
         return unwrap(userServiceClient.createUser(userRequest));
-    }
-
-    private void createDefaultResources(UUID orgId) {
-        var settingsFuture = CompletableFuture.runAsync(() -> createDefaultSettings(orgId), provisioningExecutor);
-        var sectionFuture = CompletableFuture.runAsync(() -> createDefaultSection(orgId), provisioningExecutor);
-        CompletableFuture.allOf(settingsFuture, sectionFuture).join();
     }
 
     private void createDefaultSettings(UUID orgId) {
@@ -185,13 +185,29 @@ public class OrganizationCreationOrchestrator {
         return new CreateOrganizationResponse(orgDto, userDto, roleDto);
     }
 
-    private void compensate(UUID userId, UUID orgId) {
+    private void compensate(UUID userId, UUID orgId, boolean settingsCreated, boolean sectionCreated) {
         if (userId != null) {
             try {
                 userServiceClient.deleteUser(userId);
                 log.info("Compensated: deleted user {}", userId);
             } catch (Exception ex) {
                 log.warn("Compensation failed: delete user {}", userId, ex);
+            }
+        }
+        if (sectionCreated) {
+            try {
+                organizationService.cleanupSection(orgId);
+                log.info("Compensated: deleted section for org {}", orgId);
+            } catch (Exception ex) {
+                log.warn("Compensation failed: delete section for org {}", orgId, ex);
+            }
+        }
+        if (settingsCreated) {
+            try {
+                organizationService.cleanupSettings(orgId);
+                log.info("Compensated: deleted settings for org {}", orgId);
+            } catch (Exception ex) {
+                log.warn("Compensation failed: delete settings for org {}", orgId, ex);
             }
         }
         try {
