@@ -93,7 +93,7 @@ public class CustomerService {
         String paymentMethod = request.getPaymentMethod();
         if (settings != null && paymentMethod == null) {
             paymentMethod = switch (settings.getPaymentTiming()) {
-                case "PREPAID" -> "CASH";
+                case "BEFORE" -> "CASH";
                 default -> null;
             };
         }

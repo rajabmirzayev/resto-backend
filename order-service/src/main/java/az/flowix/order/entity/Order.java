@@ -68,7 +68,7 @@ public class Order extends CoreEntity {
     String customerPhoto;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "payment_method", length = 10)
+    @Column(name = "payment_method", length = 30)
     PaymentMethod paymentMethod;
 
     @Column(name = "payment_requested", nullable = false)

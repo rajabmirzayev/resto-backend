@@ -33,7 +33,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import static java.util.stream.Collectors.toMap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -70,9 +73,9 @@ public class OrderService {
     public List<OrderResponse> getOrders(UUID orgId, String status, UUID tableId, UUID waiterId) {
         List<Order> orders;
         if (status != null && tableId != null) {
-            orders = orderRepository.findByOrgIdAndTableIdAndStatus(orgId, tableId, OrderStatus.valueOf(status.toUpperCase()));
+            orders = orderRepository.findByOrgIdAndTableIdAndStatus(orgId, tableId, parseOrderStatus(status));
         } else if (status != null) {
-            orders = orderRepository.findByOrgIdAndStatus(orgId, OrderStatus.valueOf(status.toUpperCase()));
+            orders = orderRepository.findByOrgIdAndStatus(orgId, parseOrderStatus(status));
         } else if (tableId != null) {
             orders = orderRepository.findByOrgIdAndTableId(orgId, tableId);
         } else if (waiterId != null) {
@@ -165,7 +168,7 @@ public class OrderService {
     @Transactional
     public OrderResponse updateStatus(UUID id, StatusRequest request) {
         var order = findOrder(id);
-        var newStatus = OrderStatus.valueOf(request.getStatus().toUpperCase());
+        var newStatus = parseOrderStatus(request.getStatus());
         var oldStatus = order.getStatus();
 
         if (newStatus == OrderStatus.CANCELLED) {
@@ -189,7 +192,7 @@ public class OrderService {
             throw OrderErrorCode.ITEM_NOT_FOUND.notFound();
         }
 
-        var newStatus = OrderItemStatus.valueOf(request.getStatus().toUpperCase());
+        var newStatus = parseOrderItemStatus(request.getStatus());
         validateItemStatusTransition(item.getStatus(), newStatus);
 
         item.setStatus(newStatus);
@@ -207,15 +210,6 @@ public class OrderService {
 
         if (order.getStatus() == OrderStatus.COMPLETED || order.getStatus() == OrderStatus.CANCELLED) {
             throw OrderErrorCode.ORDER_NOT_ACTIVE.badRequest();
-        }
-
-        var menuItems = unwrap(menuServiceClient.getItems(order.getOrgId()));
-        var menuItemMap = menuItems.stream()
-                .collect(Collectors.toMap(mi -> mi.getId(), mi -> mi));
-        for (var itemReq : request.getItems()) {
-            var menuItem = menuItemMap.get(itemReq.getMenuItemId());
-            if (menuItem == null) throw OrderErrorCode.MENU_ITEM_NOT_FOUND.badRequest();
-            if (!menuItem.isAvailable()) throw OrderErrorCode.MENU_ITEM_NOT_AVAILABLE.badRequest();
         }
 
         var newItems = createOrderItems(orderId, request.getItems(), order.getOrgId());
@@ -263,8 +257,16 @@ public class OrderService {
         order.setCancelReason(request != null ? request.getReason() : null);
         order = orderRepository.save(order);
 
-        boolean hasOtherActive = orderRepository.existsByTableIdAndStatusNotIn(
-                order.getTableId(), List.of(OrderStatus.COMPLETED, OrderStatus.CANCELLED));
+        var items = orderItemRepository.findByOrderId(orderId);
+        items.forEach(item -> {
+            if (item.getStatus() != OrderItemStatus.SERVED && item.getStatus() != OrderItemStatus.CANCELLED) {
+                item.setStatus(OrderItemStatus.CANCELLED);
+            }
+        });
+        orderItemRepository.saveAll(items);
+
+        boolean hasOtherActive = orderRepository.existsByTableIdAndOrgIdAndStatusNotIn(
+                order.getTableId(), order.getOrgId(), List.of(OrderStatus.COMPLETED, OrderStatus.CANCELLED));
 
         if (!hasOtherActive) {
             unwrap(tableServiceClient.updateTableStatus(order.getTableId(),
@@ -364,22 +366,36 @@ public class OrderService {
     }
 
     private List<OrderItem> createOrderItems(UUID orderId, List<OrderRequest.OrderItemRequest> items, UUID orgId) {
+        var menuItems = unwrap(menuServiceClient.getItems(orgId));
+        var menuItemMap = menuItems.stream()
+                .collect(toMap(mi -> mi.getId(), Function.identity()));
         return items.stream()
-                .map(req -> orderItemRepository.save(OrderItem.builder()
-                        .orderId(orderId)
-                        .menuItemId(req.getMenuItemId())
-                        .menuItemName(req.getMenuItemName())
-                        .quantity(req.getQuantity())
-                        .price(req.getPrice())
-                        .notes(req.getNotes() != null ? req.getNotes() : "")
-                        .status(OrderItemStatus.PENDING)
-                        .orgId(orgId)
-                        .build()))
+                .map(req -> {
+                    var menuItem = menuItemMap.get(req.getMenuItemId());
+                    if (menuItem == null) {
+                        throw OrderErrorCode.MENU_ITEM_NOT_FOUND.badRequest();
+                    }
+                    var price = menuItem.getPrice();
+                    if (req.getPrice() != null && req.getPrice().compareTo(price) != 0) {
+                        throw OrderErrorCode.PRICE_MISMATCH.badRequest();
+                    }
+                    return orderItemRepository.save(OrderItem.builder()
+                            .orderId(orderId)
+                            .menuItemId(req.getMenuItemId())
+                            .menuItemName(req.getMenuItemName())
+                            .quantity(req.getQuantity())
+                            .price(price)
+                            .notes(req.getNotes() != null ? req.getNotes() : "")
+                            .status(OrderItemStatus.PENDING)
+                            .orgId(orgId)
+                            .build());
+                })
                 .collect(Collectors.toList());
     }
 
     private BigDecimal calculateTotal(List<OrderItem> items) {
         return items.stream()
+                .filter(item -> item.getStatus() != OrderItemStatus.CANCELLED)
                 .map(item -> item.getPrice().multiply(BigDecimal.valueOf(item.getQuantity())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
@@ -440,6 +456,22 @@ public class OrderService {
         } else if (allReady && order.getStatus() == OrderStatus.PREPARING) {
             order.setStatus(OrderStatus.READY);
             orderRepository.save(order);
+        }
+    }
+
+    private OrderStatus parseOrderStatus(String status) {
+        try {
+            return OrderStatus.valueOf(status.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw OrderErrorCode.INVALID_STATUS.badRequest();
+        }
+    }
+
+    private OrderItemStatus parseOrderItemStatus(String status) {
+        try {
+            return OrderItemStatus.valueOf(status.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw OrderErrorCode.INVALID_STATUS.badRequest();
         }
     }
 

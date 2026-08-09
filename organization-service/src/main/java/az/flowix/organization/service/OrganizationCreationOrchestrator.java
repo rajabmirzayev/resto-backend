@@ -156,7 +156,7 @@ public class OrganizationCreationOrchestrator {
                 .name("Zal 1")
                 .orgId(orgId)
                 .build();
-        tableServiceClient.createSection(request);
+        unwrap(tableServiceClient.createSection(request));
     }
 
     private CreateOrganizationResponse buildResponse(Organization organization,

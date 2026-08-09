@@ -44,7 +44,7 @@ server:
 
 logging:
   level:
-    az.birim.auth: DEBUG
+    az.flowix.auth: DEBUG
 
 
 security:

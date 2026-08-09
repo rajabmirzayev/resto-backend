@@ -92,7 +92,7 @@ public class MenuController {
     @PreAuthorize("@perm.has('menu.delete')")
     public ResponseEntity<ApiResponse<Void>> deleteCategory(
             @PathVariable UUID id,
-            @RequestBody(required = false) CategoryDeleteRequest request,
+            @Valid @RequestBody CategoryDeleteRequest request,
             @AuthenticationPrincipal UserPrincipal principal) {
         menuService.deleteCategory(id, request, principal);
         return ResponseEntity.ok(ApiResponse.success(null, "Category deleted"));
@@ -157,7 +157,12 @@ public class MenuController {
             @AuthenticationPrincipal UserPrincipal principal) {
         menuService.getItemById(id, principal);
         var imageUrl = imageStorageService.storeImage(id, file);
-        menuService.updateItemImage(id, imageUrl, principal);
+        try {
+            menuService.updateItemImage(id, imageUrl, principal);
+        } catch (Exception e) {
+            imageStorageService.deleteItemImage(id);
+            throw e;
+        }
         return ResponseEntity.ok(ApiResponse.success(
                 new ImageUploadResponse(imageUrl), "Image uploaded"));
     }

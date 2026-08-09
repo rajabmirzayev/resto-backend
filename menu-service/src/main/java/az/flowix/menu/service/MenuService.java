@@ -64,7 +64,7 @@ public class MenuService {
     public CategoryResponse createCategory(CategoryRequest request, UserPrincipal principal) {
         var orgId = resolveOrgForCreate(principal, request.getOrgId());
         var category = MenuCategory.builder()
-                .name(request.getName().normalized())
+                .name(request.getName() != null ? request.getName().normalized() : null)
                 .icon(normalizeIcon(request.getIcon()))
                 .sortOrder(request.getSortOrder())
                 .orgId(orgId)
@@ -102,7 +102,10 @@ public class MenuService {
         assertOrgAccess(category.getOrgId(), principal);
 
         var items = menuItemRepository.findAllByCategoryIdAndDeletedFalse(id);
-        if (request != null && request.getMoveItemsTo() != null) {
+        if (!items.isEmpty()) {
+            if (request.getMoveItemsTo() == null) {
+                throw MenuErrorCode.CATEGORY_HAS_ITEMS.badRequest();
+            }
             if (request.getMoveItemsTo().equals(id)) {
                 throw MenuErrorCode.CATEGORY_SELF_MOVE.badRequest();
             }
@@ -111,15 +114,9 @@ public class MenuService {
             assertOrgAccess(target.getOrgId(), principal);
             for (var item : items) {
                 item.setCategoryId(request.getMoveItemsTo());
-                menuItemRepository.save(item);
             }
+            menuItemRepository.saveAll(items);
             log.info("Moved {} items to category {}", items.size(), request.getMoveItemsTo());
-        } else {
-            for (var item : items) {
-                item.softDelete(userId(principal));
-                menuItemRepository.save(item);
-            }
-            log.info("Deleted {} items in category {}", items.size(), id);
         }
 
         category.softDelete(userId(principal));
@@ -166,7 +163,7 @@ public class MenuService {
         var orgId = resolveOrgForCreate(principal, request.getOrgId());
         assertCategoryOwnedByOrg(request.getCategoryId(), orgId);
         var item = MenuItem.builder()
-                .name(request.getName().normalized())
+                .name(request.getName() != null ? request.getName().normalized() : null)
                 .description(request.getDescription() != null ? request.getDescription().normalized() : null)
                 .price(request.getPrice())
                 .categoryId(request.getCategoryId())
@@ -229,7 +226,7 @@ public class MenuService {
         var item = menuItemRepository.findByIdAndDeletedFalse(id)
                 .orElseThrow(MenuErrorCode.ITEM_NOT_FOUND::notFound);
         assertOrgAccess(item.getOrgId(), principal);
-        item.setImageUrl(imageUrl);
+        item.setImageUrl(normalizeImageUrl(imageUrl));
         menuItemRepository.save(item);
         log.info("Menu item image updated: {}", id);
     }
@@ -297,11 +294,16 @@ public class MenuService {
     }
 
     private void assertCanReadOrg(UUID orgId, UserPrincipal principal) {
-        if (orgId == null || principal == null) {
+        if (principal == null || principal.getUserId() == null) {
+            throw MenuErrorCode.ACCESS_DENIED.forbidden();
+        }
+        if (orgId == null) {
+            if (!principal.isPlatformAdmin()) {
+                throw MenuErrorCode.ACCESS_DENIED.forbidden();
+            }
             return;
         }
-        if (principal.getUserId() != null
-                && !principal.isPlatformAdmin()
+        if (!principal.isPlatformAdmin()
                 && (principal.getOrgId() == null || !principal.getOrgId().equals(orgId.toString()))) {
             throw MenuErrorCode.ACCESS_DENIED.forbidden();
         }
