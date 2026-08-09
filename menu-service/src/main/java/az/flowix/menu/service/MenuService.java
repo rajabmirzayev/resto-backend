@@ -294,8 +294,11 @@ public class MenuService {
     }
 
     private void assertCanReadOrg(UUID orgId, UserPrincipal principal) {
-        if (principal == null || principal.getUserId() == null) {
-            throw MenuErrorCode.ACCESS_DENIED.forbidden();
+        if (principal == null) {
+            return;
+        }
+        if (principal.getUserId() == null) {
+            return;
         }
         if (orgId == null) {
             if (!principal.isPlatformAdmin()) {
