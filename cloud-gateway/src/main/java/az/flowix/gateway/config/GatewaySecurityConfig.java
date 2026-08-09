@@ -2,19 +2,16 @@ package az.flowix.gateway.config;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.util.Arrays;
-import java.util.List;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.Ordered;
-import org.springframework.core.annotation.Order;
 import org.springframework.core.io.buffer.DataBuffer;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.server.reactive.ServerHttpResponse;
@@ -107,6 +104,8 @@ public class GatewaySecurityConfig {
         };
     }
 
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
     private Mono<Void> writeProblemDetail(ServerHttpResponse response, HttpStatus status,
                                           String title, String detail, String key,
                                           ServerWebExchange exchange) {
@@ -114,11 +113,22 @@ public class GatewaySecurityConfig {
         response.getHeaders().setContentType(MediaType.APPLICATION_PROBLEM_JSON);
 
         String path = exchange.getRequest().getPath().value();
-        String json = """
-                {"type":"about:blank","title":"%s","status":%d,"detail":"%s","instance":"%s","key":"%s","path":"%s","timestamp":"%s"}"""
-                .formatted(title, status.value(), detail, resolveInstance(exchange), key, path, Instant.now());
+        ObjectNode body = objectMapper.createObjectNode();
+        body.put("type", "about:blank");
+        body.put("title", title);
+        body.put("status", status.value());
+        body.put("detail", detail);
+        body.put("instance", resolveInstance(exchange));
+        body.put("key", key);
+        body.put("path", path);
+        body.put("timestamp", Instant.now().toString());
 
-        byte[] bytes = json.getBytes(StandardCharsets.UTF_8);
+        byte[] bytes;
+        try {
+            bytes = objectMapper.writeValueAsBytes(body);
+        } catch (Exception e) {
+            bytes = "{}".getBytes(StandardCharsets.UTF_8);
+        }
         DataBuffer buffer = response.bufferFactory().wrap(bytes);
         return response.writeWith(Mono.just(buffer));
     }

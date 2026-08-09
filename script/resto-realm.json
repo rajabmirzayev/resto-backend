@@ -707,10 +707,12 @@
       "alwaysDisplayInConsole": false,
       "clientAuthenticatorType": "client-secret",
       "redirectUris": [
-        "/*"
+        "http://localhost:*",
+        "https://*"
       ],
       "webOrigins": [
-        "/*"
+        "http://localhost:*",
+        "https://*"
       ],
       "notBefore": 0,
       "bearerOnly": false,
@@ -734,7 +736,7 @@
         "dpop.bound.access.tokens": "false"
       },
       "authenticationFlowBindingOverrides": {},
-      "fullScopeAllowed": true,
+      "fullScopeAllowed": false,
       "nodeReRegistrationTimeout": -1,
       "protocolMappers": [
         {

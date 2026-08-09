@@ -11,6 +11,13 @@ spring:
     username: ${SETTING_DB_USERNAME:postgres}
     password: ${SETTING_DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+
 
   jpa:
     hibernate:
@@ -36,6 +43,14 @@ service:
 logging:
   level:
     az.flowix.setting: DEBUG
+
+feign:
+  client:
+    config:
+      default:
+        connect-timeout: 5000
+        read-timeout: 10000
+        loggerLevel: BASIC
 
 
 security:

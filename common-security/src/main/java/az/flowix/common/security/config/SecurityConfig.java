@@ -6,6 +6,8 @@ import az.flowix.common.security.converter.JwtUserPrincipalConverter;
 import az.flowix.common.security.filter.HeaderAuthenticationFilter;
 import az.flowix.common.security.resolver.HeaderBasedPermissionResolver;
 import az.flowix.common.security.resolver.PermissionResolver;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
@@ -146,18 +148,25 @@ public class SecurityConfig {
         };
     }
 
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
     private void writeProblemDetail(HttpServletResponse response,
                                     HttpStatus status, String title, String detail, String key,
                                     HttpServletRequest request) {
         try {
             response.setStatus(status.value());
             response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
-            String json = """
-                    {"type":"about:blank","title":"%s","status":%d,"detail":"%s","instance":"%s","key":"%s","path":"%s","timestamp":"%s"}"""
-                    .formatted(title, status.value(), detail, resolveInstance(request), key,
-                            request.getRequestURI(), Instant.now());
+            ObjectNode body = objectMapper.createObjectNode();
+            body.put("type", "about:blank");
+            body.put("title", title);
+            body.put("status", status.value());
+            body.put("detail", detail);
+            body.put("instance", resolveInstance(request));
+            body.put("key", key);
+            body.put("path", request.getRequestURI());
+            body.put("timestamp", Instant.now().toString());
             PrintWriter writer = response.getWriter();
-            writer.write(json);
+            writer.write(objectMapper.writeValueAsString(body));
             writer.flush();
         } catch (IOException e) {
             log.error("Failed to write error response", e);
