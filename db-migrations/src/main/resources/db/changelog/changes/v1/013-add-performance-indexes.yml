@@ -1,0 +1,65 @@
+databaseChangeLog:
+  - changeSet:
+      id: 013-add-performance-indexes
+      author: rajabmirzayev
+      changes:
+        # order-service indexes
+        - sql:
+            dbms: postgresql
+            sql: CREATE INDEX IF NOT EXISTS idx_orders_org_id ON resto_order.orders (org_id);
+        - sql:
+            dbms: postgresql
+            sql: CREATE INDEX IF NOT EXISTS idx_orders_table_id ON resto_order.orders (table_id);
+        - sql:
+            dbms: postgresql
+            sql: CREATE INDEX IF NOT EXISTS idx_orders_waiter_id ON resto_order.orders (waiter_id);
+        - sql:
+            dbms: postgresql
+            sql: CREATE INDEX IF NOT EXISTS idx_orders_status ON resto_order.orders (status);
+        - sql:
+            dbms: postgresql
+            sql: CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON resto_order.order_items (order_id);
+
+        # menu-service indexes
+        - sql:
+            dbms: postgresql
+            sql: CREATE INDEX IF NOT EXISTS idx_menu_items_org_id ON resto_menu.menu_items (org_id);
+        - sql:
+            dbms: postgresql
+            sql: CREATE INDEX IF NOT EXISTS idx_menu_items_category_id ON resto_menu.menu_items (category_id);
+        - sql:
+            dbms: postgresql
+            sql: CREATE INDEX IF NOT EXISTS idx_menu_items_is_available ON resto_menu.menu_items (is_available);
+        - sql:
+            dbms: postgresql
+            sql: CREATE INDEX IF NOT EXISTS idx_menu_categories_org_id ON resto_menu.menu_categories (org_id);
+
+        # table-service indexes
+        - sql:
+            dbms: postgresql
+            sql: CREATE INDEX IF NOT EXISTS idx_restaurant_tables_org_id ON resto_table.restaurant_tables (org_id);
+        - sql:
+            dbms: postgresql
+            sql: CREATE INDEX IF NOT EXISTS idx_restaurant_tables_section_id ON resto_table.restaurant_tables (section_id);
+        - sql:
+            dbms: postgresql
+            sql: CREATE INDEX IF NOT EXISTS idx_restaurant_tables_status ON resto_table.restaurant_tables (status);
+        - sql:
+            dbms: postgresql
+            sql: CREATE INDEX IF NOT EXISTS idx_restaurant_tables_table_number ON resto_table.restaurant_tables (table_number);
+        - sql:
+            dbms: postgresql
+            sql: CREATE INDEX IF NOT EXISTS idx_sections_org_id ON resto_table.sections (org_id);
+
+        # access-service indexes
+        - sql:
+            dbms: postgresql
+            sql: CREATE INDEX IF NOT EXISTS idx_users_org_id ON resto_access.users (org_id);
+        - sql:
+            dbms: postgresql
+            sql: CREATE INDEX IF NOT EXISTS idx_users_role_id ON resto_access.users (role_id);
+
+        # setting-service indexes
+        - sql:
+            dbms: postgresql
+            sql: CREATE INDEX IF NOT EXISTS idx_org_settings_org_id ON resto_setting.org_settings (org_id);
