@@ -25,6 +25,16 @@ import org.springframework.util.StringUtils;
  */
 public class JwtUserPrincipalConverter implements Converter<Jwt, AbstractAuthenticationToken> {
 
+    private final String superAdminRole;
+
+    public JwtUserPrincipalConverter() {
+        this("SUPER_ADMIN");
+    }
+
+    public JwtUserPrincipalConverter(String superAdminRole) {
+        this.superAdminRole = superAdminRole != null ? superAdminRole : "SUPER_ADMIN";
+    }
+
     @Override
     public AbstractAuthenticationToken convert(Jwt jwt) {
         String userId = jwt.getSubject();
@@ -33,7 +43,8 @@ public class JwtUserPrincipalConverter implements Converter<Jwt, AbstractAuthent
         List<String> roles = jwt.getClaimAsStringList("roles");
         Set<String> roleSet = (roles == null) ? Set.of() : Set.copyOf(roles);
 
-        boolean platformAdmin = roleSet.contains("SUPER_ADMIN") || hasRealmRole(jwt, "SUPER_ADMIN");
+        boolean platformAdmin = roleSet.contains(superAdminRole)
+                || hasRealmRole(jwt, "SUPER_ADMIN");
 
         List<String> permissionClaims = jwt.getClaimAsStringList("permissions");
         Set<String> permissions = (permissionClaims == null) ? Set.of() : Set.copyOf(permissionClaims);
@@ -45,7 +56,7 @@ public class JwtUserPrincipalConverter implements Converter<Jwt, AbstractAuthent
         Collection<GrantedAuthority> authorities = new HashSet<>();
         roleSet.forEach(role -> authorities.add(new SimpleGrantedAuthority("ROLE_" + role)));
         if (platformAdmin) {
-            authorities.add(new SimpleGrantedAuthority("SUPER_ADMIN"));
+            authorities.add(new SimpleGrantedAuthority("ROLE_" + superAdminRole));
         }
 
         return new UsernamePasswordAuthenticationToken(principal, jwt, authorities);

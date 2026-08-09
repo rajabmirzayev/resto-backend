@@ -30,6 +30,9 @@ public class ClaimsForwardingFilter implements GlobalFilter, Ordered {
     @Value("${security.internal-auth.secret:}")
     private String internalAuthSecret;
 
+    @Value("${auth.super-admin-role:SUPER_ADMIN}")
+    private String superAdminRole;
+
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         return exchange.getPrincipal()
@@ -43,7 +46,7 @@ public class ClaimsForwardingFilter implements GlobalFilter, Ordered {
                         List<String> roles = resolveRoles(jwt);
                         List<String> permissions = resolvePermissions(jwt);
                         String uiScope = jwt.getClaimAsString("uiScope");
-                        boolean platformAdmin = roles.contains("SUPER_ADMIN");
+                        boolean platformAdmin = roles.contains(superAdminRole);
 
                         var mutatedRequest = exchange.getRequest().mutate()
                                 .headers(headers -> {

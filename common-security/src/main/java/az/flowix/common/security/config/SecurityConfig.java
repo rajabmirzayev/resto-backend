@@ -114,14 +114,16 @@ public class SecurityConfig {
     @Bean
     @ConditionalOnMissingBean(HeaderAuthenticationFilter.class)
     public HeaderAuthenticationFilter headerAuthenticationFilter(
-            @Value("${security.internal-auth.secret:}") String internalAuthSecret) {
-        return new HeaderAuthenticationFilter(internalAuthSecret);
+            @Value("${security.internal-auth.secret:}") String internalAuthSecret,
+            @Value("${auth.super-admin-role:SUPER_ADMIN}") String superAdminRole) {
+        return new HeaderAuthenticationFilter(internalAuthSecret, superAdminRole);
     }
 
     @Bean
     @ConditionalOnMissingBean(JwtUserPrincipalConverter.class)
-    public JwtUserPrincipalConverter jwtUserPrincipalConverter() {
-        return new JwtUserPrincipalConverter();
+    public JwtUserPrincipalConverter jwtUserPrincipalConverter(
+            @Value("${auth.super-admin-role:SUPER_ADMIN}") String superAdminRole) {
+        return new JwtUserPrincipalConverter(superAdminRole);
     }
 
     @Bean

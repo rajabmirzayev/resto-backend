@@ -223,15 +223,15 @@ public class UserService {
 
     @Transactional
     public void deleteByUsername(String username) {
-        userRepository.findByUsernameAndDeletedFalse(username).ifPresent(user -> {
-            enforceUserOrgAccess(user);
-            if (user.getKeycloakId() != null) {
-                keycloakUserProvisioner.deactivate(user.getKeycloakId());
-            }
-            user.softDelete(null);
-            userRepository.save(user);
-            log.info("User soft-deleted by username: {} ({})", username, user.getId());
-        });
+        var user = userRepository.findByUsernameAndDeletedFalse(username)
+                .orElseThrow(UserErrorCode.USER_NOT_FOUND::notFound);
+        enforceUserOrgAccess(user);
+        if (user.getKeycloakId() != null) {
+            keycloakUserProvisioner.deactivate(user.getKeycloakId());
+        }
+        user.softDelete(null);
+        userRepository.save(user);
+        log.info("User soft-deleted by username: {} ({})", username, user.getId());
     }
 
     @Transactional

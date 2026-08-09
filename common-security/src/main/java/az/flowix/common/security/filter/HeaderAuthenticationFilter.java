@@ -31,13 +31,19 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
     public static final String HEADER_INTERNAL_AUTH = "X-Internal-Auth";
 
     private final String internalAuthSecret;
+    private final String superAdminRole;
 
     public HeaderAuthenticationFilter() {
-        this(null);
+        this(null, "SUPER_ADMIN");
     }
 
     public HeaderAuthenticationFilter(String internalAuthSecret) {
+        this(internalAuthSecret, "SUPER_ADMIN");
+    }
+
+    public HeaderAuthenticationFilter(String internalAuthSecret, String superAdminRole) {
         this.internalAuthSecret = internalAuthSecret;
+        this.superAdminRole = superAdminRole != null ? superAdminRole : "SUPER_ADMIN";
     }
 
     @Override
@@ -64,7 +70,7 @@ public class HeaderAuthenticationFilter extends OncePerRequestFilter {
                         .collect(Collectors.toSet());
 
                 if (platformAdmin) {
-                    authorities.add(new SimpleGrantedAuthority("SUPER_ADMIN"));
+                    authorities.add(new SimpleGrantedAuthority("ROLE_" + superAdminRole));
                 }
 
                 var auth = new UsernamePasswordAuthenticationToken(principal, null, authorities);

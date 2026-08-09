@@ -31,7 +31,7 @@ public final class UserPrincipal {
         this.roles = roles != null ? Set.copyOf(roles) : Set.of();
         this.permissions = permissions != null ? Set.copyOf(permissions) : Set.of();
         this.uiScope = uiScope;
-        this.platformAdmin = platformAdmin || this.roles.contains("SUPER_ADMIN");
+        this.platformAdmin = platformAdmin;
     }
 
     public String getUserId() {
