@@ -43,6 +43,9 @@ cd script
 log "Preparing .env (kept if it already exists)..."
 [ -f .env ] || cp .env.example .env
 
+log "Stopping existing stack to free memory (volumes are kept)..."
+docker compose -f "$COMPOSE_FILE" down --remove-orphans || true
+
 log "Building images (parallel ${BUILD_PARALLEL})..."
 if docker compose -f "$COMPOSE_FILE" build --help 2>&1 | grep -q -- '--parallel-limit'; then
   docker compose -f "$COMPOSE_FILE" build --parallel-limit "$BUILD_PARALLEL"
@@ -66,8 +69,16 @@ done
 [ "$bootstrap_ok" = 1 ] || log "WARNING: Keycloak bootstrap did not complete"
 
 log "Health check..."
-sleep 5
-if curl -fsS -o /dev/null http://localhost:8001/actuator/health; then
+healthy=0
+for i in 1 2 3 4 5 6 7 8; do
+  if curl -fsS -o /dev/null http://localhost:8001/actuator/health; then
+    healthy=1
+    break
+  fi
+  log "Gateway not ready yet, retry ${i}/8 in 15s..."
+  sleep 15
+done
+if [ "$healthy" = 1 ]; then
   log "Gateway is healthy"
 else
   log "WARNING: gateway health check failed - check 'docker compose -f ${COMPOSE_FILE} logs'"
