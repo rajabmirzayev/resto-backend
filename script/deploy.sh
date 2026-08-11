@@ -3,11 +3,11 @@ set -euo pipefail
 trap 'echo "Deploy failed"' ERR
 
 # Production deploy script. Runs on the target server (root).
-# Pulls prebuilt images from GHCR and starts the stack with compose.prod.yml.
+# Pulls prebuilt images from GHCR and starts the stack with compose.yml.
 
 SERVER_APP_DIR="${SERVER_APP_DIR:-/app/backend}"
 SERVER_REPO="${SERVER_REPO:-https://github.com/rajabmirzayev/resto-backend.git}"
-COMPOSE_FILE="${COMPOSE_FILE:-compose.prod.yml}"
+COMPOSE_FILE="${COMPOSE_FILE:-compose.yml}"
 
 : "${IMAGE_TAG:?IMAGE_TAG is required}"
 : "${GHCR_USER:?GHCR_USER is required}"

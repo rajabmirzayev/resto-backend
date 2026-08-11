@@ -20,6 +20,7 @@ services:
       retries: 5
 
   migrations:
+    image: ghcr.io/rajabmirzayev/resto-backend/db-migrations:${IMAGE_TAG:-latest}
     build:
       context: ../
       dockerfile: db-migrations/Dockerfile
@@ -118,6 +119,7 @@ services:
       - valkey_data:/data
 
   auth-ms:
+    image: ghcr.io/rajabmirzayev/resto-backend/auth-gateway:${IMAGE_TAG:-latest}
     build:
       context: ../
       dockerfile: auth-gateway/Dockerfile
@@ -141,6 +143,7 @@ services:
       - "8002:8002"
 
   cloud-gateway:
+    image: ghcr.io/rajabmirzayev/resto-backend/cloud-gateway:${IMAGE_TAG:-latest}
     build:
       context: ../
       dockerfile: cloud-gateway/Dockerfile
@@ -176,6 +179,7 @@ services:
       - "8001:8001"
 
   access-service:
+    image: ghcr.io/rajabmirzayev/resto-backend/access-service:${IMAGE_TAG:-latest}
     build:
       context: ../
       dockerfile: access-service/Dockerfile
@@ -204,6 +208,7 @@ services:
       - "8120:8120"
 
   organization-service:
+    image: ghcr.io/rajabmirzayev/resto-backend/organization-service:${IMAGE_TAG:-latest}
     build:
       context: ../
       dockerfile: organization-service/Dockerfile
@@ -232,6 +237,7 @@ services:
       - "8102:8102"
 
   menu-service:
+    image: ghcr.io/rajabmirzayev/resto-backend/menu-service:${IMAGE_TAG:-latest}
     build:
       context: ../
       dockerfile: menu-service/Dockerfile
@@ -263,6 +269,7 @@ services:
       - menu_images:/data/menu-images
 
   table-service:
+    image: ghcr.io/rajabmirzayev/resto-backend/table-service:${IMAGE_TAG:-latest}
     build:
       context: ../
       dockerfile: table-service/Dockerfile
@@ -290,6 +297,7 @@ services:
       - "8106:8106"
 
   order-service:
+    image: ghcr.io/rajabmirzayev/resto-backend/order-service:${IMAGE_TAG:-latest}
     build:
       context: ../
       dockerfile: order-service/Dockerfile
@@ -317,6 +325,7 @@ services:
       - "8107:8107"
 
   kitchen-service:
+    image: ghcr.io/rajabmirzayev/resto-backend/kitchen-service:${IMAGE_TAG:-latest}
     build:
       context: ../
       dockerfile: kitchen-service/Dockerfile
@@ -339,6 +348,7 @@ services:
       - "8108:8108"
 
   waiter-service:
+    image: ghcr.io/rajabmirzayev/resto-backend/waiter-service:${IMAGE_TAG:-latest}
     build:
       context: ../
       dockerfile: waiter-service/Dockerfile
@@ -361,6 +371,7 @@ services:
       - "8109:8109"
 
   customer-service:
+    image: ghcr.io/rajabmirzayev/resto-backend/customer-service:${IMAGE_TAG:-latest}
     build:
       context: ../
       dockerfile: customer-service/Dockerfile
@@ -383,6 +394,7 @@ services:
       - "8110:8110"
 
   setting-service:
+    image: ghcr.io/rajabmirzayev/resto-backend/setting-service:${IMAGE_TAG:-latest}
     build:
       context: ../
       dockerfile: setting-service/Dockerfile
@@ -410,6 +422,7 @@ services:
       - "8111:8111"
 
   dashboard-service:
+    image: ghcr.io/rajabmirzayev/resto-backend/dashboard-service:${IMAGE_TAG:-latest}
     build:
       context: ../
       dockerfile: dashboard-service/Dockerfile
@@ -433,6 +446,7 @@ services:
       - "8112:8112"
 
   report-service:
+    image: ghcr.io/rajabmirzayev/resto-backend/report-service:${IMAGE_TAG:-latest}
     build:
       context: ../
       dockerfile: report-service/Dockerfile
