@@ -31,8 +31,9 @@ jobs:
           set -e
           sudo apt-get update -y && sudo apt-get install -y sshpass
           SSH_ARGS="-p ${PORT:-22} -o StrictHostKeyChecking=accept-new -o ServerAliveInterval=60 -o ServerAliveCountMax=10 -o ConnectTimeout=30"
+          SCP_ARGS="-P ${PORT:-22} -o StrictHostKeyChecking=accept-new -o ConnectTimeout=30"
 
-          sshpass -p "$PASS" scp $SSH_ARGS script/deploy.sh "${USER:-root}@${HOST}:/tmp/deploy.sh"
+          sshpass -p "$PASS" scp $SCP_ARGS script/deploy.sh "${USER:-root}@${HOST}:/tmp/deploy.sh"
 
           sshpass -p "$PASS" ssh $SSH_ARGS "${USER:-root}@${HOST}" \
             "nohup bash /tmp/deploy.sh > /tmp/deploy.log 2>&1 < /dev/null & echo 'deploy started'"
