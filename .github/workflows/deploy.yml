@@ -1,4 +1,4 @@
-name: Deploy
+name: Build & Deploy
 
 on:
   push:
@@ -6,16 +6,69 @@ on:
       - master
   workflow_dispatch:
 
+env:
+  REGISTRY: ghcr.io
+  IMAGE_BASE: ghcr.io/rajabmirzayev/resto-backend
+
 permissions:
   contents: read
+  packages: write
 
 concurrency:
   group: deploy-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  build:
+    name: Build ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - db-migrations
+          - auth-gateway
+          - cloud-gateway
+          - access-service
+          - organization-service
+          - menu-service
+          - table-service
+          - order-service
+          - kitchen-service
+          - waiter-service
+          - customer-service
+          - setting-service
+          - dashboard-service
+          - report-service
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.service }}/Dockerfile
+          push: true
+          tags: |
+            ${{ env.IMAGE_BASE }}/${{ matrix.service }}:${{ github.sha }}
+            ${{ env.IMAGE_BASE }}/${{ matrix.service }}:latest
+          cache-from: type=registry,ref=${{ env.IMAGE_BASE }}/${{ matrix.service }}:buildcache
+          cache-to: type=registry,ref=${{ env.IMAGE_BASE }}/${{ matrix.service }}:buildcache,mode=max
+
   deploy:
     name: Deploy to production
+    needs: build
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -27,6 +80,9 @@ jobs:
           PORT: ${{ secrets.SERVER_PORT }}
           USER: ${{ secrets.SERVER_USER }}
           PASS: ${{ secrets.SERVER_PASSWORD }}
+          IMAGE_TAG: ${{ github.sha }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -e
           sudo apt-get update -y && sudo apt-get install -y sshpass
@@ -36,9 +92,10 @@ jobs:
           sshpass -p "$PASS" scp $SCP_ARGS script/deploy.sh "${USER:-root}@${HOST}:/tmp/deploy.sh"
 
           sshpass -p "$PASS" ssh $SSH_ARGS "${USER:-root}@${HOST}" \
-            "nohup bash /tmp/deploy.sh > /tmp/deploy.log 2>&1 < /dev/null & echo 'deploy started'"
+            "IMAGE_TAG='$IMAGE_TAG' GHCR_USER='$GHCR_USER' GHCR_TOKEN='$GHCR_TOKEN' \
+             nohup bash /tmp/deploy.sh > /tmp/deploy.log 2>&1 < /dev/null & echo 'deploy started'"
 
-          for i in $(seq 1 360); do
+          for i in $(seq 1 240); do
             sleep 15
             STATUS=$(sshpass -p "$PASS" ssh $SSH_ARGS "${USER:-root}@${HOST}" \
               "if grep -q 'Deploy finished' /tmp/deploy.log; then echo DONE; elif grep -q 'Deploy failed' /tmp/deploy.log; then echo FAILED; else echo RUNNING; fi" \

@@ -3,12 +3,15 @@ set -euo pipefail
 trap 'echo "Deploy failed"' ERR
 
 # Production deploy script. Runs on the target server (root).
-# Builds and starts the stack with script/compose.yml.
+# Pulls prebuilt images from GHCR and starts the stack with compose.prod.yml.
 
 SERVER_APP_DIR="${SERVER_APP_DIR:-/app/backend}"
 SERVER_REPO="${SERVER_REPO:-https://github.com/rajabmirzayev/resto-backend.git}"
-COMPOSE_FILE="${COMPOSE_FILE:-compose.yml}"
-BUILD_PARALLEL="${BUILD_PARALLEL:-3}"
+COMPOSE_FILE="${COMPOSE_FILE:-compose.prod.yml}"
+
+: "${IMAGE_TAG:?IMAGE_TAG is required}"
+: "${GHCR_USER:?GHCR_USER is required}"
+: "${GHCR_TOKEN:?GHCR_TOKEN is required}"
 
 log() { echo "[DEPLOY] $*"; }
 
@@ -43,15 +46,13 @@ cd script
 log "Preparing .env (kept if it already exists)..."
 [ -f .env ] || cp .env.example .env
 
-log "Stopping existing stack to free memory (volumes are kept)..."
-docker compose -f "$COMPOSE_FILE" down --remove-orphans || true
+log "Logging in to GitHub Container Registry..."
+echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin >/dev/null 2>&1 \
+  || log "GHCR login failed (continuing; works if images are public)"
 
-log "Building images (parallel ${BUILD_PARALLEL})..."
-if docker compose -f "$COMPOSE_FILE" build --help 2>&1 | grep -q -- '--parallel-limit'; then
-  docker compose -f "$COMPOSE_FILE" build --parallel-limit "$BUILD_PARALLEL"
-else
-  docker compose -f "$COMPOSE_FILE" build
-fi
+log "Pulling images (tag ${IMAGE_TAG})..."
+export IMAGE_TAG
+docker compose -f "$COMPOSE_FILE" pull
 
 log "Starting stack..."
 docker compose -f "$COMPOSE_FILE" up -d --remove-orphans

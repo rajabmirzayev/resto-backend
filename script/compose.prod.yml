@@ -1,0 +1,438 @@
+services:
+  db:
+    image: postgres:18
+    restart: always
+    environment:
+      POSTGRES_USER: $POSTGRES_USER
+      POSTGRES_PASSWORD: $POSTGRES_PASSWORD
+      POSTGRES_DB: $POSTGRES_DB
+      TZ: Asia/Baku
+    networks:
+      - resto_net
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  migrations:
+    image: ghcr.io/rajabmirzayev/resto-backend/db-migrations:${IMAGE_TAG:-latest}
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      POSTGRES_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-resto}
+      POSTGRES_USER: $POSTGRES_USER
+      POSTGRES_PASSWORD: $POSTGRES_PASSWORD
+      TZ: Asia/Baku
+    networks:
+      - resto_net
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.5.2
+    restart: always
+    command: start-dev --import-realm
+    volumes:
+      - ./resto-realm.json:/opt/keycloak/data/import/resto-realm.json
+      - ./bootstrap-kc.sh:/tmp/scripts/bootstrap-kc.sh
+    networks:
+      - resto_net
+    ports:
+      - "8080:8080"
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: $KC_BOOTSTRAP_ADMIN_USERNAME
+      KC_BOOTSTRAP_ADMIN_PASSWORD: $KC_BOOTSTRAP_ADMIN_PASSWORD
+      KC_DB: $KC_DB
+      KC_DB_URL: $KC_DB_URL
+      KC_DB_USERNAME: $KC_DB_USERNAME
+      KC_DB_PASSWORD: $KC_DB_PASSWORD
+      KC_HEALTH_ENABLED: $KC_HEALTH_ENABLED
+      AUTH_KEYCLOAK_CLIENT_SECRET: $AUTH_KEYCLOAK_CLIENT_SECRET
+      PLATFORM_BOOTSTRAP_EMAIL: $PLATFORM_BOOTSTRAP_EMAIL
+      PLATFORM_BOOTSTRAP_PASSWORD: $PLATFORM_BOOTSTRAP_PASSWORD
+      PLATFORM_BOOTSTRAP_ORG_ID: $PLATFORM_BOOTSTRAP_ORG_ID
+      TZ: Asia/Baku
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && head -1 <&3 | grep -q 'HTTP/1.1 200'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 120s
+
+  keycloak-bootstrap:
+    image: quay.io/keycloak/keycloak:26.5.2
+    restart: "no"
+    entrypoint: ["/bin/sh", "/tmp/scripts/bootstrap-kc.sh"]
+    volumes:
+      - ./bootstrap-kc.sh:/tmp/scripts/bootstrap-kc.sh
+    networks:
+      - resto_net
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: $KC_BOOTSTRAP_ADMIN_USERNAME
+      KC_BOOTSTRAP_ADMIN_PASSWORD: $KC_BOOTSTRAP_ADMIN_PASSWORD
+      AUTH_KEYCLOAK_CLIENT_SECRET: $AUTH_KEYCLOAK_CLIENT_SECRET
+      PLATFORM_BOOTSTRAP_EMAIL: $PLATFORM_BOOTSTRAP_EMAIL
+      PLATFORM_BOOTSTRAP_PASSWORD: $PLATFORM_BOOTSTRAP_PASSWORD
+      PLATFORM_BOOTSTRAP_ORG_ID: $PLATFORM_BOOTSTRAP_ORG_ID
+      KC_BASE_URL: http://keycloak:8080
+      KC_REALM: resto
+      KC_CLIENT_ID: resto-auth
+    depends_on:
+      keycloak:
+        condition: service_healthy
+
+  pgadmin:
+    image: dpage/pgadmin4:9.11
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: $PGADMIN_DEFAULT_EMAIL
+      PGADMIN_DEFAULT_PASSWORD: $PGADMIN_DEFAULT_PASSWORD
+      TZ: Asia/Baku
+    networks:
+      - resto_net
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      - db
+
+  valkey:
+    image: valkey/valkey:9
+    restart: always
+    networks:
+      - resto_net
+    ports:
+      - "6379:6379"
+    volumes:
+      - valkey_data:/data
+
+  auth-ms:
+    image: ghcr.io/rajabmirzayev/resto-backend/auth-gateway:${IMAGE_TAG:-latest}
+    restart: always
+    depends_on:
+      - db
+    environment:
+      AUTH_KEYCLOAK_URL: http://keycloak:8080
+      AUTH_KEYCLOAK_REALM: $AUTH_KEYCLOAK_REALM
+      AUTH_KEYCLOAK_CLIENT_ID: $AUTH_KEYCLOAK_CLIENT_ID
+      AUTH_KEYCLOAK_CLIENT_SECRET: $AUTH_KEYCLOAK_CLIENT_SECRET
+      AUTH_KEYCLOAK_CONNECT_TIMEOUT: $AUTH_KEYCLOAK_CONNECT_TIMEOUT
+      AUTH_KEYCLOAK_READ_TIMEOUT: $AUTH_KEYCLOAK_READ_TIMEOUT
+      AUTH_SERVER_PORT: 8002
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: http://keycloak:8080/realms/resto
+      SECURITY_INTERNAL_AUTH_SECRET: $INTERNAL_AUTH_SECRET
+      TZ: Asia/Baku
+    networks:
+      - resto_net
+    ports:
+      - "8002:8002"
+
+  cloud-gateway:
+    image: ghcr.io/rajabmirzayev/resto-backend/cloud-gateway:${IMAGE_TAG:-latest}
+    restart: always
+    depends_on:
+      - migrations
+      - auth-ms
+    environment:
+      GW_REDIS_HOST: valkey
+      GW_REDIS_PORT: 6379
+      GW_KEYCLOAK_ISSUER_URI: http://keycloak:8080/realms/resto
+      GW_KEYCLOAK_AUDIENCE: $GW_KEYCLOAK_AUDIENCE
+      GW_KEYCLOAK_CLIENT_ID: $GW_KEYCLOAK_CLIENT_ID
+      SECURITY_INTERNAL_AUTH_SECRET: $INTERNAL_AUTH_SECRET
+      GW_SERVER_PORT: 8001
+      CORS_ALLOWED_ORIGIN_PATTERNS: $CORS_ALLOWED_ORIGIN_PATTERNS
+      GW_AUTH_MANAGEMENT_URL: http://auth-ms:8002
+      GW_ORGANIZATION_URL: http://organization-service:8102
+      GW_DASHBOARD_URL: http://dashboard-service:8112
+      GW_REPORT_URL: http://report-service:8113
+      GW_CUSTOMER_URL: http://customer-service:8110
+      GW_WAITER_URL: http://waiter-service:8109
+      GW_KITCHEN_URL: http://kitchen-service:8108
+      GW_ORDER_URL: http://order-service:8107
+      GW_SETTING_URL: http://setting-service:8111
+      GW_ACCESS_URL: http://access-service:8120
+      GW_MENU_URL: http://menu-service:8105
+      GW_TABLE_URL: http://table-service:8106
+      TZ: Asia/Baku
+    networks:
+      - resto_net
+    ports:
+      - "8001:8001"
+
+  access-service:
+    image: ghcr.io/rajabmirzayev/resto-backend/access-service:${IMAGE_TAG:-latest}
+    restart: always
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+    environment:
+      ACCESS_DB_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-resto}?currentSchema=resto_access
+      ACCESS_DB_USERNAME: $POSTGRES_USER
+      ACCESS_DB_PASSWORD: $POSTGRES_PASSWORD
+      JPA_DDL_AUTO: $JPA_DDL_AUTO
+      ACCESS_SERVER_PORT: 8120
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: http://keycloak:8080/realms/resto
+      SECURITY_INTERNAL_AUTH_SECRET: $INTERNAL_AUTH_SECRET
+      AUTH_KEYCLOAK_URL: http://keycloak:8080
+      AUTH_KEYCLOAK_REALM: $AUTH_KEYCLOAK_REALM
+      AUTH_KEYCLOAK_CLIENT_ID: $AUTH_KEYCLOAK_CLIENT_ID
+      AUTH_KEYCLOAK_CLIENT_SECRET: $AUTH_KEYCLOAK_CLIENT_SECRET
+      AUTH_KEYCLOAK_CONNECT_TIMEOUT: $AUTH_KEYCLOAK_CONNECT_TIMEOUT
+      AUTH_KEYCLOAK_READ_TIMEOUT: $AUTH_KEYCLOAK_READ_TIMEOUT
+      TZ: Asia/Baku
+    networks:
+      - resto_net
+    ports:
+      - "8120:8120"
+
+  organization-service:
+    image: ghcr.io/rajabmirzayev/resto-backend/organization-service:${IMAGE_TAG:-latest}
+    restart: always
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+    environment:
+      ORG_DB_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-resto}?currentSchema=resto_organization
+      ORG_DB_USERNAME: $POSTGRES_USER
+      ORG_DB_PASSWORD: $POSTGRES_PASSWORD
+      JPA_DDL_AUTO: $JPA_DDL_AUTO
+      ORG_SERVER_PORT: 8102
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: http://keycloak:8080/realms/resto
+      SECURITY_INTERNAL_AUTH_SECRET: $INTERNAL_AUTH_SECRET
+      ACCESS_SERVICE_URL: http://access-service:8120
+      ORGANIZATION_SERVICE_URL: http://organization-service:8102
+      MENU_SERVICE_URL: http://menu-service:8105
+      TABLE_SERVICE_URL: http://table-service:8106
+      ORDER_SERVICE_URL: http://order-service:8107
+      SETTING_SERVICE_URL: http://setting-service:8111
+      TZ: Asia/Baku
+    networks:
+      - resto_net
+    ports:
+      - "8102:8102"
+
+  menu-service:
+    image: ghcr.io/rajabmirzayev/resto-backend/menu-service:${IMAGE_TAG:-latest}
+    restart: always
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+    environment:
+      MENU_DB_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-resto}?currentSchema=resto_menu
+      MENU_DB_USERNAME: $POSTGRES_USER
+      MENU_DB_PASSWORD: $POSTGRES_PASSWORD
+      JPA_DDL_AUTO: $JPA_DDL_AUTO
+      MENU_SERVER_PORT: 8105
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: http://keycloak:8080/realms/resto
+      SECURITY_INTERNAL_AUTH_SECRET: $INTERNAL_AUTH_SECRET
+      MENU_STORAGE_DIR: /data/menu-images
+      MENU_PUBLIC_BASE_URL: $MENU_PUBLIC_BASE_URL
+      ORGANIZATION_SERVICE_URL: http://organization-service:8102
+      MENU_SERVICE_URL: http://menu-service:8105
+      TABLE_SERVICE_URL: http://table-service:8106
+      ORDER_SERVICE_URL: http://order-service:8107
+      SETTING_SERVICE_URL: http://setting-service:8111
+      TZ: Asia/Baku
+    networks:
+      - resto_net
+    ports:
+      - "8105:8105"
+    volumes:
+      - menu_images:/data/menu-images
+
+  table-service:
+    image: ghcr.io/rajabmirzayev/resto-backend/table-service:${IMAGE_TAG:-latest}
+    restart: always
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+    environment:
+      TABLE_DB_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-resto}?currentSchema=resto_table
+      TABLE_DB_USERNAME: $POSTGRES_USER
+      TABLE_DB_PASSWORD: $POSTGRES_PASSWORD
+      JPA_DDL_AUTO: $JPA_DDL_AUTO
+      TABLE_SERVER_PORT: 8106
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: http://keycloak:8080/realms/resto
+      SECURITY_INTERNAL_AUTH_SECRET: $INTERNAL_AUTH_SECRET
+      ORGANIZATION_SERVICE_URL: http://organization-service:8102
+      MENU_SERVICE_URL: http://menu-service:8105
+      TABLE_SERVICE_URL: http://table-service:8106
+      ORDER_SERVICE_URL: http://order-service:8107
+      SETTING_SERVICE_URL: http://setting-service:8111
+      TZ: Asia/Baku
+    networks:
+      - resto_net
+    ports:
+      - "8106:8106"
+
+  order-service:
+    image: ghcr.io/rajabmirzayev/resto-backend/order-service:${IMAGE_TAG:-latest}
+    restart: always
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+    environment:
+      ORDER_DB_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-resto}?currentSchema=resto_order
+      ORDER_DB_USERNAME: $POSTGRES_USER
+      ORDER_DB_PASSWORD: $POSTGRES_PASSWORD
+      JPA_DDL_AUTO: $JPA_DDL_AUTO
+      ORDER_SERVER_PORT: 8107
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: http://keycloak:8080/realms/resto
+      SECURITY_INTERNAL_AUTH_SECRET: $INTERNAL_AUTH_SECRET
+      ORGANIZATION_SERVICE_URL: http://organization-service:8102
+      MENU_SERVICE_URL: http://menu-service:8105
+      TABLE_SERVICE_URL: http://table-service:8106
+      ORDER_SERVICE_URL: http://order-service:8107
+      SETTING_SERVICE_URL: http://setting-service:8111
+      TZ: Asia/Baku
+    networks:
+      - resto_net
+    ports:
+      - "8107:8107"
+
+  kitchen-service:
+    image: ghcr.io/rajabmirzayev/resto-backend/kitchen-service:${IMAGE_TAG:-latest}
+    restart: always
+    depends_on:
+      - migrations
+    environment:
+      KITCHEN_SERVER_PORT: 8108
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: http://keycloak:8080/realms/resto
+      SECURITY_INTERNAL_AUTH_SECRET: $INTERNAL_AUTH_SECRET
+      ORGANIZATION_SERVICE_URL: http://organization-service:8102
+      MENU_SERVICE_URL: http://menu-service:8105
+      TABLE_SERVICE_URL: http://table-service:8106
+      ORDER_SERVICE_URL: http://order-service:8107
+      SETTING_SERVICE_URL: http://setting-service:8111
+      TZ: Asia/Baku
+    networks:
+      - resto_net
+    ports:
+      - "8108:8108"
+
+  waiter-service:
+    image: ghcr.io/rajabmirzayev/resto-backend/waiter-service:${IMAGE_TAG:-latest}
+    restart: always
+    depends_on:
+      - migrations
+    environment:
+      WAITER_SERVER_PORT: 8109
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: http://keycloak:8080/realms/resto
+      SECURITY_INTERNAL_AUTH_SECRET: $INTERNAL_AUTH_SECRET
+      ORGANIZATION_SERVICE_URL: http://organization-service:8102
+      MENU_SERVICE_URL: http://menu-service:8105
+      TABLE_SERVICE_URL: http://table-service:8106
+      ORDER_SERVICE_URL: http://order-service:8107
+      SETTING_SERVICE_URL: http://setting-service:8111
+      TZ: Asia/Baku
+    networks:
+      - resto_net
+    ports:
+      - "8109:8109"
+
+  customer-service:
+    image: ghcr.io/rajabmirzayev/resto-backend/customer-service:${IMAGE_TAG:-latest}
+    restart: always
+    depends_on:
+      - migrations
+    environment:
+      CUSTOMER_SERVER_PORT: 8110
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: http://keycloak:8080/realms/resto
+      SECURITY_INTERNAL_AUTH_SECRET: $INTERNAL_AUTH_SECRET
+      ORGANIZATION_SERVICE_URL: http://organization-service:8102
+      MENU_SERVICE_URL: http://menu-service:8105
+      TABLE_SERVICE_URL: http://table-service:8106
+      ORDER_SERVICE_URL: http://order-service:8107
+      SETTING_SERVICE_URL: http://setting-service:8111
+      TZ: Asia/Baku
+    networks:
+      - resto_net
+    ports:
+      - "8110:8110"
+
+  setting-service:
+    image: ghcr.io/rajabmirzayev/resto-backend/setting-service:${IMAGE_TAG:-latest}
+    restart: always
+    depends_on:
+      migrations:
+        condition: service_completed_successfully
+    environment:
+      SETTING_DB_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-resto}?currentSchema=resto_setting
+      SETTING_DB_USERNAME: $POSTGRES_USER
+      SETTING_DB_PASSWORD: $POSTGRES_PASSWORD
+      JPA_DDL_AUTO: $JPA_DDL_AUTO
+      SETTING_SERVER_PORT: 8111
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: http://keycloak:8080/realms/resto
+      SECURITY_INTERNAL_AUTH_SECRET: $INTERNAL_AUTH_SECRET
+      ORGANIZATION_SERVICE_URL: http://organization-service:8102
+      MENU_SERVICE_URL: http://menu-service:8105
+      TABLE_SERVICE_URL: http://table-service:8106
+      ORDER_SERVICE_URL: http://order-service:8107
+      SETTING_SERVICE_URL: http://setting-service:8111
+      TZ: Asia/Baku
+    networks:
+      - resto_net
+    ports:
+      - "8111:8111"
+
+  dashboard-service:
+    image: ghcr.io/rajabmirzayev/resto-backend/dashboard-service:${IMAGE_TAG:-latest}
+    restart: always
+    depends_on:
+      - migrations
+    environment:
+      DASHBOARD_SERVER_PORT: 8112
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: http://keycloak:8080/realms/resto
+      SECURITY_INTERNAL_AUTH_SECRET: $INTERNAL_AUTH_SECRET
+      ACCESS_SERVICE_URL: http://access-service:8120
+      ORGANIZATION_SERVICE_URL: http://organization-service:8102
+      MENU_SERVICE_URL: http://menu-service:8105
+      TABLE_SERVICE_URL: http://table-service:8106
+      ORDER_SERVICE_URL: http://order-service:8107
+      SETTING_SERVICE_URL: http://setting-service:8111
+      TZ: Asia/Baku
+    networks:
+      - resto_net
+    ports:
+      - "8112:8112"
+
+  report-service:
+    image: ghcr.io/rajabmirzayev/resto-backend/report-service:${IMAGE_TAG:-latest}
+    restart: always
+    depends_on:
+      - migrations
+    environment:
+      REPORT_SERVER_PORT: 8113
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: http://keycloak:8080/realms/resto
+      SECURITY_INTERNAL_AUTH_SECRET: $INTERNAL_AUTH_SECRET
+      ACCESS_SERVICE_URL: http://access-service:8120
+      ORGANIZATION_SERVICE_URL: http://organization-service:8102
+      MENU_SERVICE_URL: http://menu-service:8105
+      TABLE_SERVICE_URL: http://table-service:8106
+      ORDER_SERVICE_URL: http://order-service:8107
+      SETTING_SERVICE_URL: http://setting-service:8111
+      TZ: Asia/Baku
+    networks:
+      - resto_net
+    ports:
+      - "8113:8113"
+
+networks:
+  resto_net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  pgadmin_data:
+  valkey_data:
+  menu_images:
