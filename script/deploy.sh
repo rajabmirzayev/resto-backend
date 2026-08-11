@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+trap 'echo "Deploy failed"' ERR
 
 # Production deploy script. Runs on the target server (root).
 # Builds and starts the stack with script/compose.yml.
@@ -7,6 +8,7 @@ set -euo pipefail
 SERVER_APP_DIR="${SERVER_APP_DIR:-/app/backend}"
 SERVER_REPO="${SERVER_REPO:-https://github.com/rajabmirzayev/resto-backend.git}"
 COMPOSE_FILE="${COMPOSE_FILE:-compose.yml}"
+BUILD_PARALLEL="${BUILD_PARALLEL:-3}"
 
 log() { echo "[DEPLOY] $*"; }
 
@@ -41,8 +43,15 @@ cd script
 log "Preparing .env (kept if it already exists)..."
 [ -f .env ] || cp .env.example .env
 
-log "Building and starting stack..."
-docker compose -f "$COMPOSE_FILE" up -d --build --remove-orphans
+log "Building images (parallel ${BUILD_PARALLEL})..."
+if docker compose -f "$COMPOSE_FILE" build --help 2>&1 | grep -q -- '--parallel-limit'; then
+  docker compose -f "$COMPOSE_FILE" build --parallel-limit "$BUILD_PARALLEL"
+else
+  docker compose -f "$COMPOSE_FILE" build
+fi
+
+log "Starting stack..."
+docker compose -f "$COMPOSE_FILE" up -d --remove-orphans
 
 log "Bootstrapping Keycloak (idempotent)..."
 bootstrap_ok=0
@@ -64,4 +73,4 @@ else
   log "WARNING: gateway health check failed - check 'docker compose -f ${COMPOSE_FILE} logs'"
 fi
 
-log "Deploy finished."
+echo "Deploy finished"

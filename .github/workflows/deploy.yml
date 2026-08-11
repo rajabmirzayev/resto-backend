@@ -30,7 +30,31 @@ jobs:
         run: |
           set -e
           sudo apt-get update -y && sudo apt-get install -y sshpass
-          sshpass -p "$PASS" scp -P "${PORT:-22}" -o StrictHostKeyChecking=accept-new \
-            script/deploy.sh "${USER:-root}@${HOST}:/tmp/deploy.sh"
-          sshpass -p "$PASS" ssh -p "${PORT:-22}" -o StrictHostKeyChecking=accept-new \
-            "${USER:-root}@${HOST}" "bash /tmp/deploy.sh"
+          SSH_ARGS="-p ${PORT:-22} -o StrictHostKeyChecking=accept-new -o ServerAliveInterval=60 -o ServerAliveCountMax=10 -o ConnectTimeout=30"
+
+          sshpass -p "$PASS" scp $SSH_ARGS script/deploy.sh "${USER:-root}@${HOST}:/tmp/deploy.sh"
+
+          sshpass -p "$PASS" ssh $SSH_ARGS "${USER:-root}@${HOST}" \
+            "nohup bash /tmp/deploy.sh > /tmp/deploy.log 2>&1 < /dev/null & echo 'deploy started'"
+
+          for i in $(seq 1 360); do
+            sleep 15
+            STATUS=$(sshpass -p "$PASS" ssh $SSH_ARGS "${USER:-root}@${HOST}" \
+              "if grep -q 'Deploy finished' /tmp/deploy.log; then echo DONE; elif grep -q 'Deploy failed' /tmp/deploy.log; then echo FAILED; else echo RUNNING; fi" \
+              2>/dev/null || echo "POLLERR")
+            echo "poll ${i}: ${STATUS}"
+            if [ "$STATUS" = "DONE" ]; then
+              sshpass -p "$PASS" ssh $SSH_ARGS "${USER:-root}@${HOST}" "tail -n 30 /tmp/deploy.log"
+              echo "::notice::Deploy completed successfully"
+              exit 0
+            fi
+            if [ "$STATUS" = "FAILED" ]; then
+              sshpass -p "$PASS" ssh $SSH_ARGS "${USER:-root}@${HOST}" "tail -n 60 /tmp/deploy.log"
+              echo "::error::Deploy failed - see log above"
+              exit 1
+            fi
+          done
+
+          echo "::error::Deploy did not finish within the polling window"
+          sshpass -p "$PASS" ssh $SSH_ARGS "${USER:-root}@${HOST}" "tail -n 80 /tmp/deploy.log" || true
+          exit 1
