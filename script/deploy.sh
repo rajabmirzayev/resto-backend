@@ -55,7 +55,20 @@ export IMAGE_TAG
 docker compose -f "$COMPOSE_FILE" pull
 
 log "Starting stack..."
-docker compose -f "$COMPOSE_FILE" up -d --remove-orphans
+if ! docker compose -f "$COMPOSE_FILE" up -d --remove-orphans; then
+  log "First 'up' failed (usually keycloak still warming up after a fresh DB). Waiting and retrying..."
+  for i in $(seq 1 20); do
+    kc_status=$(docker compose -f "$COMPOSE_FILE" ps -q keycloak 2>/dev/null \
+      | xargs -I{} docker inspect -f '{{.State.Health.Status}}' {} 2>/dev/null || echo "starting")
+    if [ "$kc_status" = "healthy" ]; then
+      log "Keycloak is healthy after ${i} checks, retrying up..."
+      break
+    fi
+    log "Keycloak status: ${kc_status}, retry ${i}/20 in 15s..."
+    sleep 15
+  done
+  docker compose -f "$COMPOSE_FILE" up -d --remove-orphans
+fi
 
 log "Bootstrapping Keycloak (idempotent)..."
 bootstrap_ok=0
