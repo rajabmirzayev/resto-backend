@@ -1,0 +1,36 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy to production
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy over SSH
+        env:
+          HOST: ${{ secrets.SERVER_HOST }}
+          PORT: ${{ secrets.SERVER_PORT }}
+          USER: ${{ secrets.SERVER_USER }}
+          PASS: ${{ secrets.SERVER_PASSWORD }}
+        run: |
+          set -e
+          sudo apt-get update -y && sudo apt-get install -y sshpass
+          sshpass -p "$PASS" scp -P "${PORT:-22}" -o StrictHostKeyChecking=accept-new \
+            script/deploy.sh "${USER:-root}@${HOST}:/tmp/deploy.sh"
+          sshpass -p "$PASS" ssh -p "${PORT:-22}" -o StrictHostKeyChecking=accept-new \
+            "${USER:-root}@${HOST}" "bash /tmp/deploy.sh"
