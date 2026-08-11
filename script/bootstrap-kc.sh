@@ -44,7 +44,7 @@ output=$(/opt/keycloak/bin/kcadm.sh config credentials --server "$KC_BASE_URL" -
 echo "[STEP 2] Updating client secret..."
 CLIENT_ID=$(/opt/keycloak/bin/kcadm.sh get clients -r "$KC_REALM" --query clientId="$KC_CLIENT_ID" --fields id --format csv --noquotes 2>&1)
 [ -z "$CLIENT_ID" ] && log_fail "Failed to get client ID" "Empty result"
-output=$(/opt/keycloak/bin/kcadm.sh update clients/$CLIENT_ID -r "$KC_REALM" -s "secret=$AUTH_KEYCLOAK_CLIENT_SECRET" 2>&1) \
+output=$(/opt/keycloak/bin/kcadm.sh update clients/$CLIENT_ID -r "$KC_REALM" -s "secret=$AUTH_KEYCLOAK_CLIENT_SECRET" -s fullScopeAllowed=true 2>&1) \
   && log_success "Client secret updated (ID: $CLIENT_ID)" \
   || log_fail "Failed to update client secret" "$output"
 
