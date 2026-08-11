@@ -27,14 +27,21 @@ import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.regex.Pattern;
+
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.TransactionStatus;
+import org.springframework.transaction.support.DefaultTransactionDefinition;
 
 @Service
 public class OrganizationCreationOrchestrator {
@@ -42,14 +49,17 @@ public class OrganizationCreationOrchestrator {
     private static final Logger log = LoggerFactory.getLogger(OrganizationCreationOrchestrator.class);
     private static final String ORG_ADMIN_ROLE_CODE = "ORG_ADMIN";
 
+    @PersistenceContext
+    private EntityManager entityManager;
+
     private final OrganizationRepository organizationRepository;
     private final OrganizationMapper organizationMapper;
     private final RoleServiceClient roleServiceClient;
     private final UserServiceClient userServiceClient;
     private final SettingServiceClient settingServiceClient;
     private final TableServiceClient tableServiceClient;
-    private final OrganizationService organizationService;
     private final Executor provisioningExecutor;
+    private final PlatformTransactionManager transactionManager;
 
     public OrganizationCreationOrchestrator(OrganizationRepository organizationRepository,
                                             OrganizationMapper organizationMapper,
@@ -57,17 +67,17 @@ public class OrganizationCreationOrchestrator {
                                             UserServiceClient userServiceClient,
                                             SettingServiceClient settingServiceClient,
                                             TableServiceClient tableServiceClient,
-                                            OrganizationService organizationService,
                                             @Qualifier("organizationProvisioningExecutor")
-                                            Executor provisioningExecutor) {
+                                            Executor provisioningExecutor,
+                                            PlatformTransactionManager transactionManager) {
         this.organizationRepository = organizationRepository;
         this.organizationMapper = organizationMapper;
         this.roleServiceClient = roleServiceClient;
         this.userServiceClient = userServiceClient;
         this.settingServiceClient = settingServiceClient;
         this.tableServiceClient = tableServiceClient;
-        this.organizationService = organizationService;
         this.provisioningExecutor = provisioningExecutor;
+        this.transactionManager = transactionManager;
     }
 
     public CreateOrganizationResponse createOrganization(CreateOrganizationRequest request) {
@@ -83,43 +93,60 @@ public class OrganizationCreationOrchestrator {
                 .adminEmail(request.getAdminEmail().trim().toLowerCase())
                 .build();
 
+        var txDef = new DefaultTransactionDefinition();
+        txDef.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        var txStatus = transactionManager.getTransaction(txDef);
+
         try {
-            organizationRepository.save(organization);
-        } catch (DataIntegrityViolationException e) {
-            log.error("Duplicate slug on save: {}", slug, e);
+            entityManager.persist(organization);
+            entityManager.flush();
+        } catch (Exception e) {
+            rollbackSafely(txStatus);
+            log.error("Organization persist failed: {}", slug, e);
             throw OrganizationErrorCode.ORGANIZATION_SLUG_DUPLICATE.conflict();
         }
         UUID orgId = organization.getId();
-        log.info("Organization persisted: {} ({})", organization.getName(), orgId);
+        log.info("Organization persisted (pending commit): {} ({})", organization.getName(), orgId);
 
         UUID userId = null;
-        boolean settingsCreated = false;
-        boolean sectionCreated = false;
         try {
             var adminRole = getAdminRole();
             var adminUser = createAdminUser(request, orgId, adminRole.getId());
             userId = adminUser.getId();
 
-            var settingsFuture = CompletableFuture.runAsync(() -> { createDefaultSettings(orgId); }, provisioningExecutor);
-            var sectionFuture = CompletableFuture.runAsync(() -> { createDefaultSection(orgId); }, provisioningExecutor);
+            var settingsFuture = CompletableFuture.runAsync(() -> createDefaultSettings(orgId), provisioningExecutor);
+            var sectionFuture = CompletableFuture.runAsync(() -> createDefaultSection(orgId), provisioningExecutor);
             CompletableFuture.allOf(settingsFuture, sectionFuture).join();
-            settingsCreated = true;
-            sectionCreated = true;
 
+            transactionManager.commit(txStatus);
             log.info("Organization creation complete: {}", orgId);
             return buildResponse(organization, adminRole, adminUser);
         } catch (OrganizationException e) {
-            compensate(userId, orgId, settingsCreated, sectionCreated);
+            rollbackSafely(txStatus);
+            compensate(userId);
             throw e;
         } catch (FeignClientException e) {
+            rollbackSafely(txStatus);
             log.error("Downstream service error for org {}: status={}, key={}, title={}, detail={}",
                     orgId, e.getStatus(), e.getSourceKey(), e.getSourceTitle(), e.getDetail());
-            compensate(userId, orgId, settingsCreated, sectionCreated);
+            compensate(userId);
             throw e;
-        } catch (Exception e) {
-            log.error("Organization creation failed for {}, compensating resources", orgId, e);
-            compensate(userId, orgId, settingsCreated, sectionCreated);
+        } catch (CompletionException e) {
+            rollbackSafely(txStatus);
+            log.error("Async provisioning failed for org {}", orgId, e);
+            compensate(userId);
             throw OrganizationErrorCode.ORGANIZATION_CREATION_FAILED.internal();
+        } catch (Exception e) {
+            rollbackSafely(txStatus);
+            log.error("Organization creation failed for {}", orgId, e);
+            compensate(userId);
+            throw OrganizationErrorCode.ORGANIZATION_CREATION_FAILED.internal();
+        }
+    }
+
+    private void rollbackSafely(TransactionStatus status) {
+        if (!status.isCompleted()) {
+            transactionManager.rollback(status);
         }
     }
 
@@ -185,7 +212,7 @@ public class OrganizationCreationOrchestrator {
         return new CreateOrganizationResponse(orgDto, userDto, roleDto);
     }
 
-    private void compensate(UUID userId, UUID orgId, boolean settingsCreated, boolean sectionCreated) {
+    private void compensate(UUID userId) {
         if (userId != null) {
             try {
                 userServiceClient.deleteUser(userId);
@@ -193,28 +220,6 @@ public class OrganizationCreationOrchestrator {
             } catch (Exception ex) {
                 log.warn("Compensation failed: delete user {}", userId, ex);
             }
-        }
-        if (sectionCreated) {
-            try {
-                organizationService.cleanupSection(orgId);
-                log.info("Compensated: deleted section for org {}", orgId);
-            } catch (Exception ex) {
-                log.warn("Compensation failed: delete section for org {}", orgId, ex);
-            }
-        }
-        if (settingsCreated) {
-            try {
-                organizationService.cleanupSettings(orgId);
-                log.info("Compensated: deleted settings for org {}", orgId);
-            } catch (Exception ex) {
-                log.warn("Compensation failed: delete settings for org {}", orgId, ex);
-            }
-        }
-        try {
-            organizationService.deleteOrganizationInternal(orgId);
-            log.info("Compensated: deleted org {}", orgId);
-        } catch (Exception ex) {
-            log.warn("Compensation failed: delete org {}", orgId, ex);
         }
     }
 
