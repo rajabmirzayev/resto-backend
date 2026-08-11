@@ -64,7 +64,7 @@ jobs:
             ${{ env.IMAGE_BASE }}/${{ matrix.service }}:${{ github.sha }}
             ${{ env.IMAGE_BASE }}/${{ matrix.service }}:latest
           cache-from: type=registry,ref=${{ env.IMAGE_BASE }}/${{ matrix.service }}:buildcache
-          cache-to: type=registry,ref=${{ env.IMAGE_BASE }}/${{ matrix.service }}:buildcache,mode=max
+          cache-to: type=registry,ref=${{ env.IMAGE_BASE }}/${{ matrix.service }}:buildcache,mode=min
 
   deploy:
     name: Deploy to production
